@@ -1,0 +1,40 @@
+[workspace]
+name = "pydantic-ai-trace"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64", "linux-aarch64", "win-64"]
+
+[dependencies]
+python = "3.12.*"
+nodejs = ">=22"
+starlette = ">=0.40"
+uvicorn = ">=0.30"
+watchfiles = ">=0.24"
+hatchling = "*"
+hatch-vcs = "*"
+pytest = "*"
+httpx = "*"
+ruff = "*"
+pyright = "*"
+uv = "*"
+
+[pypi-dependencies]
+pydantic-ai-trace = { path = ".", editable = true }
+
+[tasks]
+dev-api = "python -m pydantic_ai_trace.cli --no-open"
+dev-web = { cmd = "npm run dev", cwd = "frontend" }
+npm-install = { cmd = "npm install", cwd = "frontend" }
+build-frontend = { cmd = "npm ci && npm run build", cwd = "frontend" }
+build = { cmd = "uv build --no-build-logs", depends-on = ["build-frontend"] }
+test-py = "pytest"
+test-web = { cmd = "npm test -- --run", cwd = "frontend", depends-on = ["npm-install"] }
+test = { depends-on = ["test-py", "test-web"] }
+lint-py = "ruff check src tests && ruff format --check src tests"
+lint-web = { cmd = "npm run lint", cwd = "frontend", depends-on = ["npm-install"] }
+lint = { depends-on = ["lint-py", "lint-web"] }
+fmt-py = "ruff check --fix src tests; ruff format src tests"
+fmt-web = { cmd = "npm run fmt", cwd = "frontend", depends-on = ["npm-install"] }
+fmt = { depends-on = ["fmt-py", "fmt-web"] }
+typecheck-py = "pyright"
+typecheck-web = { cmd = "npm run typecheck", cwd = "frontend", depends-on = ["npm-install"] }
+typecheck = { depends-on = ["typecheck-py", "typecheck-web"] }

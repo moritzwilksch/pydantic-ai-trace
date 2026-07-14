@@ -1,0 +1,66 @@
+[
+  {
+    "parts": [
+      {
+        "content": [
+          "Describe this image and the attached document.",
+          {"url": "https://example.com/cat.png", "kind": "image-url"},
+          {"data": "aGVsbG8gd29ybGQ=", "media_type": "text/plain", "kind": "binary"},
+          {"url": "https://example.com/report.pdf", "kind": "document-url"}
+        ],
+        "timestamp": "2026-07-02T08:00:00Z",
+        "part_kind": "user-prompt"
+      }
+    ],
+    "kind": "request"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "web_search",
+        "args": {"query": "cat picture description"},
+        "tool_call_id": "builtin_1",
+        "provider_name": "anthropic",
+        "part_kind": "builtin-tool-call"
+      },
+      {
+        "tool_name": "web_search",
+        "content": {"results": [{"title": "Cats", "url": "https://example.com"}]},
+        "tool_call_id": "builtin_1",
+        "timestamp": "2026-07-02T08:00:03Z",
+        "provider_name": "anthropic",
+        "part_kind": "builtin-tool-return"
+      },
+      {
+        "content": "It is a picture of a cat sitting on a windowsill.",
+        "part_kind": "text"
+      },
+      {
+        "content": {"data": "iVBORw0KGgoAAAANSUhEUg==", "media_type": "image/png", "kind": "binary"},
+        "id": "file_1",
+        "part_kind": "file"
+      }
+    ],
+    "usage": {"input_tokens": 900, "output_tokens": 120},
+    "model_name": "claude-fable-5",
+    "timestamp": "2026-07-02T08:00:05Z",
+    "kind": "response",
+    "provider_name": "anthropic",
+    "finish_reason": "stop"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "validate_input",
+        "content": [
+          {"type": "missing", "loc": ["body", "name"], "msg": "Field required", "input": {}}
+        ],
+        "tool_call_id": "call_retry",
+        "timestamp": "2026-07-02T08:00:06Z",
+        "part_kind": "retry-prompt"
+      }
+    ],
+    "kind": "request",
+    "state": "interrupted"
+  }
+]

@@ -1,0 +1,54 @@
+"""Export a trace as a self-contained HTML file.
+
+The packaged `static/index.html` is a single-file Vite build (JS+CSS inlined).
+Export injects the trace JSON as `window.__TRACE_DATA__` before the bundle
+script, so the resulting file renders offline from `file://`.
+"""
+
+from __future__ import annotations
+
+from importlib.resources import files
+from pathlib import Path
+
+from . import scan
+
+_INJECTION_MARKER = "<script"
+
+
+def export_html(trace_path: Path, output_path: Path, line: int | None) -> None:
+    trace_json = scan.read_trace(trace_path.parent, trace_path.name, line)
+    output_path.write_text(
+        inject_trace_data(packaged_index_html(), trace_json, trace_name=trace_path.name),
+        encoding="utf-8",
+    )
+
+
+def packaged_index_html() -> str:
+    """The built frontend bundle; raises FileNotFoundError in a source checkout."""
+    return (files("pydantic_ai_trace") / "static" / "index.html").read_text(encoding="utf-8")
+
+
+def inject_trace_data(index_html: str, trace_json: str, trace_name: str) -> str:
+    """Insert the trace payload before the first script tag of the bundle."""
+    marker_pos = index_html.find(_INJECTION_MARKER)
+    if marker_pos == -1:
+        raise ValueError("index.html has no <script> tag to inject before")
+    # A literal `<` inside the JSON could end our script element early (`</`)
+    # or shift the HTML parser into the script-data-escaped state (`<!--`,
+    # `<script`); escaping to `\u003c` yields identical JSON with no `<` at all.
+    injection = (
+        f"<script>window.__TRACE_DATA__ = {_escape_lt(trace_json)};"
+        f"window.__TRACE_NAME__ = {_js_string(trace_name)};</script>"
+    )
+    return index_html[:marker_pos] + injection + index_html[marker_pos:]
+
+
+def _escape_lt(json_text: str) -> str:
+    # In valid JSON, `<` only occurs inside strings, where `<` is equivalent.
+    return json_text.replace("<", "\\u003c")
+
+
+def _js_string(value: str) -> str:
+    import json
+
+    return _escape_lt(json.dumps(value))

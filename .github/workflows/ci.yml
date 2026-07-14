@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e # v0.9.4
+        with:
+          cache: true
+      - name: Lint
+        run: pixi run lint
+      - name: Typecheck
+        run: pixi run typecheck
+      - name: Test
+        run: pixi run test
+      - name: Build PyPI package (frontend + sdist + wheel)
+        run: pixi run build
+      - name: Verify frontend assets are packaged
+        run: |
+          unzip -l dist/*.whl | grep -q 'pydantic_ai_trace/static/index.html'
+          tar -tzf dist/*.tar.gz | grep -q 'src/pydantic_ai_trace/static/index.html'
+      - name: Smoke-test built wheel
+        run: |
+          python3 -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet dist/*.whl
+          /tmp/smoke/bin/paitrace --version
+          /tmp/smoke/bin/paitrace export tests/fixtures/full_trace.json -o /tmp/smoke/out.html
+          grep -q __TRACE_DATA__ /tmp/smoke/out.html

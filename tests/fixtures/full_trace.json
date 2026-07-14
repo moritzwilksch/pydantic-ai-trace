@@ -1,0 +1,128 @@
+[
+  {
+    "parts": [
+      {
+        "content": "You are a precise research assistant. Answer using the provided tools.",
+        "timestamp": "2026-07-01T09:00:00.000000Z",
+        "part_kind": "system-prompt"
+      },
+      {
+        "content": "What is the population of Berlin? Compare it to Hamburg in a **markdown table**.\n\n```python\nprint(\"also render code\")\n```",
+        "timestamp": "2026-07-01T09:00:00.100000Z",
+        "part_kind": "user-prompt"
+      }
+    ],
+    "instructions": null,
+    "kind": "request"
+  },
+  {
+    "parts": [
+      {
+        "content": "The user wants population figures. I should look both cities up before answering.",
+        "id": "rs_001",
+        "signature": "sig-abc",
+        "provider_name": "openai",
+        "part_kind": "thinking"
+      },
+      {
+        "tool_name": "lookup_population",
+        "args": "{\"city\": \"Berlin\"}",
+        "tool_call_id": "call_berlin",
+        "part_kind": "tool-call"
+      },
+      {
+        "tool_name": "lookup_population",
+        "args": {"city": "Hamburg"},
+        "tool_call_id": "call_hamburg",
+        "part_kind": "tool-call"
+      }
+    ],
+    "usage": {
+      "input_tokens": 220,
+      "cache_write_tokens": 100,
+      "cache_read_tokens": 0,
+      "output_tokens": 55,
+      "details": {"reasoning_tokens": 24}
+    },
+    "model_name": "gpt-5",
+    "timestamp": "2026-07-01T09:00:02.000000Z",
+    "kind": "response",
+    "provider_name": "openai",
+    "provider_response_id": "resp_001",
+    "finish_reason": "tool_call"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "lookup_population",
+        "content": {"city": "Berlin", "population": 3877100},
+        "tool_call_id": "call_berlin",
+        "timestamp": "2026-07-01T09:00:02.500000Z",
+        "part_kind": "tool-return"
+      },
+      {
+        "tool_name": "lookup_population",
+        "content": "unknown city spelling",
+        "tool_call_id": "call_hamburg",
+        "timestamp": "2026-07-01T09:00:02.600000Z",
+        "part_kind": "retry-prompt"
+      }
+    ],
+    "instructions": null,
+    "kind": "request"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "lookup_population",
+        "args": {"city": "Hamburg, Germany"},
+        "tool_call_id": "call_hamburg_2",
+        "part_kind": "tool-call"
+      }
+    ],
+    "usage": {
+      "request_tokens": 310,
+      "response_tokens": 20
+    },
+    "model_name": "gpt-5",
+    "timestamp": "2026-07-01T09:00:04.000000Z",
+    "kind": "response",
+    "vendor_id": "resp_002",
+    "finish_reason": "tool_call"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "lookup_population",
+        "content": {"city": "Hamburg", "population": 1945532},
+        "tool_call_id": "call_hamburg_2",
+        "timestamp": "2026-07-01T09:00:04.300000Z",
+        "part_kind": "tool-return"
+      }
+    ],
+    "instructions": null,
+    "kind": "request"
+  },
+  {
+    "parts": [
+      {
+        "content": "Here is the comparison:\n\n| City | Population |\n|---|---|\n| Berlin | 3,877,100 |\n| Hamburg | 1,945,532 |\n\nBerlin is roughly **twice** the size of Hamburg.",
+        "part_kind": "text"
+      },
+      {
+        "part_kind": "hologram-projection",
+        "payload": {"note": "unknown part kind for forward-compat testing"}
+      }
+    ],
+    "usage": {
+      "input_tokens": 400,
+      "output_tokens": 90,
+      "details": {}
+    },
+    "model_name": "gpt-5",
+    "timestamp": "2026-07-01T09:00:06.000000Z",
+    "kind": "response",
+    "provider_name": "openai",
+    "finish_reason": "stop"
+  }
+]
