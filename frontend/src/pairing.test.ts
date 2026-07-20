@@ -23,7 +23,7 @@ describe("pairToolCalls", () => {
     const call = (messages[0] as ModelResponse).parts[0];
     expect(pairing.resultsByCall.get(call)).toMatchObject({ kind: "return" });
     const returnPart = (messages[1] as ModelRequest).parts[0];
-    expect(pairing.consumed.has(returnPart)).toBe(true);
+    expect(pairing.matchedResults.has(returnPart)).toBe(true);
   });
 
   it("pairs a call with a retry-prompt answer", () => {
@@ -64,7 +64,7 @@ describe("pairToolCalls", () => {
     expect(pairing.resultsByCall.get((messages[0] as ModelResponse).parts[0])).toMatchObject({
       kind: "return",
     });
-    expect(pairing.consumed.has((messages[0] as ModelResponse).parts[1])).toBe(true);
+    expect(pairing.matchedResults.has((messages[0] as ModelResponse).parts[1])).toBe(true);
   });
 
   it("leaves orphaned calls unpaired", () => {
@@ -79,7 +79,7 @@ describe("pairToolCalls", () => {
     expect(pairing.resultsByCall.size).toBe(0);
   });
 
-  it("does not consume returns whose call is missing", () => {
+  it("does not mark returns whose call is missing as matched", () => {
     const messages = trace([
       {
         kind: "request",
@@ -89,10 +89,10 @@ describe("pairToolCalls", () => {
       },
     ]);
     const pairing = pairToolCalls(messages);
-    expect(pairing.consumed.size).toBe(0);
+    expect(pairing.matchedResults.size).toBe(0);
   });
 
-  it("consumes only the first result after a call", () => {
+  it("pairs only the first result after a call", () => {
     const messages = trace([
       {
         kind: "response",
@@ -107,7 +107,7 @@ describe("pairToolCalls", () => {
       },
     ]);
     const pairing = pairToolCalls(messages);
-    expect(pairing.consumed.size).toBe(1);
+    expect(pairing.matchedResults.size).toBe(1);
     const call = (messages[0] as ModelResponse).parts[0];
     expect((pairing.resultsByCall.get(call)?.part as { content: string }).content).toBe("first");
   });
@@ -127,6 +127,6 @@ describe("pairToolCalls", () => {
     const pairing = pairToolCalls(messages);
 
     expect(pairing.resultsByCall.size).toBe(0);
-    expect(pairing.consumed.size).toBe(0);
+    expect(pairing.matchedResults.size).toBe(0);
   });
 });

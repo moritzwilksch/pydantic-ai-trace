@@ -4,6 +4,7 @@
       {
         "content": [
           "Describe this image and the attached document.",
+          {"text": "Keep the description concise.", "kind": "text"},
           {"url": "https://example.com/cat.png", "kind": "image-url"},
           {"data": "aGVsbG8gd29ybGQ=", "media_type": "text/plain", "kind": "binary"},
           {"url": "https://example.com/report.pdf", "kind": "document-url"}

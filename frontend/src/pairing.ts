@@ -1,7 +1,7 @@
 // Tool call ↔ result pairing. A ToolCallPart in a response is answered by a
 // ToolReturnPart or RetryPromptPart with the same tool_call_id in a later
-// request (builtin returns can sit in the same response). Paired results
-// render inline with their call; their original positions are skipped.
+// request (builtin returns can sit in the same response). Pairing annotates
+// calls with their outcome while every result remains in its original position.
 
 import type { Message, Part, RetryPromptPart, ToolReturnPart } from "./types";
 
@@ -11,16 +11,16 @@ export interface ToolResult {
 }
 
 export interface Pairing {
-  /** Tool call part → its next result, for rendering inline with the call. */
+  /** Tool call part → its next chronological result. */
   resultsByCall: Map<Part, ToolResult>;
-  /** Parts consumed as inline results, to skip at their original position. */
-  consumed: Set<Part>;
+  /** Results that have a matching earlier call in the trace. */
+  matchedResults: Set<Part>;
 }
 
 export function pairToolCalls(messages: Message[]): Pairing {
   const pendingCalls = new Map<string, Part[]>();
   const resultsByCall = new Map<Part, ToolResult>();
-  const consumed = new Set<Part>();
+  const matchedResults = new Set<Part>();
   for (const message of messages) {
     if (message.kind === "unknown") continue;
     for (const part of message.parts) {
@@ -41,10 +41,10 @@ export function pairToolCalls(messages: Message[]): Pairing {
       const call = calls?.shift();
       if (!call) continue;
       resultsByCall.set(call, result);
-      consumed.add(part);
+      matchedResults.add(part);
     }
   }
-  return { resultsByCall, consumed };
+  return { resultsByCall, matchedResults };
 }
 
 function asResult(part: Part): ToolResult | null {

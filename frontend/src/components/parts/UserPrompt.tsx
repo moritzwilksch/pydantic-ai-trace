@@ -6,6 +6,7 @@ import { JsonTree } from "../JsonTree";
 import { isMediaItem, MediaChip, MediaContent, ValueView } from "./common";
 
 export function UserPrompt({ part }: { part: UserPromptPart }) {
+  const items = userContentItems(part.content);
   return (
     <Block
       label={
@@ -14,19 +15,40 @@ export function UserPrompt({ part }: { part: UserPromptPart }) {
         </>
       }
       tone="user"
-      preview={typeof part.content === "string" ? part.content : compactJson(part.content)}
+      preview={userContentPreview(items)}
     >
-      {typeof part.content === "string" ? (
-        <ValueView value={part.content} markdown />
-      ) : (
-        <div>
-          {part.content.map((item, i) => (
-            <ContentItem key={i} item={item} />
-          ))}
-        </div>
-      )}
+      <div>
+        {items.map((item, i) => (
+          <ContentItem key={i} item={item} />
+        ))}
+      </div>
     </Block>
   );
+}
+
+/** Normalize both valid Pydantic AI wire shapes through one rendering path. */
+function userContentItems(content: UserPromptPart["content"]): UserContentItem[] {
+  return Array.isArray(content) ? content : [content];
+}
+
+/** A scalar string and an equivalent one-item sequence get the same preview. */
+function userContentPreview(items: UserContentItem[]): string {
+  if (items.length === 1) {
+    const text = userContentText(items[0]);
+    if (text !== null) return text;
+  }
+  return compactJson(items);
+}
+
+function userContentText(item: UserContentItem): string | null {
+  if (typeof item === "string") return item;
+  if (item.kind === "text") return typeof item.text === "string" ? item.text : null;
+  if (item.kind === "text-content") {
+    if (typeof item.text === "string") return item.text;
+    if (typeof item.content === "string") return item.content;
+    return null;
+  }
+  return null;
 }
 
 function ContentItem({ item }: { item: UserContentItem }) {
@@ -43,10 +65,11 @@ function ContentItem({ item }: { item: UserContentItem }) {
     return <MediaContent item={item as Record<string, unknown>} />;
   }
   switch (item.kind) {
+    case "text":
     case "text-content":
       return (
         <div class="media-item">
-          <ValueView value={String(item.text ?? item.content ?? "")} markdown />
+          <ValueView value={userContentText(item) ?? ""} markdown />
         </div>
       );
     case "uploaded-file":

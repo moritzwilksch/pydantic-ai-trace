@@ -85,7 +85,7 @@ describe("App in exported-trace mode", () => {
 
     getByText("smoke.json"); // header title
     getAllByText("Be helpful."); // system prompt (collapsed preview + body)
-    getByText("search"); // tool call group
+    getAllByText("search"); // tool call and its return in the original request
     getByText("no return recorded"); // orphan badge
     getByText("Field required"); // retry error table
     getByText("some-future-part"); // fallback for unknown kinds
@@ -95,8 +95,7 @@ describe("App in exported-trace mode", () => {
     const mediaReturn = getByText("screenshot").closest("details")!;
     expect(mediaReturn.querySelector("img")).not.toBeNull();
     expect(getAllByText("test-model").length).toBe(2); // response footers
-    // cards mirror the pydantic-ai message types (consumed-parts request still
-    // shows because its retry-prompt is unpaired)
+    // Cards and parts remain in the same sequence as the source JSON.
     expect(getAllByText("Request").length).toBe(2);
     expect(getAllByText("Response").length).toBe(2);
     // aggregate stats include legacy usage aliases: 10 + 20 in
@@ -122,24 +121,32 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelectorAll("[data-nav]").length).toBe(1);
   });
 
-  it("preserves a result-only request card after rendering its result inline", () => {
+  it("renders a paired result in its original request card", () => {
     window.__TRACE_DATA__ = [
       {
         kind: "response",
-        parts: [{ part_kind: "tool-call", tool_name: "search", args: {}, tool_call_id: "c1" }],
+        parts: [
+          { part_kind: "thinking", content: "", signature: "signature-only" },
+          { part_kind: "tool-call", tool_name: "search", args: "{}", tool_call_id: "c1" },
+        ],
+        state: "complete",
       },
       {
         kind: "request",
         parts: [
           { part_kind: "tool-return", tool_name: "search", content: "found", tool_call_id: "c1" },
         ],
+        instructions: null,
+        state: "complete",
       },
     ];
 
     const { container, getAllByText } = render(<App />);
 
-    expect(container.querySelectorAll(".kind-response")).toHaveLength(1);
-    expect(container.querySelectorAll(".kind-request")).toHaveLength(1);
+    const responseCard = container.querySelector(".kind-response")!.closest(".card")!;
+    const requestCard = container.querySelector(".kind-request")!.closest(".card")!;
+    expect(responseCard.textContent).not.toContain("found");
+    expect(requestCard.textContent).toContain("found");
     getAllByText("found");
   });
 
@@ -258,6 +265,52 @@ describe("App in exported-trace mode", () => {
     ];
     const { container } = render(<App />);
     expect(container.querySelector(".markdown strong")?.textContent).toBe("bold move");
+  });
+
+  it("renders scalar and one-item sequence user text consistently", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "request",
+        parts: [{ part_kind: "user-prompt", content: "same **prompt**" }],
+      },
+      {
+        kind: "request",
+        parts: [{ part_kind: "user-prompt", content: ["same **prompt**"] }],
+      },
+    ];
+
+    const { container } = render(<App />);
+    const previews = Array.from(container.querySelectorAll(".tone-user .block-preview"));
+    expect(previews.map((preview) => preview.textContent)).toEqual([
+      "same **prompt**",
+      "same **prompt**",
+    ]);
+    expect(container.querySelectorAll(".tone-user .markdown strong")).toHaveLength(2);
+  });
+
+  it("renders TextContent objects in heterogeneous user content", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "request",
+        parts: [
+          {
+            part_kind: "user-prompt",
+            content: [
+              { kind: "text", text: "object **text**" },
+              { kind: "cache-point" },
+              { kind: "future-content", value: 42 },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const { container, getAllByText } = render(<App />);
+    expect(container.querySelector(".tone-user .markdown strong")?.textContent).toBe("text");
+    getAllByText("cache point");
+    expect(container.querySelector(".tone-user .json-tree")?.textContent).toContain(
+      "future-content",
+    );
   });
 
   it("renders an empty trace without crashing", () => {

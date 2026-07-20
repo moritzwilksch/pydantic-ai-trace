@@ -1,16 +1,13 @@
 import { Wrench } from "lucide-preact";
 import { compactJson } from "../../parse";
 import type { ToolResult } from "../../pairing";
-import type { RetryPromptPart, ToolCallPart, ToolReturnPart } from "../../types";
+import type { ToolCallPart, ToolReturnPart } from "../../types";
 import { Block } from "../Block";
-import { RetryContent } from "./RetryPrompt";
 import { ToolReturnValue, ValueView } from "./common";
 
 /**
- * A tool call with its paired return/retry rendered inline. Collapsed by
- * default with a compact args preview in the summary — skimming a trace reads
- * like "the agent ran tool X with these args". Expanding always shows the
- * full arguments; the (often bulky) result stays behind its own toggle.
+ * A tool call annotated with the status of its paired return/retry. The result
+ * itself remains in its original message so the trace mirrors the source JSON.
  */
 export function ToolCallGroup({ part, result }: { part: ToolCallPart; result: ToolResult | null }) {
   const argsPreview = part.parsedArgs != null ? compactJson(part.parsedArgs) : "";
@@ -43,25 +40,18 @@ export function ToolCallGroup({ part, result }: { part: ToolCallPart; result: To
         <div class="part-label">arguments</div>
         <ValueView value={part.parsedArgs ?? null} />
       </div>
-      {result === null ? null : (
-        <div class="tool-group-section">
-          {result.kind === "return" ? (
-            <Block label="result" preview={compactJson((result.part as ToolReturnPart).content)}>
-              <ToolReturnValue content={(result.part as ToolReturnPart).content} />
-            </Block>
-          ) : (
-            <Block label="retry" tone="error" defaultOpen>
-              <RetryContent content={(result.part as RetryPromptPart).content} />
-            </Block>
-          )}
-        </div>
-      )}
     </details>
   );
 }
 
-/** A tool return whose call is not in the trace — shown standalone. */
-export function OrphanToolReturn({ part }: { part: ToolReturnPart }) {
+/** A tool return rendered in its original message position. */
+export function ToolReturn({
+  part,
+  hasMatchingCall,
+}: {
+  part: ToolReturnPart;
+  hasMatchingCall: boolean;
+}) {
   return (
     <Block
       label={
@@ -73,7 +63,7 @@ export function OrphanToolReturn({ part }: { part: ToolReturnPart }) {
       badges={
         <>
           <span class="tool-name">{part.tool_name}</span>
-          <span class="badge warn">no matching call</span>
+          {!hasMatchingCall ? <span class="badge warn">no matching call</span> : null}
         </>
       }
       preview={compactJson(part.content)}

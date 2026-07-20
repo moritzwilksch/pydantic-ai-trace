@@ -18,6 +18,7 @@ export interface SystemPromptPart {
 
 export type UserContentItem =
   | string
+  | { kind: "text"; text: string; [key: string]: unknown }
   | { kind: "text-content"; text?: string; content?: string; [key: string]: unknown }
   | { kind: "image-url" | "audio-url" | "document-url" | "video-url"; url: string }
   | { kind: "binary"; data: string; media_type: string }

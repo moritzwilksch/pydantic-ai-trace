@@ -26,15 +26,14 @@ import { RetryPrompt } from "./parts/RetryPrompt";
 import { SystemPrompt } from "./parts/SystemPrompt";
 import { TextPart } from "./parts/TextPart";
 import { ThinkingPart } from "./parts/ThinkingPart";
-import { OrphanToolReturn, ToolCallGroup } from "./parts/ToolCallGroup";
+import { ToolCallGroup, ToolReturn } from "./parts/ToolCallGroup";
 import { UserPrompt } from "./parts/UserPrompt";
 
 /**
  * One card = one ModelMessage, mirroring pydantic-ai's types: a "Request" or
  * "Response" header with each part as a uniform labeled block underneath.
- * The only cross-message merge is tool pairing: returns/retries consumed into
- * a previous tool call render there. The original message card remains in the
- * sequence even when pairing or filtering leaves it without visible parts.
+ * Tool pairing annotates calls with their outcome, but every message and part
+ * renders in its original JSON position so the card sequence stays faithful.
  */
 export function MessageCard({
   message,
@@ -58,9 +57,7 @@ export function MessageCard({
     );
   }
 
-  const visibleParts = message.parts.filter(
-    (part) => !pairing.consumed.has(part) && !isInvisible(part),
-  );
+  const visibleParts = message.parts.filter((part) => !isInvisible(part));
 
   return (
     <div class="card" data-card>
@@ -138,8 +135,12 @@ function PartView({ part, pairing }: { part: Part; pairing: Pairing }) {
       return <RetryPrompt part={part as RetryPromptPart} />;
     case "tool-return":
     case "builtin-tool-return":
-      // Unconsumed return = its call is missing from the trace; show standalone.
-      return <OrphanToolReturn part={part as ToolReturnPart} />;
+      return (
+        <ToolReturn
+          part={part as ToolReturnPart}
+          hasMatchingCall={pairing.matchedResults.has(part)}
+        />
+      );
     case "compaction":
       return <CompactionPart part={part as CompactionPartType} />;
     case "file":

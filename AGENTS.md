@@ -13,6 +13,23 @@
 - `tests/`: Python tests and trace fixtures. Frontend tests live beside their source as `*.test.ts[x]`.
 - `hatch_build.py`: package-build guard for the bundled frontend.
 
+## Verify against Pydantic AI
+
+- Treat `pydantic_ai.messages` as the authority for message types and wire shape; `frontend/src/types.ts` is a tolerant, hand-written mirror. Do not infer a field or discriminator from memory.
+- Inspect the relevant Python definitions in an isolated environment without adding a project dependency. `pydantic-ai-slim` is sufficient and avoids provider extras; pin the version that produced the trace when known (for example, replace the package spec with `pydantic-ai-slim==X.Y.Z`):
+
+  ```bash
+  pixi run uv run --with pydantic-ai-slim python -c 'import inspect; import pydantic_ai.messages as m; print(m.__file__); print(inspect.getsource(m.UserPromptPart)); print(inspect.getsource(m.TextContent))'
+  ```
+
+- When serialization details matter, generate a minimal real dump rather than hand-writing JSON, then compare it with `frontend/src/types.ts`, `parse.ts`, the owning renderer, and an observable-behavior test:
+
+  ```bash
+  pixi run uv run --with pydantic-ai-slim python -c 'from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, UserPromptPart; trace = [ModelRequest(parts=[UserPromptPart(content=["hello"])])]; print(ModelMessagesTypeAdapter.dump_json(trace, indent=2).decode())'
+  ```
+
+- Use `ModelMessagesTypeAdapter.json_schema()` when a union or discriminator remains unclear. Keep compatibility fallbacks for older/newer dumps, but test the current canonical shape produced by Python.
+
 ## Invariants
 
 - Treat trace contents and paths as untrusted input. Keep filesystem discovery and reads inside the configured root.
