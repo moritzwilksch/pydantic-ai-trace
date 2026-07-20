@@ -68,8 +68,9 @@ pixi run build       # bundled frontend plus sdist and wheel
 
 ## Releasing
 
-Push a `vX.Y.Z` tag. The package version is derived from that tag, so no source file needs a
-version bump. GitHub Actions runs the full check suite, builds the frontend into the wheel and
-source distribution, publishes both to PyPI using trusted publishing, and creates a GitHub
-release. Configure a `pypi` environment in GitHub and add this repository as a trusted publisher
-for the `pydantic-ai-trace` project on PyPI before the first release.
+Create and publish a GitHub release with a `vX.Y.Z` tag. The package version is derived from that
+tag, so no source file needs a version bump. Publishing the release triggers GitHub Actions to run
+the full check suite, build the frontend into the wheel and source distribution, publish both to
+PyPI using trusted publishing, and attach them to the GitHub release. Configure a `pypi`
+environment in GitHub and add this repository as a trusted publisher for the `pydantic-ai-trace`
+project on PyPI before the first release.
