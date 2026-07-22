@@ -2,8 +2,8 @@
 // Render smoke test: the full app must render a realistic trace (the same
 // shape `paitrace export` embeds) without crashing, covering every part renderer.
 
-import { fireEvent, render } from "@testing-library/preact";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 
 const FULL_TRACE = [
@@ -73,6 +73,7 @@ const FULL_TRACE = [
 ];
 
 afterEach(() => {
+  cleanup();
   delete window.__TRACE_DATA__;
   delete window.__TRACE_NAME__;
 });
@@ -102,6 +103,34 @@ describe("App in exported-trace mode", () => {
     expect(container.textContent).toContain("30");
     // input, cached, and output totals are always visible in the header.
     expect(container.textContent).toContain("0 cached");
+  });
+
+  it("copies the ordered text transcript", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    window.__TRACE_DATA__ = FULL_TRACE;
+    window.__TRACE_NAME__ = "smoke.json";
+    const { getByRole } = render(<App />);
+
+    fireEvent.click(getByRole("button", { name: "Copy trace" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const copied = writeText.mock.calls[0][0];
+    expect(copied).toContain("========== TRACE ==========\n\nNAME: smoke.json");
+    expect(copied).toContain("========== REQUEST 1 ==========");
+    expect(copied).toContain("========== RESPONSE 1 · test-model · 10 in → 4 out ==========");
+    expect(copied).toContain("========== REQUEST 2 ==========");
+    expect(copied).toContain("========== RESPONSE 2 · test-model · 20 in → 8 out ==========");
+    expect(copied).toContain('--- TOOL CALL: search ---\n\nARGUMENTS:\n{"q":"x"}');
+    expect(copied).toContain('--- TOOL RETURN: search ---\n\n{"hits":3}');
+    expect(copied).toContain("[binary: application/pdf, 2 B, payload omitted]");
+    expect(copied).not.toContain("aGk=");
+    expect(copied).not.toContain("tool_call_id");
+    expect(copied).not.toContain("finish:");
+    getByRole("button", { name: "Copied" });
   });
 
   it("does not render a placeholder for thinking parts without content", () => {

@@ -260,6 +260,13 @@ body {
   background: var(--bg-hover);
 }
 
+.copy-trace-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .trace-body {
   flex: 1;
   overflow-y: auto;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { embeddedTrace, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
 import { parseTrace } from "./parse";
 import { defaultSelection } from "./selection";
+import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
@@ -34,6 +35,7 @@ function ExportedTraceApp({ name, data }: { name: string; data: unknown }) {
         <header class="trace-header">
           <span class="trace-title">{name}</span>
           <TraceStatsBar messages={messages} />
+          <CopyTraceButton messages={messages} name={name} />
           <ThemeToggle />
         </header>
         <div class="trace-body">
@@ -145,6 +147,9 @@ function ServerApp() {
         <header class="trace-header">
           <span class="trace-title">{title}</span>
           {selection && messages.length > 0 ? <TraceStatsBar messages={messages} /> : null}
+          {selection && messages.length > 0 ? (
+            <CopyTraceButton key={title} messages={messages} name={title} />
+          ) : null}
           <ThemeToggle />
         </header>
         <div class="trace-body">
