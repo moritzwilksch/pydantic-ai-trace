@@ -47,6 +47,19 @@ export function parseArgs(args: string | Record<string, unknown> | null | undefi
   }
 }
 
+/** Parse text that consists entirely of a JSON object or array. */
+export function parseJsonContainer(content: string): Record<string, unknown> | unknown[] | null {
+  try {
+    const value: unknown = JSON.parse(content);
+    if (typeof value === "object" && value !== null) {
+      return value as Record<string, unknown> | unknown[];
+    }
+  } catch {
+    // Plain text and text containing only a JSON fragment keep their normal renderer.
+  }
+  return null;
+}
+
 export function normalizeUsage(raw: unknown): Usage | undefined {
   if (!isRecord(raw)) return undefined;
   return {

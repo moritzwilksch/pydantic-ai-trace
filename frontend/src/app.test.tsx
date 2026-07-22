@@ -313,6 +313,40 @@ describe("App in exported-trace mode", () => {
     );
   });
 
+  it("renders an all-JSON text response as a structured value", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "response",
+        parts: [
+          {
+            part_kind: "text",
+            content: '{"status":"ok","items":[1,2]}',
+          },
+        ],
+      },
+    ];
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".json-tree")).not.toBeNull();
+    expect(container.querySelector(".markdown")).toBeNull();
+    expect(container.querySelector(".raw-text")).toBeNull();
+    expect(container.textContent).toContain('status: "ok"');
+    expect(container.textContent).not.toContain('{"status":"ok","items":[1,2]}');
+  });
+
+  it("keeps prose containing a JSON fragment as markdown", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "response",
+        parts: [{ part_kind: "text", content: 'Result: {"status":"ok"}' }],
+      },
+    ];
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".markdown")).not.toBeNull();
+    expect(container.querySelector(".json-tree")).toBeNull();
+  });
+
   it("renders an empty trace without crashing", () => {
     window.__TRACE_DATA__ = [];
     render(<App />);

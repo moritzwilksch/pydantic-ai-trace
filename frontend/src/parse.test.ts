@@ -5,6 +5,7 @@ import {
   computeStats,
   normalizeUsage,
   parseArgs,
+  parseJsonContainer,
   parseTrace,
 } from "./parse";
 import type { ModelResponse, ToolCallPart } from "./types";
@@ -57,6 +58,19 @@ describe("parseArgs", () => {
   it("treats null and undefined as null", () => {
     expect(parseArgs(null)).toBeNull();
     expect(parseArgs(undefined)).toBeNull();
+  });
+});
+
+describe("parseJsonContainer", () => {
+  it("parses complete JSON objects and arrays", () => {
+    expect(parseJsonContainer('  {"status": "ok"}\n')).toEqual({ status: "ok" });
+    expect(parseJsonContainer("[1, 2]")).toEqual([1, 2]);
+  });
+
+  it("ignores prose, fragments, and scalar JSON", () => {
+    expect(parseJsonContainer('Result: {"status": "ok"}')).toBeNull();
+    expect(parseJsonContainer('{"status": "ok"} trailing')).toBeNull();
+    expect(parseJsonContainer("true")).toBeNull();
   });
 });
 
