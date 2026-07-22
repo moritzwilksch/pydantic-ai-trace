@@ -93,3 +93,55 @@ class TestExportCommand:
         (export_dir / "t.json").write_text("[]")
         assert cli.main(["export", "--no-open"]) == 0
         assert "app" in serve_captures_app
+
+
+class TestTextCommand:
+    def test_writes_json_trace_to_stdout(self, fixtures_copy: Path, capsys: pytest.CaptureFixture):
+        code = cli.main(["text", str(fixtures_copy / "full_trace.json")])
+        captured = capsys.readouterr()
+        assert code == 0
+        assert captured.out == (fixtures_copy / "full_trace.txt").read_text()
+        assert captured.err == ""
+
+    def test_selects_jsonl_line(self, fixtures_copy: Path, capsys: pytest.CaptureFixture):
+        code = cli.main(["text", str(fixtures_copy / "runs" / "multi.jsonl"), "--line", "2"])
+        captured = capsys.readouterr()
+        assert code == 0
+        assert "NAME: multi.jsonl · trace 2" in captured.out
+        assert "hello from line two" in captured.out
+        assert "hello from line one" not in captured.out
+
+    def test_multitrace_jsonl_requires_line(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        code = cli.main(["text", str(fixtures_copy / "runs" / "multi.jsonl")])
+        assert code == 1
+        assert "pass line 1..2" in capsys.readouterr().err
+
+    def test_output_file_receives_text_without_polluting_stdout(
+        self, fixtures_copy: Path, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        output = tmp_path / "trace.txt"
+        code = cli.main(["text", str(fixtures_copy / "full_trace.json"), "--output", str(output)])
+        captured = capsys.readouterr()
+        assert code == 0
+        assert captured.out == ""
+        assert captured.err == f"wrote {output}\n"
+        assert output.read_text() == (fixtures_copy / "full_trace.txt").read_text()
+
+    def test_missing_input_fails(self, capsys: pytest.CaptureFixture):
+        assert cli.main(["text", "/nope.json"]) == 1
+        assert "does not exist" in capsys.readouterr().err
+
+    def test_text_named_path_on_disk_is_served_not_formatted(
+        self,
+        tmp_path: Path,
+        serve_captures_app: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.chdir(tmp_path)
+        text_dir = tmp_path / "text"
+        text_dir.mkdir()
+        (text_dir / "t.json").write_text("[]")
+        assert cli.main(["text", "--no-open"]) == 0
+        assert "app" in serve_captures_app

@@ -1,0 +1,43 @@
+========== TRACE ==========
+
+NAME: media_and_builtins.json
+LLM CALLS: 1 | TOKENS: 900 in → 120 out | WALL TIME: 6.0s
+
+========== REQUEST 1 ==========
+
+--- USER PROMPT ---
+
+Describe this image and the attached document.
+
+Keep the description concise.
+
+[image] https://example.com/cat.png
+
+[binary: text/plain, 11 B, payload omitted]
+
+[document] https://example.com/report.pdf
+
+========== RESPONSE 1 · claude-fable-5 · 900 in → 120 out ==========
+
+--- BUILTIN TOOL CALL: web_search ---
+
+ARGUMENTS:
+{"query":"cat picture description"}
+
+--- BUILTIN TOOL RETURN: web_search ---
+
+{"results":[{"title":"Cats","url":"https://example.com"}]}
+
+--- TEXT ---
+
+It is a picture of a cat sitting on a windowsill.
+
+--- FILE ---
+
+[binary: image/png, 16 B, payload omitted]
+
+========== REQUEST 2 [INTERRUPTED] ==========
+
+--- RETRY PROMPT: validate_input ---
+
+[{"type":"missing","loc":["body","name"],"msg":"Field required","input":{}}]

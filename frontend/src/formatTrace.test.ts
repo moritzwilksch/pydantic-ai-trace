@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
+import fullTraceJson from "../../tests/fixtures/full_trace.json?raw";
+import fullTraceText from "../../tests/fixtures/full_trace.txt?raw";
+import mediaTraceJson from "../../tests/fixtures/runs/media_and_builtins.json?raw";
+import mediaTraceText from "../../tests/fixtures/runs/media_and_builtins.txt?raw";
+import edgeTraceJson from "../../tests/fixtures/text_edge_cases.json?raw";
+import edgeTraceText from "../../tests/fixtures/text_edge_cases.txt?raw";
 import { formatTraceAsText } from "./formatTrace";
 import { parseTrace } from "./parse";
 
 describe("formatTraceAsText", () => {
+  it.each([
+    ["full_trace.json", fullTraceJson, fullTraceText],
+    ["media_and_builtins.json", mediaTraceJson, mediaTraceText],
+    ["text_edge_cases.json", edgeTraceJson, edgeTraceText],
+  ])("matches the shared %s golden output", (name, traceJson, expected) => {
+    expect(formatTraceAsText(parseTrace(JSON.parse(traceJson)), name)).toBe(expected);
+  });
+
   it("preserves message and part order without pairing tool calls", () => {
     const messages = parseTrace([
       {

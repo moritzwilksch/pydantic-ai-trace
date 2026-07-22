@@ -14,6 +14,7 @@ It is a lightweight local tool. Point it at a trace or a directory of traces and
 - A searchable directory tree for `.json` and `.jsonl` traces
 - Collapsible large values, rendered Markdown, and keyboard navigation
 - One-click copying as a compact text transcript that preserves request and response order
+- CLI rendering of the same compact transcript for use by people, scripts, and AI agents
 
 ## Run from a checkout
 
@@ -38,7 +39,17 @@ pixi run paitrace export trace.json -o trace.html
 
 # Choose a trace line when exporting a multi-trace JSONL file
 pixi run paitrace export runs.jsonl --line 2
+
+# Print the browser's compact text representation to stdout
+pixi run paitrace text trace.json
+
+# Select a trace from JSONL, or write the text to a file
+pixi run paitrace text runs.jsonl --line 2
+pixi run paitrace text trace.json -o trace.txt
 ```
+
+`paitrace text` writes only the transcript to stdout by default, so it can be piped directly into
+another command. Multi-trace JSONL files require `--line`, just as HTML export does.
 
 The viewer binds to `127.0.0.1:1205` and opens your browser. Pass `--port`, `--host`, or `--no-open` to change that behavior.
 

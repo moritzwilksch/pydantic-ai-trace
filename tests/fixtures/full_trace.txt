@@ -1,0 +1,74 @@
+========== TRACE ==========
+
+NAME: full_trace.json
+LLM CALLS: 3 | TOKENS: 930 in → 165 out | WALL TIME: 6.0s
+
+========== REQUEST 1 ==========
+
+--- SYSTEM PROMPT ---
+
+You are a precise research assistant. Answer using the provided tools.
+
+--- USER PROMPT ---
+
+What is the population of Berlin? Compare it to Hamburg in a **markdown table**.
+
+```python
+print("also render code")
+```
+
+========== RESPONSE 1 · gpt-5 · 220 in → 55 out ==========
+
+--- THINKING ---
+
+The user wants population figures. I should look both cities up before answering.
+
+--- TOOL CALL: lookup_population ---
+
+ARGUMENTS:
+{"city":"Berlin"}
+
+--- TOOL CALL: lookup_population ---
+
+ARGUMENTS:
+{"city":"Hamburg"}
+
+========== REQUEST 2 ==========
+
+--- TOOL RETURN: lookup_population ---
+
+{"city":"Berlin","population":3877100}
+
+--- RETRY PROMPT: lookup_population ---
+
+unknown city spelling
+
+========== RESPONSE 2 · gpt-5 · 310 in → 20 out ==========
+
+--- TOOL CALL: lookup_population ---
+
+ARGUMENTS:
+{"city":"Hamburg, Germany"}
+
+========== REQUEST 3 ==========
+
+--- TOOL RETURN: lookup_population ---
+
+{"city":"Hamburg","population":1945532}
+
+========== RESPONSE 3 · gpt-5 · 400 in → 90 out ==========
+
+--- TEXT ---
+
+Here is the comparison:
+
+| City | Population |
+|---|---|
+| Berlin | 3,877,100 |
+| Hamburg | 1,945,532 |
+
+Berlin is roughly **twice** the size of Hamburg.
+
+--- UNKNOWN PART: hologram-projection ---
+
+{"part_kind":"hologram-projection","payload":{"note":"unknown part kind for forward-compat testing"}}

@@ -1,0 +1,39 @@
+========== TRACE ==========
+
+NAME: text_edge_cases.json
+LLM CALLS: 1 | TOKENS: 12 in (8 cached) → 3 out
+
+========== REQUEST 1 [INTERRUPTED] ==========
+
+--- INSTRUCTIONS ---
+
+Keep **Markdown** verbatim.
+
+--- USER PROMPT ---
+
+café
+
+--- literal rule ---
+
+{"1":"first","2":"second","10":"tenth","kind":"future-content","value":1}
+
+[cache point]
+
+========== RESPONSE 1 [INTERRUPTED] · edge-model · 12 in (8 cached) → 3 out ==========
+
+--- TOOL CALL: malformed_args ---
+
+ARGUMENTS:
+not json {
+
+--- TOOL RETURN: numbers [FAILED] ---
+
+{"1":"first","2":"second","10":"tenth","whole":1,"small":0.000001,"tiny":1e-7,"unicode":"café"}
+
+--- COMPACTION ---
+
+[History compacted by the provider; no readable summary.]
+
+--- UNKNOWN PART: future-part ---
+
+{"part_kind":"future-part","payload":{"value":1}}

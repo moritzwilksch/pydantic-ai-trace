@@ -1,14 +1,16 @@
 """`paitrace` command line interface.
 
-`paitrace PATH` serves a trace file or directory; `paitrace export IN.json [-o OUT.html]`
-writes a self-contained HTML file. `export` is only treated as a subcommand when
-no file or directory named "export" exists, so serving such a path still works.
+`paitrace PATH` serves a trace file or directory; `paitrace export` writes a
+self-contained HTML file; and `paitrace text` writes the compact plain-text
+representation. A command word is still treated as a path when a file or
+directory with that name exists.
 """
 
 from __future__ import annotations
 
 import argparse
 import errno
+import json
 import socket
 import sys
 import threading
@@ -26,6 +28,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if argv and argv[0] == "export" and not Path("export").exists():
             return _run_export(argv[1:])
+        if argv and argv[0] == "text" and not Path("text").exists():
+            return _run_text(argv[1:])
         return _run_serve(argv)
     except CliError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -40,7 +44,7 @@ def _run_serve(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="paitrace",
         description="Serve a local viewer for pydantic-ai trace dumps.",
-        epilog="Use `paitrace export --help` for HTML export.",
+        epilog="Use `paitrace export --help` for HTML or `paitrace text --help` for plain text.",
     )
     parser.add_argument("path", type=Path, help="a .json/.jsonl trace file or a directory")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -92,6 +96,39 @@ def _run_export(argv: list[str]) -> int:
     except (scan.TraceLookupError, FileNotFoundError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     print(f"wrote {output}")
+    return 0
+
+
+def _run_text(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="paitrace text",
+        description="Render a trace as compact plain text (default: stdout).",
+    )
+    parser.add_argument("input", type=Path, help="a .json or .jsonl trace file")
+    parser.add_argument("-o", "--output", type=Path, help="write to this file instead of stdout")
+    parser.add_argument(
+        "--line", type=int, help="1-based trace line for .jsonl inputs with multiple traces"
+    )
+    args = parser.parse_args(argv)
+
+    if not args.input.is_file():
+        raise CliError(f"input file does not exist: {args.input}")
+
+    try:
+        trace_json = scan.read_trace(args.input.parent, args.input.name, args.line)
+        trace = json.loads(trace_json)
+        from .text import format_trace_as_text
+
+        line = (args.line or 1) if args.input.suffix == ".jsonl" else None
+        name = f"{args.input.name} · trace {line}" if line is not None else args.input.name
+        rendered = format_trace_as_text(trace, name)
+        if args.output is None:
+            sys.stdout.write(rendered)
+        else:
+            args.output.write_text(rendered, encoding="utf-8")
+            print(f"wrote {args.output}", file=sys.stderr)
+    except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
+        raise CliError(str(exc)) from exc
     return 0
 
 
