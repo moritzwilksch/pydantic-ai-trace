@@ -4,7 +4,8 @@ Use `pydantic-ai-trace` when you need to inspect an agent run from a JSON dump. 
 
 It is a lightweight local tool. Point it at a trace or a directory of traces and it reads the files from disk, reloads them when they change, and exports individual traces as self-contained HTML files. Your traces stay on disk, with no hosted service or account.
 
-<img width="1323" height="1008" alt="Screenshot of a trace open in pydantic-ai-trace" src="https://github.com/user-attachments/assets/cf4f0866-ae4f-449f-8967-1ff6a26a2638" />
+<img width="1196" height="791" alt="image" src="https://github.com/user-attachments/assets/bfdfb570-69be-4c2f-811b-4fe8182f8601" />
+
 
 ## What you can inspect
 
