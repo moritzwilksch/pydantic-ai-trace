@@ -52,6 +52,17 @@ class TestTrace:
         assert isinstance(json.loads(payload["source"]), list)
         assert "NAME: runs/multi.jsonl · trace 2" in payload["transcript"]
 
+    def test_escapes_lone_surrogates_in_transcript(self, tmp_path: Path):
+        trace = r'[{"kind":"request","parts":[{"part_kind":"user-prompt","content":"\ud800"}]}]'
+        (tmp_path / "surrogate.json").write_text(trace, encoding="utf-8")
+
+        response = client_for(tmp_path).get("/api/trace", params={"path": "surrogate.json"})
+
+        assert response.status_code == 200
+        assert b"\\ud800" in response.content
+        assert response.json()["source"] == trace
+        assert "\ud800" in response.json()["transcript"]
+
     def test_file_mode_serves_the_root_file(self, fixtures_copy: Path):
         client = client_for(fixtures_copy / "full_trace.json")
         response = client.get("/api/trace", params={"path": "full_trace.json"})

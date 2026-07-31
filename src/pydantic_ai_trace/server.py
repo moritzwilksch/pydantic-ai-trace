@@ -25,6 +25,19 @@ class ServerStartError(Exception):
     pass
 
 
+class _TraceJSONResponse(JSONResponse):
+    """JSON response that safely escapes untrusted trace text."""
+
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=True,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+
 def serve(
     root: Path,
     host: str,
@@ -94,7 +107,7 @@ def create_app(root: Path, stop_event: asyncio.Event | None = None) -> Starlette
             return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
         name = f"{relative_path} · trace {line}" if line is not None else relative_path
         transcript = await asyncio.to_thread(format_trace_json_as_text, text, name)
-        return JSONResponse(
+        return _TraceJSONResponse(
             {
                 "source": text,
                 "transcript": transcript,
