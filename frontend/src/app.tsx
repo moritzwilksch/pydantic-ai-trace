@@ -7,12 +7,12 @@ import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
-import type { Meta, TraceSelection, TreeNode } from "./types";
+import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
 type TraceState =
   | { status: "unselected" }
   | { status: "loading" }
-  | { status: "ready"; data: unknown }
+  | { status: "ready"; data: TracePayload }
   | { status: "error"; message: string };
 
 export function App() {
@@ -20,14 +20,30 @@ export function App() {
   const { helpOpen, closeHelp } = useKeyboardNav();
   return (
     <>
-      {embedded ? <ExportedTraceApp name={embedded.name} data={embedded.data} /> : <ServerApp />}
+      {embedded ? (
+        <ExportedTraceApp
+          name={embedded.name}
+          data={embedded.data}
+          transcript={embedded.transcript}
+        />
+      ) : (
+        <ServerApp />
+      )}
       {helpOpen ? <KeyboardHelp onClose={closeHelp} /> : null}
     </>
   );
 }
 
 /** Exported single-file HTML: no server, trace injected as __TRACE_DATA__. */
-function ExportedTraceApp({ name, data }: { name: string; data: unknown }) {
+function ExportedTraceApp({
+  name,
+  data,
+  transcript,
+}: {
+  name: string;
+  data: unknown;
+  transcript: string;
+}) {
   const messages = useMemo(() => parseTrace(data), [data]);
   return (
     <div class="layout">
@@ -35,7 +51,7 @@ function ExportedTraceApp({ name, data }: { name: string; data: unknown }) {
         <header class="trace-header">
           <span class="trace-title">{name}</span>
           <TraceStatsBar messages={messages} />
-          <CopyTraceButton messages={messages} name={name} />
+          <CopyTraceButton text={transcript} />
           <ThemeToggle />
         </header>
         <div class="trace-body">
@@ -125,7 +141,10 @@ function ServerApp() {
     setSelection(next);
   }
 
-  const messages = useMemo(() => (trace.status === "ready" ? parseTrace(trace.data) : []), [trace]);
+  const messages = useMemo(
+    () => (trace.status === "ready" ? parseTrace(trace.data.source) : []),
+    [trace],
+  );
   // File mode hides the tree — unless the file needs it (multi-trace or broken).
   const showTree =
     meta === null || meta.mode === "dir" || (tree !== null && defaultSelection(tree) === null);
@@ -148,7 +167,10 @@ function ServerApp() {
           <span class="trace-title">{title}</span>
           {selection && messages.length > 0 ? <TraceStatsBar messages={messages} /> : null}
           {selection && messages.length > 0 ? (
-            <CopyTraceButton key={title} messages={messages} name={title} />
+            <CopyTraceButton
+              key={title}
+              text={trace.status === "ready" ? trace.data.transcript : ""}
+            />
           ) : null}
           <ThemeToggle />
         </header>

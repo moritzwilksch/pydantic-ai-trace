@@ -15,6 +15,11 @@ from decimal import Decimal
 from typing import Any
 
 
+def format_trace_json_as_text(trace_json: str, name: str) -> str:
+    """Parse and render one trace JSON payload."""
+    return format_trace_as_text(json.loads(trace_json), name)
+
+
 def format_trace_as_text(trace: object, name: str) -> str:
     """Render one trace in the same message/part order as the browser viewer."""
     messages = _parse_messages(trace)

@@ -9,9 +9,6 @@ directory with that name exists.
 from __future__ import annotations
 
 import argparse
-import errno
-import json
-import socket
 import sys
 import threading
 import webbrowser
@@ -59,18 +56,21 @@ def _run_serve(argv: list[str]) -> int:
     if root.is_file() and root.suffix not in scan.TRACE_SUFFIXES:
         raise CliError(f"not a trace file (expected .json or .jsonl): {root}")
 
-    _ensure_port_free(args.host, args.port)
-
     url = f"http://{args.host}:{args.port}/"
-    print(f"paitrace serving {root} at {url}")
-    if not args.no_open:
-        browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
-        browser_timer.daemon = True  # never keep the process alive for this
-        browser_timer.start()
 
-    from .server import serve
+    def on_bound() -> None:
+        print(f"paitrace serving {root} at {url}")
+        if not args.no_open:
+            browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
+            browser_timer.daemon = True  # never keep the process alive
+            browser_timer.start()
 
-    serve(root, host=args.host, port=args.port)
+    from .server import ServerStartError, serve
+
+    try:
+        serve(root, host=args.host, port=args.port, on_bound=on_bound)
+    except ServerStartError as exc:
+        raise CliError(f"{exc} — pick another port with --port") from exc
     return 0
 
 
@@ -116,12 +116,11 @@ def _run_text(argv: list[str]) -> int:
 
     try:
         trace_json = scan.read_trace(args.input.parent, args.input.name, args.line)
-        trace = json.loads(trace_json)
-        from .text import format_trace_as_text
+        from .text import format_trace_json_as_text
 
         line = (args.line or 1) if args.input.suffix == ".jsonl" else None
         name = f"{args.input.name} · trace {line}" if line is not None else args.input.name
-        rendered = format_trace_as_text(trace, name)
+        rendered = format_trace_json_as_text(trace_json, name)
         if args.output is None:
             sys.stdout.write(rendered)
         else:
@@ -130,21 +129,6 @@ def _run_text(argv: list[str]) -> int:
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     return 0
-
-
-def _ensure_port_free(host: str, port: int) -> None:
-    try:
-        family, _, _, _, sockaddr = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)[0]
-    except socket.gaierror as exc:
-        raise CliError(f"cannot resolve host {host!r}: {exc}") from exc
-    with socket.socket(family, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(sockaddr)
-        except OSError as exc:
-            if exc.errno == errno.EADDRINUSE:
-                raise CliError(f"port {port} is already in use — pick another with --port") from exc
-            raise CliError(f"cannot bind {host}:{port}: {exc}") from exc
 
 
 if __name__ == "__main__":

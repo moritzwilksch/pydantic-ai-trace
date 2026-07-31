@@ -1,4 +1,3 @@
-import socket
 from pathlib import Path
 
 import pytest
@@ -11,11 +10,11 @@ def serve_captures_app(monkeypatch: pytest.MonkeyPatch) -> dict:
     """Stub the server and the browser so `paitrace PATH` returns immediately."""
     captured: dict = {}
 
-    def fake_serve(root, host, port):
+    def fake_serve(root, host, port, on_bound):
         captured.update({"app": root, "root": root, "host": host, "port": port})
+        on_bound()
 
     monkeypatch.setattr("pydantic_ai_trace.server.serve", fake_serve)
-    monkeypatch.setattr(cli, "_ensure_port_free", lambda host, port: None)
     monkeypatch.setattr(
         "threading.Timer", lambda *a, **k: type("T", (), {"start": lambda s: None})()
     )
@@ -43,13 +42,19 @@ class TestServeCommand:
         assert "expected .json or .jsonl" in capsys.readouterr().err
 
     def test_busy_port_fails_with_suggestion(
-        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
     ):
-        with socket.socket() as blocker:
-            blocker.bind(("127.0.0.1", 0))
-            blocker.listen(1)
-            port = blocker.getsockname()[1]
-            assert cli.main([str(fixtures_copy), "--port", str(port), "--no-open"]) == 1
+        from pydantic_ai_trace.server import ServerStartError
+
+        def fail_to_bind(root, host, port, on_bound):
+            raise ServerStartError(f"cannot bind {host}:{port}")
+
+        monkeypatch.setattr("pydantic_ai_trace.server.serve", fail_to_bind)
+
+        assert cli.main([str(fixtures_copy), "--port", "9999", "--no-open"]) == 1
         assert "--port" in capsys.readouterr().err
 
 

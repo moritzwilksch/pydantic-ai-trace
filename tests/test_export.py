@@ -12,6 +12,7 @@ class TestInjectTraceData:
     def test_payload_lands_before_the_bundle_script(self):
         result = inject_trace_data(INDEX_HTML, "[]", trace_name="t.json")
         assert result.index("__TRACE_DATA__") < result.index("bundle();")
+        assert result.index("__TRACE_TEXT__") < result.index("bundle();")
 
     def test_injected_json_round_trips(self):
         trace = json.dumps([{"kind": "request", "parts": [{"content": "a</b>c"}]}])
@@ -28,6 +29,11 @@ class TestInjectTraceData:
     def test_trace_name_is_injected_as_string(self):
         result = inject_trace_data(INDEX_HTML, "[]", trace_name="my trace.json")
         assert 'window.__TRACE_NAME__ = "my trace.json"' in result
+
+    def test_transcript_is_precomputed_by_the_python_formatter(self):
+        result = inject_trace_data(INDEX_HTML, "[]", trace_name="t.json")
+        payload = result.split("window.__TRACE_TEXT__ = ", 1)[1].split(";</script>")[0]
+        assert json.loads(payload).startswith("========== TRACE ==========")
 
     def test_html_without_script_tag_is_rejected(self):
         with pytest.raises(ValueError, match="no <script>"):

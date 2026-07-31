@@ -1,9 +1,11 @@
 import json
+import socket
 from pathlib import Path
 
+import pytest
 from starlette.testclient import TestClient
 
-from pydantic_ai_trace.server import create_app
+from pydantic_ai_trace.server import ServerStartError, create_app, serve
 
 
 def client_for(root: Path) -> TestClient:
@@ -37,14 +39,29 @@ class TestTrace:
     def test_serves_file_bytes_verbatim(self, fixtures_copy: Path):
         response = client_for(fixtures_copy).get("/api/trace", params={"path": "full_trace.json"})
         assert response.status_code == 200
-        assert response.text == (fixtures_copy / "full_trace.json").read_text()
+        payload = response.json()
+        assert payload["source"] == (fixtures_copy / "full_trace.json").read_text()
+        assert payload["transcript"] == (fixtures_copy / "full_trace.txt").read_text()
 
     def test_serves_selected_jsonl_line(self, fixtures_copy: Path):
         response = client_for(fixtures_copy).get(
             "/api/trace", params={"path": "runs/multi.jsonl", "line": 2}
         )
-        assert "trace two" in response.text
-        assert isinstance(json.loads(response.text), list)
+        payload = response.json()
+        assert "trace two" in payload["source"]
+        assert isinstance(json.loads(payload["source"]), list)
+        assert "NAME: runs/multi.jsonl · trace 2" in payload["transcript"]
+
+    def test_escapes_lone_surrogates_in_transcript(self, tmp_path: Path):
+        trace = r'[{"kind":"request","parts":[{"part_kind":"user-prompt","content":"\ud800"}]}]'
+        (tmp_path / "surrogate.json").write_text(trace, encoding="utf-8")
+
+        response = client_for(tmp_path).get("/api/trace", params={"path": "surrogate.json"})
+
+        assert response.status_code == 200
+        assert b"\\ud800" in response.content
+        assert response.json()["source"] == trace
+        assert "\ud800" in response.json()["transcript"]
 
     def test_file_mode_serves_the_root_file(self, fixtures_copy: Path):
         client = client_for(fixtures_copy / "full_trace.json")
@@ -83,3 +100,21 @@ class TestIndex:
         response = client_for(fixtures_copy).get("/")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
+
+
+def test_server_bind_failure_does_not_report_started(fixtures_copy: Path):
+    started = False
+
+    def on_bound():
+        nonlocal started
+        started = True
+
+    with socket.socket() as blocker:
+        blocker.bind(("127.0.0.1", 0))
+        blocker.listen()
+        port = blocker.getsockname()[1]
+
+        with pytest.raises(ServerStartError):
+            serve(fixtures_copy, host="127.0.0.1", port=port, on_bound=on_bound)
+
+    assert started is False

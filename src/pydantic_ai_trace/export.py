@@ -1,16 +1,18 @@
 """Export a trace as a self-contained HTML file.
 
 The packaged `static/index.html` is a single-file Vite build (JS+CSS inlined).
-Export injects the raw trace JSON text as `window.__TRACE_DATA__` before the
-bundle script, so the resulting file renders offline from `file://`.
+Export injects the raw trace JSON and its preformatted text transcript before
+the bundle script, so the resulting file renders offline from `file://`.
 """
 
 from __future__ import annotations
 
+import json
 from importlib.resources import files
 from pathlib import Path
 
 from . import scan
+from .text import format_trace_json_as_text
 
 _INJECTION_MARKER = "<script"
 
@@ -36,9 +38,11 @@ def inject_trace_data(index_html: str, trace_json: str, trace_name: str) -> str:
     # A literal `<` inside the JSON could end our script element early (`</`)
     # or shift the HTML parser into the script-data-escaped state (`<!--`,
     # `<script`); escaping to `\u003c` yields identical JSON with no `<` at all.
+    transcript = format_trace_json_as_text(trace_json, trace_name)
     injection = (
         f"<script>window.__TRACE_DATA__ = {_js_string(trace_json)};"
-        f"window.__TRACE_NAME__ = {_js_string(trace_name)};</script>"
+        f"window.__TRACE_NAME__ = {_js_string(trace_name)};"
+        f"window.__TRACE_TEXT__ = {_js_string(transcript)};</script>"
     )
     return index_html[:marker_pos] + injection + index_html[marker_pos:]
 
@@ -49,6 +53,4 @@ def _escape_lt(json_text: str) -> str:
 
 
 def _js_string(value: str) -> str:
-    import json
-
     return _escape_lt(json.dumps(value))

@@ -1,7 +1,13 @@
 import { FileText, Film, ImageOff, Paperclip, Volume2 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { CollapsedPayload, formatBytes, JsonTree, LARGE_PAYLOAD_BYTES } from "../JsonTree";
+import {
+  byteLength,
+  CollapsedPayload,
+  formatBytes,
+  JsonTree,
+  LARGE_PAYLOAD_BYTES,
+} from "../JsonTree";
 import { Markdown } from "../Markdown";
 
 /** Linked-chip icons for `*-url` attachments; unknown url kinds get a paperclip. */
@@ -143,8 +149,9 @@ export function ToolReturnValue({ content }: { content: unknown }) {
 export function ValueView({ value, markdown = false }: { value: unknown; markdown?: boolean }) {
   if (typeof value === "string") {
     const body = markdown ? <Markdown source={value} /> : <pre class="raw-text">{value}</pre>;
-    if (value.length > LARGE_PAYLOAD_BYTES) {
-      return <CollapsedPayload sizeLabel={formatBytes(value.length)}>{body}</CollapsedPayload>;
+    const size = byteLength(value);
+    if (size > LARGE_PAYLOAD_BYTES) {
+      return <CollapsedPayload sizeLabel={formatBytes(size)}>{body}</CollapsedPayload>;
     }
     return <div class="clamp">{body}</div>;
   }
