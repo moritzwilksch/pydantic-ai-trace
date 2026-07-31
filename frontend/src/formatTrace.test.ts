@@ -87,6 +87,23 @@ describe("formatTraceAsText", () => {
     expect(secondRequestIndex).toBeLessThan(returnIndex);
   });
 
+  it("only prints instructions when they change", () => {
+    const messages = parseTrace([
+      { kind: "request", instructions: "First.", parts: [] },
+      { kind: "request", instructions: "First.", parts: [] },
+      { kind: "request", instructions: null, parts: [] },
+      { kind: "request", instructions: "Second.", parts: [] },
+      { kind: "request", instructions: "Second.", parts: [] },
+      { kind: "request", instructions: "First.", parts: [] },
+    ]);
+
+    const text = formatTraceAsText(messages, "instructions.json");
+
+    expect(text.match(/--- INSTRUCTIONS ---/g)).toHaveLength(3);
+    expect(text.match(/First\./g)).toHaveLength(2);
+    expect(text.match(/Second\./g)).toHaveLength(1);
+  });
+
   it("describes media without copying base64 and preserves unknown data", () => {
     const messages = parseTrace([
       {

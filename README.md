@@ -49,7 +49,8 @@ pixi run paitrace text trace.json -o trace.txt
 ```
 
 `paitrace text` writes only the transcript to stdout by default, so it can be piped directly into
-another command. Multi-trace JSONL files require `--line`, just as HTML export does.
+another command. Repeated request instructions are omitted until they change. Multi-trace JSONL
+files require `--line`, just as HTML export does.
 
 The viewer binds to `127.0.0.1:1205` and opens your browser. Pass `--port`, `--host`, or `--no-open` to change that behavior.
 
