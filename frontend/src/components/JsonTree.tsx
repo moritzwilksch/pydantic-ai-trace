@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { jsonEntries } from "../json";
 
 const LARGE_STRING_BYTES = 10_000;
 
@@ -34,7 +35,7 @@ function JsonNode({ value, label }: { value: unknown; label?: string }) {
 
   const entries = Array.isArray(value)
     ? value.map((item, i) => [String(i), item] as const)
-    : Object.entries(value);
+    : jsonEntries(value);
   if (entries.length === 0) {
     return (
       <div>

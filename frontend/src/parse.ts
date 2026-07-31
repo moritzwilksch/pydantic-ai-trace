@@ -3,8 +3,16 @@
 // field names are mapped to their current equivalents, and nothing throws.
 
 import type { Message, ModelResponse, Part, ToolCallPart, Usage } from "./types";
+import { jsonEntries, parseJson } from "./json";
 
 export function parseTrace(raw: unknown): Message[] {
+  if (typeof raw === "string") {
+    try {
+      raw = parseJson(raw);
+    } catch {
+      return [];
+    }
+  }
   if (!Array.isArray(raw)) return [];
   return raw.map(parseMessage);
 }
@@ -41,7 +49,7 @@ export function parseArgs(args: string | Record<string, unknown> | null | undefi
   if (args == null) return null;
   if (typeof args !== "string") return args;
   try {
-    return JSON.parse(args);
+    return parseJson(args);
   } catch {
     return args;
   }
@@ -50,7 +58,7 @@ export function parseArgs(args: string | Record<string, unknown> | null | undefi
 /** Parse text that consists entirely of a JSON object or array. */
 export function parseJsonContainer(content: string): Record<string, unknown> | unknown[] | null {
   try {
-    const value: unknown = JSON.parse(content);
+    const value = parseJson(content);
     if (typeof value === "object" && value !== null) {
       return value as Record<string, unknown> | unknown[];
     }
@@ -93,7 +101,7 @@ function compact(value: unknown, limit: number): string {
     const isArray = Array.isArray(v);
     if (isArray && !push("[")) return false;
     let first = true;
-    for (const [key, child] of isArray ? v.entries() : Object.entries(v)) {
+    for (const [key, child] of isArray ? v.entries() : jsonEntries(v)) {
       if (!first && !push(", ")) return false;
       first = false;
       if (!isArray && !push(`${key}: `)) return false;

@@ -1,8 +1,8 @@
 """Export a trace as a self-contained HTML file.
 
 The packaged `static/index.html` is a single-file Vite build (JS+CSS inlined).
-Export injects the trace JSON as `window.__TRACE_DATA__` before the bundle
-script, so the resulting file renders offline from `file://`.
+Export injects the raw trace JSON text as `window.__TRACE_DATA__` before the
+bundle script, so the resulting file renders offline from `file://`.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def inject_trace_data(index_html: str, trace_json: str, trace_name: str) -> str:
     # or shift the HTML parser into the script-data-escaped state (`<!--`,
     # `<script`); escaping to `\u003c` yields identical JSON with no `<` at all.
     injection = (
-        f"<script>window.__TRACE_DATA__ = {_escape_lt(trace_json)};"
+        f"<script>window.__TRACE_DATA__ = {_js_string(trace_json)};"
         f"window.__TRACE_NAME__ = {_js_string(trace_name)};</script>"
     )
     return index_html[:marker_pos] + injection + index_html[marker_pos:]

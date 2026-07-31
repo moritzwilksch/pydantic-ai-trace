@@ -66,3 +66,21 @@ def test_integer_larger_than_javascript_number_range_matches_json_stringify():
     text = format_trace_as_text(trace, "huge.json")
 
     assert '--- UNKNOWN PART: future ---\n\n{"part_kind":"future","value":null}' in text
+
+
+def test_json_keys_keep_source_order_in_text_output():
+    trace = [
+        {
+            "kind": "response",
+            "parts": [
+                {
+                    "part_kind": "future",
+                    "value": json.loads('{"10":"ten","2":"two","name":"value"}'),
+                }
+            ],
+        }
+    ]
+
+    text = format_trace_as_text(trace, "ordered.json")
+
+    assert '"value":{"10":"ten","2":"two","name":"value"}' in text

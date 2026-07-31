@@ -260,6 +260,18 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".json-tree details")).toBeNull();
   });
 
+  it("renders JSON keys in their source order", () => {
+    window.__TRACE_DATA__ =
+      '[{"kind":"response","parts":[{"part_kind":"tool-call","tool_name":"ordered",' +
+      '"args":{"10":"ten","2":"two","name":"value"},"tool_call_id":"c1"}]}]';
+    const { container } = render(<App />);
+
+    const tree = container.querySelector(".json-tree")!;
+    const text = tree.textContent ?? "";
+    expect(text.indexOf("10")).toBeLessThan(text.indexOf("2"));
+    expect(text.indexOf("2")).toBeLessThan(text.indexOf("name"));
+  });
+
   it("shows cache hit rate behind the cached token count", () => {
     window.__TRACE_DATA__ = [
       {
