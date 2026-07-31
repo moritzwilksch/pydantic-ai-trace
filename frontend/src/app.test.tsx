@@ -76,6 +76,7 @@ afterEach(() => {
   cleanup();
   delete window.__TRACE_DATA__;
   delete window.__TRACE_NAME__;
+  delete window.__TRACE_TEXT__;
 });
 
 describe("App in exported-trace mode", () => {
@@ -113,23 +114,14 @@ describe("App in exported-trace mode", () => {
     });
     window.__TRACE_DATA__ = FULL_TRACE;
     window.__TRACE_NAME__ = "smoke.json";
+    window.__TRACE_TEXT__ = "precomputed transcript";
     const { getByRole } = render(<App />);
 
     fireEvent.click(getByRole("button", { name: "Copy trace" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     const copied = writeText.mock.calls[0][0];
-    expect(copied).toContain("========== TRACE ==========\n\nNAME: smoke.json");
-    expect(copied).toContain("========== REQUEST 1 ==========");
-    expect(copied).toContain("========== RESPONSE 1 · test-model · 10 in → 4 out ==========");
-    expect(copied).toContain("========== REQUEST 2 ==========");
-    expect(copied).toContain("========== RESPONSE 2 · test-model · 20 in → 8 out ==========");
-    expect(copied).toContain('--- TOOL CALL: search ---\n\nARGUMENTS:\n{"q":"x"}');
-    expect(copied).toContain('--- TOOL RETURN: search ---\n\n{"hits":3}');
-    expect(copied).toContain("[binary: application/pdf, 2 B, payload omitted]");
-    expect(copied).not.toContain("aGk=");
-    expect(copied).not.toContain("tool_call_id");
-    expect(copied).not.toContain("finish:");
+    expect(copied).toBe("precomputed transcript");
     getByRole("button", { name: "Copied" });
   });
 
@@ -308,6 +300,20 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".markdown strong")?.textContent).toBe("bold move");
   });
 
+  it("highlights fenced code during markdown rendering", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "response",
+        parts: [{ part_kind: "text", content: "```python\nprint(True)\n```" }],
+      },
+    ];
+    const { container } = render(<App />);
+
+    expect(container.querySelector("code.language-python .hljs-built_in")?.textContent).toBe(
+      "print",
+    );
+  });
+
   it("renders scalar and one-item sequence user text consistently", () => {
     window.__TRACE_DATA__ = [
       {
@@ -373,6 +379,44 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".raw-text")).toBeNull();
     expect(container.textContent).toContain('status: "ok"');
     expect(container.textContent).not.toContain('{"status":"ok","items":[1,2]}');
+  });
+
+  it("escapes JSON string primitives", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "response",
+        parts: [
+          {
+            part_kind: "tool-return",
+            tool_name: "echo",
+            content: { value: 'line 1\n"line 2"' },
+          },
+        ],
+      },
+    ];
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".json-string")?.textContent).toBe('"line 1\\n\\"line 2\\""');
+  });
+
+  it("measures large JSON strings in UTF-8 bytes", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "response",
+        parts: [
+          {
+            part_kind: "tool-return",
+            tool_name: "echo",
+            content: { value: "é".repeat(6_000) },
+          },
+        ],
+      },
+    ];
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".json-tree details.collapsible")?.textContent).toContain(
+      "11.7 KB",
+    );
   });
 
   it("keeps prose containing a JSON fragment as markdown", () => {

@@ -95,23 +95,17 @@ def _jsonl_lines(text: str) -> list[str]:
     return [line for line in text.splitlines() if line.strip()]
 
 
-def _dir_node(
-    root: Path, directory: Path, name: str, visited: frozenset[Path] = frozenset()
-) -> TreeNode:
+def _dir_node(root: Path, directory: Path, name: str) -> TreeNode:
     children: list[TreeNode] = []
-    visited = visited or frozenset({directory.resolve()})
     try:
         entries = sorted(directory.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
     except OSError:
         entries = []
     for entry in entries:
-        if entry.name.startswith("."):
+        if entry.name.startswith(".") or entry.is_symlink():
             continue
         if entry.is_dir():
-            real = entry.resolve()
-            if real in visited:  # symlink cycle back into an ancestor
-                continue
-            child = _dir_node(root, entry, name=entry.name, visited=visited | {real})
+            child = _dir_node(root, entry, name=entry.name)
             if child["children"]:
                 children.append(child)
         elif entry.suffix in TRACE_SUFFIXES:

@@ -1,18 +1,23 @@
 // Data access: REST endpoints, SSE change feed, and the exported-HTML
 // fallback where the trace is embedded as window.__TRACE_DATA__.
 
-import type { Meta, TraceSelection, TreeNode } from "./types";
+import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
 declare global {
   interface Window {
     __TRACE_DATA__?: unknown;
     __TRACE_NAME__?: string;
+    __TRACE_TEXT__?: string;
   }
 }
 
-export function embeddedTrace(): { name: string; data: unknown } | null {
+export function embeddedTrace(): { name: string; data: unknown; transcript: string } | null {
   if (window.__TRACE_DATA__ === undefined) return null;
-  return { name: window.__TRACE_NAME__ ?? "trace", data: window.__TRACE_DATA__ };
+  return {
+    name: window.__TRACE_NAME__ ?? "trace",
+    data: window.__TRACE_DATA__,
+    transcript: window.__TRACE_TEXT__ ?? "",
+  };
 }
 
 export async function fetchMeta(): Promise<Meta> {
@@ -23,16 +28,10 @@ export async function fetchTree(): Promise<TreeNode> {
   return getJson("/api/tree");
 }
 
-export async function fetchTrace(selection: TraceSelection): Promise<unknown> {
+export async function fetchTrace(selection: TraceSelection): Promise<TracePayload> {
   const params = new URLSearchParams({ path: selection.path });
   if (selection.line !== undefined) params.set("line", String(selection.line));
-  const url = `/api/trace?${params}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    const detail = await response.json().catch(() => null);
-    throw new Error(detail?.error ?? `${url} failed with ${response.status}`);
-  }
-  return response.text();
+  return getJson(`/api/trace?${params}`);
 }
 
 async function getJson(url: string): Promise<any> {

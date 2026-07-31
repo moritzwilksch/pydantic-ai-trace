@@ -58,14 +58,16 @@ function JsonNode({ value, label }: { value: unknown; label?: string }) {
 
 function JsonPrimitive({ value }: { value: unknown }) {
   if (typeof value === "string") {
-    if (value.length > LARGE_STRING_BYTES) {
+    const size = byteLength(value);
+    const serialized = JSON.stringify(value);
+    if (size > LARGE_STRING_BYTES) {
       return (
-        <CollapsedPayload sizeLabel={formatBytes(value.length)}>
-          <span class="json-string">"{value}"</span>
+        <CollapsedPayload sizeLabel={formatBytes(size)}>
+          <span class="json-string">{serialized}</span>
         </CollapsedPayload>
       );
     }
-    return <span class="json-string">"{value}"</span>;
+    return <span class="json-string">{serialized}</span>;
   }
   if (typeof value === "number") return <span class="json-num">{String(value)}</span>;
   if (typeof value === "boolean") return <span class="json-bool">{String(value)}</span>;
@@ -94,6 +96,10 @@ export function formatBytes(length: number): string {
   if (length < 1024) return `${length} B`;
   if (length < 1024 * 1024) return `${(length / 1024).toFixed(1)} KB`;
   return `${(length / 1024 / 1024).toFixed(1)} MB`;
+}
+
+export function byteLength(value: string): number {
+  return new Blob([value]).size;
 }
 
 export const LARGE_PAYLOAD_BYTES = LARGE_STRING_BYTES;

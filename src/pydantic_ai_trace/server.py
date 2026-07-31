@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +16,21 @@ from starlette.routing import Route
 
 from . import scan
 from .export import packaged_index_html
+from .text import format_trace_json_as_text
 
 WATCH_DEBOUNCE_MS = 200
 
 
-def serve(root: Path, host: str, port: int) -> None:
+class ServerStartError(Exception):
+    pass
+
+
+def serve(
+    root: Path,
+    host: str,
+    port: int,
+    on_bound: Callable[[], None] | None = None,
+) -> None:
     """Run the viewer server until interrupted; Ctrl-C always exits promptly."""
     import uvicorn
 
@@ -40,9 +51,18 @@ def serve(root: Path, host: str, port: int) -> None:
             stop_event.set()
             await super().shutdown(sockets=sockets)
 
+    # Bind once and hand that same socket to Uvicorn. A separate availability
+    # check would release the port and race with the real server bind.
+    try:
+        sock = config.bind_socket()
+    except SystemExit as exc:
+        raise ServerStartError(f"cannot bind {host}:{port}") from exc
+    if on_bound is not None:
+        on_bound()
+
     # Like uvicorn.run(): Ctrl-C is a clean exit, not a crash.
     with contextlib.suppress(KeyboardInterrupt):
-        _Server(config).run()
+        _Server(config).run(sockets=[sock])
 
 
 def create_app(root: Path, stop_event: asyncio.Event | None = None) -> Starlette:
@@ -72,7 +92,14 @@ def create_app(root: Path, stop_event: asyncio.Event | None = None) -> Starlette
             text = await asyncio.to_thread(scan.read_trace, serve_root, relative_path, line)
         except scan.TraceLookupError as exc:
             return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
-        return Response(text, media_type="application/json")
+        name = f"{relative_path} · trace {line}" if line is not None else relative_path
+        transcript = await asyncio.to_thread(format_trace_json_as_text, text, name)
+        return JSONResponse(
+            {
+                "source": text,
+                "transcript": transcript,
+            }
+        )
 
     async def events(_: Request) -> Response:
         only = root.name if mode == "file" else None

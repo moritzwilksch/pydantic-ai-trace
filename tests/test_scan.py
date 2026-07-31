@@ -72,6 +72,20 @@ class TestBuildTree:
         tree = scan.build_tree(tmp_path)
         assert [child["name"] for child in tree["children"]] == ["t.json"]
 
+    def test_symlinks_are_not_followed_or_read(self, tmp_path: Path):
+        outside = tmp_path.parent / f"{tmp_path.name}-outside"
+        outside.mkdir()
+        (outside / "secret.json").write_text("[]")
+        try:
+            (tmp_path / "linked-dir").symlink_to(outside, target_is_directory=True)
+            (tmp_path / "linked.json").symlink_to(outside / "secret.json")
+        except OSError as exc:
+            pytest.skip(f"symlinks unavailable: {exc}")
+
+        tree = scan.build_tree(tmp_path)
+
+        assert tree["children"] == []
+
 
 class TestReadTrace:
     def test_json_file_returns_raw_bytes(self, fixtures_copy: Path):

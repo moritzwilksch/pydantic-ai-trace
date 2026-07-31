@@ -166,3 +166,8 @@ export interface TraceSelection {
   path: string;
   line?: number;
 }
+
+export interface TracePayload {
+  source: string;
+  transcript: string;
+}

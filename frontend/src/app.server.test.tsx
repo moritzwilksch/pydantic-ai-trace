@@ -34,7 +34,7 @@ afterEach(() => {
 
 describe("App in server mode", () => {
   it("explains that a successfully loaded empty trace has no messages", async () => {
-    mockedFetchTrace.mockResolvedValue([]);
+    mockedFetchTrace.mockResolvedValue({ source: "[]", transcript: "empty trace" });
     const { getByText } = render(<App />);
 
     await waitFor(() => expect(getByText("This trace contains no messages.")).toBeTruthy());
