@@ -23,6 +23,7 @@ export function formatTraceAsText(messages: Message[], name: string): string {
   const sections = [section(envelope("TRACE"), traceDetails(messages, name))];
   let requestNumber = 0;
   let responseNumber = 0;
+  let lastInstructions: string | null = null;
 
   for (const message of messages) {
     if (message.kind === "unknown") {
@@ -31,8 +32,13 @@ export function formatTraceAsText(messages: Message[], name: string): string {
     }
 
     const parts: string[] = [];
-    if (message.kind === "request" && message.instructions) {
+    if (
+      message.kind === "request" &&
+      message.instructions &&
+      message.instructions !== lastInstructions
+    ) {
       parts.push(partSection("INSTRUCTIONS", message.instructions));
+      lastInstructions = message.instructions;
     }
     for (const part of message.parts) {
       const formatted = formatPart(part);

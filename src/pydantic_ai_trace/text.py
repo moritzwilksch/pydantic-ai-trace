@@ -21,6 +21,7 @@ def format_trace_as_text(trace: object, name: str) -> str:
     sections = [_section(_envelope("TRACE"), _trace_details(messages, name))]
     request_number = 0
     response_number = 0
+    last_instructions: object = None
 
     for message in messages:
         if message["kind"] == "unknown":
@@ -28,8 +29,10 @@ def format_trace_as_text(trace: object, name: str) -> str:
             continue
 
         parts: list[str] = []
-        if message["kind"] == "request" and message.get("instructions"):
-            parts.append(_part_section("INSTRUCTIONS", _js_string(message["instructions"])))
+        instructions = message.get("instructions")
+        if message["kind"] == "request" and instructions and instructions != last_instructions:
+            parts.append(_part_section("INSTRUCTIONS", _js_string(instructions)))
+            last_instructions = instructions
         for part in message["parts"]:
             formatted = _format_part(part)
             if formatted:

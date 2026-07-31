@@ -30,6 +30,23 @@ def test_non_array_input_formats_as_an_empty_trace():
     )
 
 
+def test_repeated_instructions_are_only_printed_when_they_change():
+    trace = [
+        {"kind": "request", "instructions": "First.", "parts": []},
+        {"kind": "request", "instructions": "First.", "parts": []},
+        {"kind": "request", "instructions": None, "parts": []},
+        {"kind": "request", "instructions": "Second.", "parts": []},
+        {"kind": "request", "instructions": "Second.", "parts": []},
+        {"kind": "request", "instructions": "First.", "parts": []},
+    ]
+
+    text = format_trace_as_text(trace, "instructions.json")
+
+    assert text.count("--- INSTRUCTIONS ---") == 3
+    assert text.count("First.") == 2
+    assert text.count("Second.") == 1
+
+
 def test_unknown_message_and_part_use_raw_json_fallbacks():
     trace = [
         {"kind": "telepathy", "parts": [], "payload": "message"},
