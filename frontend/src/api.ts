@@ -26,7 +26,13 @@ export async function fetchTree(): Promise<TreeNode> {
 export async function fetchTrace(selection: TraceSelection): Promise<unknown> {
   const params = new URLSearchParams({ path: selection.path });
   if (selection.line !== undefined) params.set("line", String(selection.line));
-  return getJson(`/api/trace?${params}`);
+  const url = `/api/trace?${params}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.error ?? `${url} failed with ${response.status}`);
+  }
+  return response.text();
 }
 
 async function getJson(url: string): Promise<any> {

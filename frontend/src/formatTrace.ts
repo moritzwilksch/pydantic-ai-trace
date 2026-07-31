@@ -1,3 +1,4 @@
+import { stringifyJson } from "./json";
 import { computeStats } from "./parse";
 import type {
   CompactionPart,
@@ -218,7 +219,7 @@ function formatBytes(bytes: number): string {
 
 function json(value: unknown): string {
   try {
-    const serialized = JSON.stringify(value);
+    const serialized = stringifyJson(value);
     return serialized === undefined ? String(value) : serialized;
   } catch {
     return String(value);

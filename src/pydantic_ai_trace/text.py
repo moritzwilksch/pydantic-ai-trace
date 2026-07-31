@@ -321,27 +321,9 @@ def _json(value: object) -> str:
     if isinstance(value, list):
         return f"[{','.join(_json(item) for item in value)}]"
     if isinstance(value, dict):
-        fields = (f"{_json(str(key))}:{_json(value[key])}" for key in _js_keys(value))
+        fields = (f"{_json(str(key))}:{_json(child)}" for key, child in value.items())
         return f"{{{','.join(fields)}}}"
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-
-
-def _js_keys(value: dict[object, object]) -> list[object]:
-    """Use JavaScript's Object.keys ordering: array indexes first, then insertion order."""
-    keys = list(value)
-    indexes = sorted(
-        (key for key in keys if _array_index(key) is not None),
-        key=lambda key: _array_index(key) or 0,
-    )
-    indexed = set(indexes)
-    return [*indexes, *(key for key in keys if key not in indexed)]
-
-
-def _array_index(value: object) -> int | None:
-    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
-        return None
-    index = int(value)
-    return index if 0 <= index < 2**32 - 1 and str(index) == value else None
 
 
 def _js_number(value: int | float) -> str:

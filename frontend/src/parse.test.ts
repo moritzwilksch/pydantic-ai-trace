@@ -19,6 +19,13 @@ describe("parseTrace", () => {
     expect(messages.map((m) => m.kind)).toEqual(["request", "response"]);
   });
 
+  it("accepts raw JSON text from the trace boundary", () => {
+    const messages = parseTrace(
+      '[{"kind":"request","parts":[{"part_kind":"user-prompt","content":"hi"}]}]',
+    );
+    expect(messages.map((message) => message.kind)).toEqual(["request"]);
+  });
+
   it("wraps unknown message kinds instead of dropping them", () => {
     const messages = parseTrace([{ kind: "telepathy", parts: [] }, "not even an object"]);
     expect(messages.every((m) => m.kind === "unknown")).toBe(true);
@@ -94,6 +101,16 @@ describe("normalizeUsage", () => {
 describe("compactJson", () => {
   it("renders objects as key: value pairs", () => {
     expect(compactJson({ path: "src/app.py", limit: 5 })).toBe('path: "src/app.py", limit: 5');
+  });
+
+  it("keeps integer-like keys in JSON source order", () => {
+    const messages = parseTrace(
+      '[{"kind":"response","parts":[{"part_kind":"tool-call","tool_name":"t",' +
+        '"tool_call_id":"c1","args":{"10":"ten","2":"two","name":"value"}}]}]',
+    );
+    const part = (messages[0] as ModelResponse).parts[0] as ToolCallPart;
+
+    expect(compactJson(part.parsedArgs)).toBe('10: "ten", 2: "two", name: "value"');
   });
 
   it("renders nested arrays and null", () => {

@@ -14,7 +14,7 @@ describe("formatTraceAsText", () => {
     ["media_and_builtins.json", mediaTraceJson, mediaTraceText],
     ["text_edge_cases.json", edgeTraceJson, edgeTraceText],
   ])("matches the shared %s golden output", (name, traceJson, expected) => {
-    expect(formatTraceAsText(parseTrace(JSON.parse(traceJson)), name)).toBe(expected);
+    expect(formatTraceAsText(parseTrace(traceJson), name)).toBe(expected);
   });
 
   it("preserves message and part order without pairing tool calls", () => {

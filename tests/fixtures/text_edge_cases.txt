@@ -15,7 +15,7 @@ café
 
 --- literal rule ---
 
-{"1":"first","2":"second","10":"tenth","kind":"future-content","value":1}
+{"kind":"future-content","value":1,"1":"first","10":"tenth","2":"second"}
 
 [cache point]
 
@@ -28,7 +28,7 @@ not json {
 
 --- TOOL RETURN: numbers [FAILED] ---
 
-{"1":"first","2":"second","10":"tenth","whole":1,"small":0.000001,"tiny":1e-7,"unicode":"café"}
+{"1":"first","10":"tenth","2":"second","whole":1,"small":0.000001,"tiny":1e-7,"unicode":"café"}
 
 --- COMPACTION ---
 

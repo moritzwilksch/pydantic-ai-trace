@@ -17,7 +17,7 @@ class TestInjectTraceData:
         trace = json.dumps([{"kind": "request", "parts": [{"content": "a</b>c"}]}])
         result = inject_trace_data(INDEX_HTML, trace, trace_name="t.json")
         payload = result.split("window.__TRACE_DATA__ = ", 1)[1].split(";window.__TRACE_NAME__")[0]
-        assert json.loads(payload) == json.loads(trace)
+        assert json.loads(payload) == trace
 
     def test_script_close_tag_in_content_cannot_break_out(self):
         trace = json.dumps([{"content": "</script><script>alert(1)</script>"}])
