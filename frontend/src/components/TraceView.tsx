@@ -10,11 +10,27 @@ export function TraceView({ messages }: { messages: Message[] }) {
     const times = timestampsMs(messages);
     return times.length > 0 ? Math.min(...times) : null;
   }, [messages]);
+  let lastInstructions: string | null = null;
   return (
     <div>
-      {messages.map((message, i) => (
-        <MessageCard key={i} message={message} pairing={pairing} traceStartMs={traceStartMs} />
-      ))}
+      {messages.map((message, i) => {
+        const showInstructions =
+          message.kind === "request" &&
+          Boolean(message.instructions) &&
+          message.instructions !== lastInstructions;
+        if (showInstructions && message.kind === "request") {
+          lastInstructions = message.instructions ?? null;
+        }
+        return (
+          <MessageCard
+            key={i}
+            message={message}
+            pairing={pairing}
+            showInstructions={showInstructions}
+            traceStartMs={traceStartMs}
+          />
+        );
+      })}
     </div>
   );
 }

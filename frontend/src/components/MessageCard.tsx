@@ -38,10 +38,12 @@ import { UserPrompt } from "./parts/UserPrompt";
 export function MessageCard({
   message,
   pairing,
+  showInstructions,
   traceStartMs,
 }: {
   message: Message;
   pairing: Pairing;
+  showInstructions: boolean;
   traceStartMs: number | null;
 }) {
   if (message.kind === "unknown") {
@@ -71,7 +73,7 @@ export function MessageCard({
       </div>
       <div class="card-body">
         {message.state === "interrupted" ? <InterruptedMessage kind={message.kind} /> : null}
-        {message.kind === "request" && message.instructions ? (
+        {message.kind === "request" && showInstructions && message.instructions ? (
           <div class="part" data-nav>
             <Block
               label={

@@ -202,6 +202,33 @@ describe("App in exported-trace mode", () => {
     getAllByText("Use the private index.");
   });
 
+  it("shows repeated instructions only after they change", () => {
+    window.__TRACE_DATA__ = [
+      { kind: "request", instructions: "First.", parts: [] },
+      { kind: "request", instructions: "First.", parts: [] },
+      { kind: "request", instructions: null, parts: [] },
+      { kind: "response", parts: [] },
+      { kind: "request", instructions: "Second.", parts: [] },
+      { kind: "request", instructions: "Second.", parts: [] },
+      { kind: "request", instructions: "First.", parts: [] },
+    ];
+
+    const { container, getAllByText } = render(<App />);
+    const requestCards = Array.from(container.querySelectorAll(".kind-request")).map((header) =>
+      header.closest(".card")!,
+    );
+
+    expect(requestCards.map((card) => card.textContent?.includes("Instructions"))).toEqual([
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+    ]);
+    expect(getAllByText("Instructions")).toHaveLength(3);
+  });
+
   it("expands and collapses every content block with uppercase E and C", () => {
     window.__TRACE_DATA__ = [
       { kind: "request", parts: [{ part_kind: "user-prompt", content: "question" }] },
