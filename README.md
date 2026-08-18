@@ -84,6 +84,36 @@ Pass `--all` to convert every trace in a JSONL file or stream. The output remain
 compact trajectory per line. `--all` cannot be combined with `--line` or `--pretty`. Pass
 `--pretty` to indent single-trace output by two spaces.
 
+### Query compact JSON with jq
+
+```bash
+# Extract the final assistant text
+pixi run paitrace json trace.json \
+  | jq -r '[.messages[].parts[] | select(.type == "text") | .content] | last'
+
+# Extract tool calls, results, and retries in chronological order
+pixi run paitrace json trace.json \
+  | jq '[.messages[].parts[] | select(.type == "tool_call" or .type == "tool_result" or .type == "retry")]'
+
+# Pair tool calls with their result or retry by call ID
+pixi run paitrace json trace.json | jq '
+  [.messages[].parts[]] as $parts
+  | [$parts[] | select(.type == "tool_result" or .type == "retry")] as $results
+  | [$parts[] | select(.type == "tool_call")
+      | . as $call
+      | {
+          id,
+          name,
+          args,
+          result: ($results | map(select(.id == $call.id)) | first)
+        }
+    ]
+'
+
+# Read aggregate model-call and token statistics
+pixi run paitrace json trace.json | jq '.stats'
+```
+
 The viewer, `text`, `json`, and `export` commands accept a trace from piped stdin when their input
 is omitted. Pass `-` to request stdin explicitly. Stdin can contain one JSON trace or JSONL traces;
 use `--line` to select from multi-trace JSONL. HTML export from stdin requires `-o`.
