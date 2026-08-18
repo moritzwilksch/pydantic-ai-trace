@@ -132,3 +132,22 @@ class TestReadTrace:
         with pytest.raises(scan.TraceLookupError) as exc_info:
             scan.read_trace(tmp_path, "obj.json", line=None)
         assert exc_info.value.status_code == 400
+
+
+class TestInMemoryTraceData:
+    def test_detects_complete_json_before_jsonl(self):
+        assert scan.detect_trace_format('[\n  {"kind": "request", "parts": []}\n]') == "json"
+        assert scan.detect_trace_format("[]\n[]\n") == "jsonl"
+
+    def test_selects_one_based_jsonl_line(self):
+        selected = scan.select_trace(
+            '[]\n[{"kind":"request","parts":[]}]\n',
+            format="jsonl",
+            name="stdin",
+            line=2,
+        )
+        assert json.loads(selected)[0]["kind"] == "request"
+
+    def test_validates_every_jsonl_trace(self):
+        with pytest.raises(scan.TraceLookupError, match="line 2"):
+            scan.validate_trace_data("[]\n{}\n", format="jsonl", name="stdin")

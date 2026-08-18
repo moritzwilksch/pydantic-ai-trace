@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-TRACE_SUFFIXES = {".json": "json", ".jsonl": "jsonl"}
+TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
 
 type TreeNode = dict[str, Any]
 
@@ -64,21 +64,67 @@ def read_trace(root: Path, relative_path: str, line: int | None) -> str:
     except (OSError, UnicodeDecodeError) as exc:
         raise TraceLookupError(f"cannot read {relative_path!r}: {exc}", status_code=400) from exc
 
-    if path.suffix == ".json":
-        _ensure_json_array(text, relative_path)
+    return select_trace(
+        text,
+        format=TRACE_SUFFIXES[path.suffix],
+        name=relative_path,
+        line=line,
+    )
+
+
+def detect_trace_format(text: str) -> Literal["json", "jsonl"]:
+    """Detect a complete JSON trace before falling back to JSONL."""
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        return "jsonl"
+    return "json"
+
+
+def validate_trace_data(
+    text: str,
+    *,
+    format: Literal["json", "jsonl"],
+    name: str,
+) -> None:
+    """Validate in-memory trace data without applying JSONL line selection."""
+    if format == "json":
+        _ensure_json_array(text, name)
+        return
+
+    lines = _jsonl_lines(text)
+    if not lines:
+        raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
+    for line_number, candidate in enumerate(lines, start=1):
+        try:
+            _ensure_json_array(candidate, name)
+        except TraceLookupError as exc:
+            raise TraceLookupError(f"line {line_number}: {exc}", status_code=400) from exc
+
+
+def select_trace(
+    text: str,
+    *,
+    format: Literal["json", "jsonl"],
+    name: str,
+    line: int | None,
+) -> str:
+    """Select one trace from validated JSON or JSONL text."""
+    if format == "json":
+        _ensure_json_array(text, name)
         return text
 
     lines = _jsonl_lines(text)
     if not lines:
-        raise TraceLookupError(f"{relative_path!r} contains no traces", status_code=400)
+        raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
     index = 1 if line is None and len(lines) == 1 else line
     if index is None or not 1 <= index <= len(lines):
         raise TraceLookupError(
-            f"{relative_path!r} has {len(lines)} traces; pass line 1..{len(lines)}",
+            f"{name!r} has {len(lines)} traces; pass line 1..{len(lines)}",
             status_code=400,
         )
     selected = lines[index - 1]
-    _ensure_json_array(selected, relative_path)
+    _ensure_json_array(selected, name)
     return selected
 
 

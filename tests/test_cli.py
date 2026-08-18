@@ -1,3 +1,6 @@
+import io
+import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +15,8 @@ def serve_captures_app(monkeypatch: pytest.MonkeyPatch) -> dict:
 
     def fake_serve(root, host, port, on_bound):
         captured.update({"app": root, "root": root, "host": host, "port": port})
+        if root.is_file():
+            captured["trace_text"] = root.read_text(encoding="utf-8")
         on_bound()
 
     monkeypatch.setattr("pydantic_ai_trace.server.serve", fake_serve)
@@ -57,14 +62,39 @@ class TestServeCommand:
         assert cli.main([str(fixtures_copy), "--port", "9999", "--no-open"]) == 1
         assert "--port" in capsys.readouterr().err
 
+    def test_serves_piped_json_from_a_temporary_file(
+        self,
+        fixtures_copy: Path,
+        serve_captures_app: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        trace = (fixtures_copy / "full_trace.json").read_text(encoding="utf-8")
+        monkeypatch.setattr(sys, "stdin", io.StringIO(trace))
+
+        assert cli.main(["--no-open"]) == 0
+        assert serve_captures_app["root"].name == "stdin.json"
+        assert serve_captures_app["trace_text"] == trace
+        assert not serve_captures_app["root"].exists()
+
+    def test_serves_piped_jsonl_without_selecting_one_trace(
+        self,
+        serve_captures_app: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(sys, "stdin", io.StringIO("[]\n[]\n"))
+
+        assert cli.main(["--no-open"]) == 0
+        assert serve_captures_app["root"].name == "stdin.jsonl"
+        assert serve_captures_app["trace_text"] == "[]\n[]\n"
+
 
 class TestExportCommand:
     def test_export_writes_html(
         self, fixtures_copy: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
         monkeypatch.setattr(
-            "pydantic_ai_trace.export.export_html",
-            lambda inp, out, line: out.write_text("<html>fake</html>"),
+            "pydantic_ai_trace.export.write_export_html",
+            lambda trace_json, out, trace_name: out.write_text("<html>fake</html>"),
         )
         output = tmp_path / "out.html"
         code = cli.main(["export", str(fixtures_copy / "full_trace.json"), "-o", str(output)])
@@ -76,8 +106,8 @@ class TestExportCommand:
     ):
         written: list[Path] = []
         monkeypatch.setattr(
-            "pydantic_ai_trace.export.export_html",
-            lambda inp, out, line: written.append(out),
+            "pydantic_ai_trace.export.write_export_html",
+            lambda trace_json, out, trace_name: written.append(out),
         )
         cli.main(["export", str(fixtures_copy / "full_trace.json")])
         assert written == [fixtures_copy / "full_trace.html"]
@@ -98,6 +128,28 @@ class TestExportCommand:
         (export_dir / "t.json").write_text("[]")
         assert cli.main(["export", "--no-open"]) == 0
         assert "app" in serve_captures_app
+
+    def test_exports_stdin_when_output_is_explicit(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        captured: dict[str, object] = {}
+        monkeypatch.setattr(sys, "stdin", io.StringIO("[]"))
+        monkeypatch.setattr(
+            "pydantic_ai_trace.export.write_export_html",
+            lambda trace_json, out, trace_name: captured.update(
+                {"trace": trace_json, "output": out, "name": trace_name}
+            ),
+        )
+        output = tmp_path / "stdin.html"
+
+        assert cli.main(["export", "-o", str(output)]) == 0
+        assert captured == {"trace": "[]", "output": output, "name": "stdin"}
+
+    def test_exporting_stdin_requires_output(self, capsys: pytest.CaptureFixture):
+        assert cli.main(["export"]) == 1
+        assert "--output is required" in capsys.readouterr().err
 
 
 class TestTextCommand:
@@ -150,3 +202,76 @@ class TestTextCommand:
         (text_dir / "t.json").write_text("[]")
         assert cli.main(["text", "--no-open"]) == 0
         assert "app" in serve_captures_app
+
+    def test_reads_omitted_input_from_stdin(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        trace = (fixtures_copy / "full_trace.json").read_text(encoding="utf-8")
+        monkeypatch.setattr(sys, "stdin", io.StringIO(trace))
+
+        assert cli.main(["text"]) == 0
+        assert "NAME: stdin" in capsys.readouterr().out
+
+
+class TestJsonCommand:
+    def test_writes_compact_json_to_stdout(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        assert cli.main(["json", str(fixtures_copy / "full_trace.json")]) == 0
+        captured = capsys.readouterr()
+        document = json.loads(captured.out)
+        assert document["name"] == "full_trace.json"
+        assert [message["type"] for message in document["messages"]] == [
+            "request",
+            "response",
+            "request",
+            "response",
+            "request",
+            "response",
+        ]
+        assert captured.err == ""
+
+    def test_reads_jsonl_line_from_stdin(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        source = (fixtures_copy / "runs" / "multi.jsonl").read_text(encoding="utf-8")
+        monkeypatch.setattr(sys, "stdin", io.StringIO(source))
+
+        assert cli.main(["json", "--line", "2"]) == 0
+        document = json.loads(capsys.readouterr().out)
+        assert document["name"] == "stdin"
+        assert document["messages"][0]["parts"][0]["content"] == "hello from line two"
+
+    def test_explicit_dash_reads_stdin(
+        self,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(sys, "stdin", io.StringIO("[]"))
+
+        assert cli.main(["json", "-"]) == 0
+        assert json.loads(capsys.readouterr().out)["messages"] == []
+
+    def test_omitted_input_on_a_terminal_prints_usage(
+        self,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        class TerminalInput(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        monkeypatch.setattr(sys, "stdin", TerminalInput())
+
+        assert cli.main(["json"]) == 1
+        captured = capsys.readouterr()
+        assert "usage: paitrace json" in captured.err
+        assert "input is required" in captured.err
