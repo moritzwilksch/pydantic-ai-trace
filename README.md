@@ -35,6 +35,9 @@ pixi run paitrace trace.json
 # Browse a directory tree of traces
 pixi run paitrace ./my-traces/
 
+# Browse an explicit collection of trace files with live reload
+pixi run paitrace first.json second.json runs/multi.jsonl
+
 # Write one trace to a standalone HTML file
 pixi run paitrace export trace.json -o trace.html
 
@@ -62,6 +65,12 @@ pixi run paitrace json trace.json -o compact.json
 # Convert every trace in JSONL to one compact JSON object per line
 pixi run paitrace json runs.jsonl --all -o compact.jsonl
 
+# Convert multiple JSON files to compact JSONL in argument order
+pixi run paitrace json first.json second.json -o compact.jsonl
+
+# Mix JSON and JSONL inputs; --all expands every JSONL source
+pixi run paitrace json first.json runs.jsonl --all -o compact.jsonl
+
 # Indent one compact trajectory for direct inspection
 pixi run paitrace json trace.json --pretty
 
@@ -83,6 +92,11 @@ linked by `id`.
 Pass `--all` to convert every trace in a JSONL file or stream. The output remains JSONL, with one
 compact trajectory per line. `--all` cannot be combined with `--line` or `--pretty`. Pass
 `--pretty` to indent single-trace output by two spaces.
+
+Multiple `.json` inputs also produce compact JSONL, in argument order. When multiple inputs include
+JSONL, pass `--all` to expand each JSONL source. Multiple inputs cannot use stdin, `--line`, or
+`--pretty`. The browser also accepts multiple explicit `.json` and `.jsonl` files and watches each
+source for changes. `text` and `export` remain single-input commands.
 
 ### Query compact JSON with jq
 
@@ -112,6 +126,9 @@ pixi run paitrace json trace.json | jq '
 
 # Read aggregate model-call and token statistics
 pixi run paitrace json trace.json | jq '.stats'
+
+# Collect several compact trajectories into one JSON array
+pixi run paitrace json first.json second.json | jq -s '.'
 ```
 
 The viewer, `text`, `json`, and `export` commands accept a trace from piped stdin when their input

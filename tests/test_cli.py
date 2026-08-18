@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pydantic_ai_trace import cli
+from pydantic_ai_trace import cli, scan
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def serve_captures_app(monkeypatch: pytest.MonkeyPatch) -> dict:
 
     def fake_serve(root, host, port, on_bound):
         captured.update({"app": root, "root": root, "host": host, "port": port})
-        if root.is_file():
+        if isinstance(root, Path) and root.is_file():
             captured["trace_text"] = root.read_text(encoding="utf-8")
         on_bound()
 
@@ -86,6 +86,33 @@ class TestServeCommand:
         assert cli.main(["--no-open"]) == 0
         assert serve_captures_app["root"].name == "stdin.jsonl"
         assert serve_captures_app["trace_text"] == "[]\n[]\n"
+
+    def test_serves_multiple_files_as_an_explicit_collection(
+        self,
+        fixtures_copy: Path,
+        serve_captures_app: dict,
+    ):
+        first = fixtures_copy / "full_trace.json"
+        second = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main([str(first), str(second), "--no-open"]) == 0
+
+        collection = serve_captures_app["root"]
+        assert isinstance(collection, scan.TraceCollection)
+        assert [item.key for item in collection.files] == [
+            "full_trace.json",
+            "runs/multi.jsonl",
+        ]
+
+    def test_multiple_viewer_inputs_reject_directories(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        trace = fixtures_copy / "full_trace.json"
+
+        assert cli.main([str(trace), str(fixtures_copy), "--no-open"]) == 1
+        assert "got directory" in capsys.readouterr().err
 
 
 class TestExportCommand:
@@ -350,15 +377,16 @@ class TestJsonCommand:
         assert cli.main(["json", *arguments]) == 1
         assert message in capsys.readouterr().err
 
-    def test_all_requires_jsonl_for_file_input(
+    def test_all_accepts_one_json_file_as_a_one_record_batch(
         self,
         fixtures_copy: Path,
         capsys: pytest.CaptureFixture,
     ):
         source = fixtures_copy / "full_trace.json"
 
-        assert cli.main(["json", str(source), "--all"]) == 1
-        assert f"--all requires .jsonl input: {source}" in capsys.readouterr().err
+        assert cli.main(["json", str(source), "--all"]) == 0
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [document["name"] for document in documents] == ["full_trace.json"]
 
     def test_all_rejects_overwriting_its_streaming_input(
         self,
@@ -397,3 +425,90 @@ class TestJsonCommand:
         rendered = capsys.readouterr().out
         assert rendered.startswith('{\n  "name": "full_trace.json",\n')
         assert json.loads(rendered)["stats"]["llm_calls"] == 3
+
+    def test_multiple_json_files_emit_compact_jsonl(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        first = fixtures_copy / "full_trace.json"
+        second = fixtures_copy / "text_edge_cases.json"
+
+        assert cli.main(["json", str(first), str(second)]) == 0
+
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [document["name"] for document in documents] == [
+            "full_trace.json",
+            "text_edge_cases.json",
+        ]
+
+    def test_multiple_files_with_the_same_basename_keep_relative_names(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        first = tmp_path / "a" / "run.json"
+        second = tmp_path / "b" / "run.json"
+        first.parent.mkdir()
+        second.parent.mkdir()
+        first.write_text("[]", encoding="utf-8")
+        second.write_text("[]", encoding="utf-8")
+
+        assert cli.main(["json", str(first), str(second)]) == 0
+
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [document["name"] for document in documents] == ["a/run.json", "b/run.json"]
+
+    def test_multiple_inputs_expand_jsonl_with_all(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        first = fixtures_copy / "full_trace.json"
+        second = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main(["json", str(first), str(second), "--all"]) == 0
+
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [document["name"] for document in documents] == [
+            "full_trace.json",
+            "runs/multi.jsonl · trace 1",
+            "runs/multi.jsonl · trace 2",
+        ]
+
+    def test_multiple_inputs_require_all_to_expand_jsonl(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        first = fixtures_copy / "full_trace.json"
+        second = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main(["json", str(first), str(second)]) == 1
+        assert "multiple inputs containing JSONL require --all" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("option", [["--pretty"], ["--line", "1"]])
+    def test_multiple_inputs_reject_single_trace_options(
+        self,
+        fixtures_copy: Path,
+        option: list[str],
+        capsys: pytest.CaptureFixture,
+    ):
+        first = fixtures_copy / "full_trace.json"
+        second = fixtures_copy / "text_edge_cases.json"
+
+        assert cli.main(["json", str(first), str(second), *option]) == 1
+        assert "requires exactly one input" in capsys.readouterr().err
+
+    def test_multiple_inputs_reject_stdin_and_duplicate_files(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        path = fixtures_copy / "full_trace.json"
+
+        assert cli.main(["json", str(path), "-"]) == 1
+        assert "stdin cannot be combined" in capsys.readouterr().err
+
+        assert cli.main(["json", str(path), str(path)]) == 1
+        assert "duplicate trace file" in capsys.readouterr().err

@@ -8,13 +8,45 @@ the file contains JSON array(s) at the expected granularity.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
 TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
 
 type TreeNode = dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CollectionFile:
+    key: str
+    path: Path
+
+
+@dataclass(frozen=True)
+class TraceCollection:
+    root: Path
+    files: tuple[CollectionFile, ...]
+
+    @classmethod
+    def from_paths(cls, paths: list[Path]) -> TraceCollection:
+        """Build an allowlisted collection from distinct trace files."""
+        if len(paths) < 2:
+            raise ValueError("a trace collection requires at least two files")
+        resolved = tuple(path.resolve() for path in paths)
+        if len(set(resolved)) != len(resolved):
+            raise ValueError("duplicate trace file paths are not allowed")
+        for path in resolved:
+            if not path.is_file() or path.suffix not in TRACE_SUFFIXES:
+                raise ValueError(f"not a trace file (expected .json or .jsonl): {path}")
+        try:
+            root = Path(os.path.commonpath([str(path.parent) for path in resolved]))
+        except ValueError as exc:
+            raise ValueError("trace files must share a filesystem root") from exc
+        files = tuple(CollectionFile(path.relative_to(root).as_posix(), path) for path in resolved)
+        return cls(root=root, files=files)
 
 
 class TraceLookupError(Exception):
@@ -48,6 +80,44 @@ def build_tree(root: Path) -> TreeNode:
     if root.is_file():
         return _file_node(root, root.name)
     return _dir_node(root, root, name=root.name)
+
+
+def build_collection_tree(collection: TraceCollection) -> TreeNode:
+    """Build a virtual tree containing only explicitly selected files."""
+    root: TreeNode = {
+        "name": "selected traces",
+        "path": ".",
+        "type": "dir",
+        "children": [],
+    }
+    directories: dict[str, TreeNode] = {".": root}
+    for selected in sorted(collection.files, key=lambda item: item.key.lower()):
+        parent = root
+        parts = Path(selected.key).parts
+        prefixes: list[str] = []
+        for part in parts[:-1]:
+            prefixes.append(part)
+            key = Path(*prefixes).as_posix()
+            child = directories.get(key)
+            if child is None:
+                child = {"name": part, "path": key, "type": "dir", "children": []}
+                parent["children"].append(child)
+                directories[key] = child
+            parent = child
+        parent["children"].append(_file_node(selected.path, selected.key))
+    _sort_tree(root)
+    return root
+
+
+def read_collection_trace(
+    collection: TraceCollection,
+    relative_path: str,
+    line: int | None,
+) -> str:
+    """Read one allowlisted collection file without exposing siblings."""
+    if relative_path not in {selected.key for selected in collection.files}:
+        raise TraceLookupError(f"no such trace: {relative_path!r}", status_code=404)
+    return read_trace(collection.root, relative_path, line)
 
 
 def read_trace(root: Path, relative_path: str, line: int | None) -> str:
@@ -212,6 +282,14 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
         node["error"] = True
         node["error_message"] = error
     return node
+
+
+def _sort_tree(node: TreeNode) -> None:
+    children = node.get("children", [])
+    children.sort(key=lambda child: (child["type"] != "dir", child["name"].lower()))
+    for child in children:
+        if child["type"] == "dir":
+            _sort_tree(child)
 
 
 def _is_json_array(text: str) -> bool:

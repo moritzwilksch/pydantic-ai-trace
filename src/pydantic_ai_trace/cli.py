@@ -2,8 +2,8 @@
 
 `paitrace PATH` serves a trace file or directory; `paitrace export` writes HTML;
 and `paitrace text` or `paitrace json` writes a compact representation. Trace
-commands accept a path or stdin. A command word is still treated as a path when
-a file or directory with that name exists.
+commands accept paths or stdin. A command word is still treated as a path when a
+file or directory with that name exists.
 """
 
 from __future__ import annotations
@@ -64,10 +64,10 @@ def _run_serve(argv: list[str]) -> int:
         ),
     )
     parser.add_argument(
-        "path",
+        "paths",
         type=Path,
-        nargs="?",
-        help="a .json/.jsonl trace file, a directory, or - for stdin",
+        nargs="*",
+        help=".json/.jsonl trace files, one directory, or - for stdin",
     )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--host", default=DEFAULT_HOST)
@@ -75,9 +75,9 @@ def _run_serve(argv: list[str]) -> int:
     parser.add_argument("--version", action="version", version=f"paitrace {__version__}")
     args = parser.parse_args(argv)
 
-    root: Path | None = args.path
-    if root is None or root == Path("-"):
-        text = _read_stdin(parser, explicit=root == Path("-"))
+    paths: list[Path] = args.paths
+    if not paths or paths == [Path("-")]:
+        text = _read_stdin(parser, explicit=paths == [Path("-")])
         format = scan.detect_trace_format(text)
         try:
             scan.validate_trace_data(text, format=format, name="stdin")
@@ -86,20 +86,57 @@ def _run_serve(argv: list[str]) -> int:
         with tempfile.TemporaryDirectory(prefix="paitrace-") as directory:
             temporary_path = Path(directory) / f"stdin.{format}"
             temporary_path.write_text(text, encoding="utf-8")
-            return _serve_path(temporary_path, args.host, args.port, args.no_open)
+            return _serve_source(
+                temporary_path,
+                display_name=str(temporary_path),
+                host=args.host,
+                port=args.port,
+                no_open=args.no_open,
+            )
 
+    if Path("-") in paths:
+        raise CliError("stdin cannot be combined with file or directory inputs")
+    if len(paths) > 1:
+        for path in paths:
+            _require_trace_file(path)
+        try:
+            collection = scan.TraceCollection.from_paths(paths)
+        except ValueError as exc:
+            raise CliError(str(exc)) from exc
+        return _serve_source(
+            collection,
+            display_name=f"{len(paths)} selected traces",
+            host=args.host,
+            port=args.port,
+            no_open=args.no_open,
+        )
+
+    root = paths[0]
     if not root.exists():
         raise CliError(f"path does not exist: {root}")
     if root.is_file() and root.suffix not in scan.TRACE_SUFFIXES:
         raise CliError(f"not a trace file (expected .json or .jsonl): {root}")
-    return _serve_path(root, args.host, args.port, args.no_open)
+    return _serve_source(
+        root,
+        display_name=str(root),
+        host=args.host,
+        port=args.port,
+        no_open=args.no_open,
+    )
 
 
-def _serve_path(root: Path, host: str, port: int, no_open: bool) -> int:
+def _serve_source(
+    source: Path | scan.TraceCollection,
+    *,
+    display_name: str,
+    host: str,
+    port: int,
+    no_open: bool,
+) -> int:
     url = f"http://{host}:{port}/"
 
     def on_bound() -> None:
-        print(f"paitrace serving {root} at {url}")
+        print(f"paitrace serving {display_name} at {url}")
         if not no_open:
             browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
             browser_timer.daemon = True  # never keep the process alive
@@ -108,7 +145,7 @@ def _serve_path(root: Path, host: str, port: int, no_open: bool) -> int:
     from .server import ServerStartError, serve
 
     try:
-        serve(root, host=host, port=port, on_bound=on_bound)
+        serve(source, host=host, port=port, on_bound=on_bound)
     except ServerStartError as exc:
         raise CliError(f"{exc} — pick another port with --port") from exc
     return 0
@@ -173,28 +210,37 @@ def _run_json(argv: list[str]) -> int:
         description="Render a trace as compact, structured JSON (default: stdout).",
     )
     parser.add_argument(
-        "input", type=Path, nargs="?", help="a .json/.jsonl trace file or - for stdin"
+        "inputs", type=Path, nargs="*", help=".json/.jsonl trace files or - for stdin"
     )
     parser.add_argument("-o", "--output", type=Path, help="write to this file instead of stdout")
     parser.add_argument(
         "--line", type=int, help="1-based trace line for .jsonl inputs with multiple traces"
     )
     parser.add_argument(
-        "--all", action="store_true", help="render every JSONL trace as compact JSONL"
+        "--all", action="store_true", help="render every input trace as compact JSONL"
     )
     parser.add_argument("--pretty", action="store_true", help="indent single-trace JSON output")
     args = parser.parse_args(argv)
 
     try:
+        inputs: list[Path] = args.inputs
+        multiple = len(inputs) > 1
+        if multiple and Path("-") in inputs:
+            raise CliError("stdin cannot be combined with file inputs")
+        if multiple and args.line is not None:
+            raise CliError("--line requires exactly one input")
+        if multiple and args.pretty:
+            raise CliError("--pretty requires exactly one input")
         if args.all and args.line is not None:
             raise CliError("--all and --line cannot be used together")
         if args.all and args.pretty:
             raise CliError("--all and --pretty cannot be used together")
-        if args.all:
-            _write_all_traces(args.input, args.output, parser)
+        if args.all or multiple:
+            _write_json_batch(inputs, expand_jsonl=args.all, output=args.output, parser=parser)
             return 0
 
-        loaded = _load_trace(args.input, args.line, parser)
+        input_path = inputs[0] if inputs else None
+        loaded = _load_trace(input_path, args.line, parser)
         from .trajectory import format_trace_json_as_compact_json
 
         rendered = format_trace_json_as_compact_json(
@@ -230,28 +276,58 @@ def _load_trace(
     return LoadedTrace(text, name)
 
 
-def _write_all_traces(
-    input_path: Path | None,
+def _write_json_batch(
+    input_paths: list[Path],
+    *,
+    expand_jsonl: bool,
     output: Path | None,
     parser: argparse.ArgumentParser,
 ) -> None:
-    if input_path is None or input_path == Path("-"):
-        source = _stdin_stream(parser, explicit=input_path == Path("-"))
-        _write_compact_jsonl(source, name="stdin", output=output)
+    if not input_paths or input_paths == [Path("-")]:
+        source = _stdin_stream(parser, explicit=input_paths == [Path("-")])
+        traces = (
+            LoadedTrace(trace_json, f"stdin · trace {trace_number}")
+            for trace_number, trace_json in scan.iter_jsonl_traces(source, name="stdin")
+        )
+        _write_compact_traces(traces, output=output)
         return
 
-    format = _require_trace_file(input_path)
-    if format != "jsonl":
-        raise CliError(f"--all requires .jsonl input: {input_path}")
-    if output is not None and output.resolve() == input_path.resolve():
-        raise CliError("--output must differ from the JSONL input when using --all")
-    with input_path.open(encoding="utf-8") as source:
-        _write_compact_jsonl(source, name=input_path.name, output=output)
+    formats: list[Literal["json", "jsonl"]] = [_require_trace_file(path) for path in input_paths]
+    if len(input_paths) > 1:
+        try:
+            collection = scan.TraceCollection.from_paths(input_paths)
+        except ValueError as exc:
+            raise CliError(str(exc)) from exc
+        names = [selected.key for selected in collection.files]
+    else:
+        names = [input_paths[0].name]
+    sources: list[tuple[Path, Literal["json", "jsonl"], str]] = list(
+        zip(input_paths, formats, names, strict=True)
+    )
+    if not expand_jsonl:
+        jsonl = next((path for path, format, _ in sources if format == "jsonl"), None)
+        if jsonl is not None:
+            raise CliError(f"multiple inputs containing JSONL require --all: {jsonl}")
+    if output is not None and output.resolve() in {path.resolve() for path in input_paths}:
+        raise CliError("--output must differ from every batch input")
+    _write_compact_traces(_iter_file_traces(sources), output=output)
 
 
-def _write_compact_jsonl(lines: Iterable[str], *, name: str, output: Path | None) -> None:
+def _iter_file_traces(
+    sources: list[tuple[Path, Literal["json", "jsonl"], str]],
+) -> Iterable[LoadedTrace]:
+    for path, format, name in sources:
+        if format == "json":
+            yield LoadedTrace(scan.read_trace(path.parent, path.name, line=None), name)
+            continue
+        with path.open(encoding="utf-8") as lines:
+            for trace_number, trace_json in scan.iter_jsonl_traces(lines, name=name):
+                yield LoadedTrace(trace_json, f"{name} · trace {trace_number}")
+
+
+def _write_compact_traces(traces: Iterable[LoadedTrace], *, output: Path | None) -> None:
     if output is None:
-        _render_compact_jsonl(lines, name=name, stream=sys.stdout)
+        _render_compact_traces(traces, stream=sys.stdout)
         return
     temporary_path: Path | None = None
     try:
@@ -264,7 +340,7 @@ def _write_compact_jsonl(lines: Iterable[str], *, name: str, output: Path | None
             delete=False,
         ) as stream:
             temporary_path = Path(stream.name)
-            _render_compact_jsonl(lines, name=name, stream=stream)
+            _render_compact_traces(traces, stream=stream)
         temporary_path.replace(output)
     except BaseException:
         if temporary_path is not None:
@@ -274,12 +350,11 @@ def _write_compact_jsonl(lines: Iterable[str], *, name: str, output: Path | None
     print(f"wrote {output}", file=sys.stderr)
 
 
-def _render_compact_jsonl(lines: Iterable[str], *, name: str, stream: TextWriter) -> None:
+def _render_compact_traces(traces: Iterable[LoadedTrace], *, stream: TextWriter) -> None:
     from .trajectory import format_trace_json_as_compact_json
 
-    for trace_number, trace_json in scan.iter_jsonl_traces(lines, name=name):
-        trace_name = f"{name} · trace {trace_number}"
-        stream.write(format_trace_json_as_compact_json(trace_json, name=trace_name))
+    for trace in traces:
+        stream.write(format_trace_json_as_compact_json(trace.text, name=trace.name))
 
 
 def _require_trace_file(input_path: Path) -> Literal["json", "jsonl"]:

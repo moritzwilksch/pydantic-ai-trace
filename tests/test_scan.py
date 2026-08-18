@@ -134,6 +134,44 @@ class TestReadTrace:
         assert exc_info.value.status_code == 400
 
 
+class TestTraceCollection:
+    def test_tree_contains_only_selected_files(self, fixtures_copy: Path):
+        collection = scan.TraceCollection.from_paths(
+            [
+                fixtures_copy / "full_trace.json",
+                fixtures_copy / "runs" / "multi.jsonl",
+            ]
+        )
+
+        tree = scan.build_collection_tree(collection)
+
+        assert tree["name"] == "selected traces"
+        assert find_node(tree, "full_trace.json")["format"] == "json"
+        assert find_node(tree, "runs/multi.jsonl")["trace_count"] == 2
+        assert _search(tree, "broken.json") is None
+        assert _search(tree, "runs/media_and_builtins.json") is None
+
+    def test_reads_selected_file_and_rejects_sibling(self, fixtures_copy: Path):
+        collection = scan.TraceCollection.from_paths(
+            [
+                fixtures_copy / "full_trace.json",
+                fixtures_copy / "runs" / "multi.jsonl",
+            ]
+        )
+
+        assert "precise research assistant" in scan.read_collection_trace(
+            collection, "full_trace.json", line=None
+        )
+        with pytest.raises(scan.TraceLookupError) as exc_info:
+            scan.read_collection_trace(collection, "broken.json", line=None)
+        assert exc_info.value.status_code == 404
+
+    def test_duplicate_resolved_paths_are_rejected(self, fixtures_copy: Path):
+        path = fixtures_copy / "full_trace.json"
+        with pytest.raises(ValueError, match="duplicate"):
+            scan.TraceCollection.from_paths([path, path])
+
+
 class TestInMemoryTraceData:
     def test_detects_complete_json_before_jsonl(self):
         assert scan.detect_trace_format('[\n  {"kind": "request", "parts": []}\n]') == "json"
