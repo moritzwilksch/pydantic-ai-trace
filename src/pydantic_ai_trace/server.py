@@ -19,6 +19,7 @@ from .export import packaged_index_html
 from .text import format_trace_json_as_text
 
 WATCH_DEBOUNCE_MS = 200
+type ServerSource = Path | scan.TraceCollection
 
 
 class ServerStartError(Exception):
@@ -39,7 +40,7 @@ class _TraceJSONResponse(JSONResponse):
 
 
 def serve(
-    root: Path,
+    source: ServerSource,
     host: str,
     port: int,
     on_bound: Callable[[], None] | None = None,
@@ -49,7 +50,7 @@ def serve(
 
     stop_event = asyncio.Event()
     config = uvicorn.Config(
-        create_app(root, stop_event),
+        create_app(source, stop_event),
         host=host,
         port=port,
         log_level="warning",
@@ -78,18 +79,30 @@ def serve(
         _Server(config).run(sockets=[sock])
 
 
-def create_app(root: Path, stop_event: asyncio.Event | None = None) -> Starlette:
-    root = root.resolve()
-    mode = "file" if root.is_file() else "dir"
-    serve_root = root.parent if mode == "file" else root
+def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) -> Starlette:
+    if isinstance(source, scan.TraceCollection):
+        collection = source
+        root = None
+        mode = "dir"
+        root_label = "selected traces"
+        serve_root = None
+    else:
+        collection = None
+        root = source.resolve()
+        mode = "file" if root.is_file() else "dir"
+        root_label = root.name
+        serve_root = root.parent if mode == "file" else root
 
     async def index(_: Request) -> Response:
         return HTMLResponse(_load_index_html())
 
     async def meta(_: Request) -> Response:
-        return JSONResponse({"mode": mode, "root": root.name})
+        return JSONResponse({"mode": mode, "root": root_label})
 
     async def tree(_: Request) -> Response:
+        if collection is not None:
+            return JSONResponse(await asyncio.to_thread(scan.build_collection_tree, collection))
+        assert root is not None
         return JSONResponse(await asyncio.to_thread(scan.build_tree, root))
 
     async def trace(request: Request) -> Response:
@@ -99,10 +112,16 @@ def create_app(root: Path, stop_event: asyncio.Event | None = None) -> Starlette
             line = int(line_param) if line_param is not None else None
         except ValueError:
             return JSONResponse({"error": f"invalid line: {line_param!r}"}, status_code=400)
-        if mode == "file" and relative_path != root.name:
+        if mode == "file" and root is not None and relative_path != root.name:
             return JSONResponse({"error": f"not found: {relative_path}"}, status_code=404)
         try:
-            text = await asyncio.to_thread(scan.read_trace, serve_root, relative_path, line)
+            if collection is not None:
+                text = await asyncio.to_thread(
+                    scan.read_collection_trace, collection, relative_path, line
+                )
+            else:
+                assert serve_root is not None
+                text = await asyncio.to_thread(scan.read_trace, serve_root, relative_path, line)
         except scan.TraceLookupError as exc:
             return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
         name = f"{relative_path} · trace {line}" if line is not None else relative_path
@@ -115,9 +134,14 @@ def create_app(root: Path, stop_event: asyncio.Event | None = None) -> Starlette
         )
 
     async def events(_: Request) -> Response:
-        only = root.name if mode == "file" else None
+        if collection is not None:
+            changes = _collection_change_events(collection, stop_event=stop_event)
+        else:
+            assert root is not None and serve_root is not None
+            only = root.name if mode == "file" else None
+            changes = _change_events(serve_root, only=only, stop_event=stop_event)
         return _SSEResponse(
-            _change_events(serve_root, only=only, stop_event=stop_event),
+            changes,
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -170,6 +194,36 @@ async def _change_events(base: Path, only: str | None, stop_event: asyncio.Event
             )
             if only is not None:
                 paths = [path for path in paths if path == only]
+            if paths:
+                payload = json.dumps({"type": "changed", "paths": paths})
+                yield f"data: {payload}\n\n"
+
+
+async def _collection_change_events(
+    collection: scan.TraceCollection,
+    stop_event: asyncio.Event | None,
+):
+    """Yield changes only for the explicitly selected collection files."""
+    from watchfiles import awatch
+
+    yield "retry: 1000\n\n"
+    selected = {item.path: item.key for item in collection.files}
+    parents = sorted({item.path.parent for item in collection.files})
+    with contextlib.suppress(FileNotFoundError):
+        async for changes in awatch(
+            *parents,
+            recursive=False,
+            debounce=WATCH_DEBOUNCE_MS,
+            step=50,
+            stop_event=stop_event,
+        ):
+            paths = sorted(
+                {
+                    key
+                    for _, changed in changes
+                    if (key := selected.get(Path(changed).resolve())) is not None
+                }
+            )
             if paths:
                 payload = json.dumps({"type": "changed", "paths": paths})
                 yield f"data: {payload}\n\n"

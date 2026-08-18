@@ -19,8 +19,13 @@ _INJECTION_MARKER = "<script"
 
 def export_html(trace_path: Path, output_path: Path, line: int | None) -> None:
     trace_json = scan.read_trace(trace_path.parent, trace_path.name, line)
+    write_export_html(trace_json, output_path, trace_name=trace_path.name)
+
+
+def write_export_html(trace_json: str, output_path: Path, *, trace_name: str) -> None:
+    """Write HTML from an already-loaded trace, including stdin input."""
     output_path.write_text(
-        inject_trace_data(packaged_index_html(), trace_json, trace_name=trace_path.name),
+        inject_trace_data(packaged_index_html(), trace_json, trace_name=trace_name),
         encoding="utf-8",
     )
 

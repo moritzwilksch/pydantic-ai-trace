@@ -10,9 +10,10 @@ from __future__ import annotations
 import json
 import math
 import re
-from datetime import datetime
 from decimal import Decimal
 from typing import Any
+
+from .trajectory import ParsedTrace, parse_trace
 
 
 def format_trace_json_as_text(trace_json: str, name: str) -> str:
@@ -22,8 +23,9 @@ def format_trace_json_as_text(trace_json: str, name: str) -> str:
 
 def format_trace_as_text(trace: object, name: str) -> str:
     """Render one trace in the same message/part order as the browser viewer."""
-    messages = _parse_messages(trace)
-    sections = [_section(_envelope("TRACE"), _trace_details(messages, name))]
+    parsed = parse_trace(trace)
+    messages = parsed.messages
+    sections = [_section(_envelope("TRACE"), _trace_details(parsed, name))]
     request_number = 0
     response_number = 0
     last_instructions: object = None
@@ -54,100 +56,15 @@ def format_trace_as_text(trace: object, name: str) -> str:
     return "\n\n".join(sections) + "\n"
 
 
-def _parse_messages(trace: object) -> list[dict[str, Any]]:
-    if not isinstance(trace, list):
-        return []
-    return [_parse_message(raw) for raw in trace]
-
-
-def _parse_message(raw: object) -> dict[str, Any]:
-    if not isinstance(raw, dict) or not isinstance(raw.get("parts"), list):
-        return {"kind": "unknown", "raw": raw}
-    kind = raw.get("kind")
-    if kind not in {"request", "response"}:
-        return {"kind": "unknown", "raw": raw}
-    message = dict(raw)
-    message["kind"] = kind
-    message["parts"] = [_parse_part(part) for part in raw["parts"]]
-    if kind == "response" and "usage" in raw:
-        message["usage"] = _normalize_usage(raw["usage"])
-    return message
-
-
-def _parse_part(raw: object) -> dict[str, Any]:
-    if not isinstance(raw, dict) or not isinstance(raw.get("part_kind"), str):
-        return {"part_kind": "unknown", "raw": raw}
-    part = dict(raw)
-    if part["part_kind"] in {"tool-call", "builtin-tool-call"}:
-        part["parsed_args"] = _parse_args(part.get("args"))
-    return part
-
-
-def _parse_args(args: object) -> object:
-    if args is None:
-        return None
-    if not isinstance(args, str):
-        return args
-    try:
-        return json.loads(args)
-    except json.JSONDecodeError:
-        return args
-
-
-def _normalize_usage(raw: object) -> dict[str, int] | None:
-    if not isinstance(raw, dict):
-        return None
-    return {
-        "input_tokens": _first_number(raw.get("input_tokens"), raw.get("request_tokens")),
-        "output_tokens": _first_number(raw.get("output_tokens"), raw.get("response_tokens")),
-        "cache_read_tokens": _first_number(raw.get("cache_read_tokens")),
-    }
-
-
-def _first_number(*values: object) -> int:
-    for value in values:
-        if isinstance(value, int) and not isinstance(value, bool):
-            return value
-        if isinstance(value, float) and math.isfinite(value):
-            return int(value)
-    return 0
-
-
-def _trace_details(messages: list[dict[str, Any]], name: str) -> str:
-    responses = [message for message in messages if message["kind"] == "response"]
-    input_tokens = sum(_usage_value(message, "input_tokens") for message in responses)
-    output_tokens = sum(_usage_value(message, "output_tokens") for message in responses)
-    cached_tokens = sum(_usage_value(message, "cache_read_tokens") for message in responses)
+def _trace_details(trace: ParsedTrace, name: str) -> str:
+    stats = trace.stats
     summary = [
-        f"LLM CALLS: {len(responses)}",
-        f"TOKENS: {_token_usage(input_tokens, output_tokens, cached_tokens)}",
+        f"LLM CALLS: {stats.llm_calls}",
+        f"TOKENS: {_token_usage(stats.input_tokens, stats.output_tokens, stats.cache_read_tokens)}",
     ]
-    timestamps = [timestamp for message in messages for timestamp in _timestamps(message)]
-    if len(timestamps) >= 2:
-        summary.append(f"WALL TIME: {(max(timestamps) - min(timestamps)):.1f}s")
+    if stats.wall_time_seconds is not None:
+        summary.append(f"WALL TIME: {stats.wall_time_seconds:.1f}s")
     return f"NAME: {_inline(name)}\n{' | '.join(summary)}"
-
-
-def _usage_value(message: dict[str, Any], field: str) -> int:
-    usage = message.get("usage")
-    return usage.get(field, 0) if isinstance(usage, dict) else 0
-
-
-def _timestamps(message: dict[str, Any]) -> list[float]:
-    if message["kind"] == "unknown":
-        return []
-    values = [message.get("timestamp")]
-    values.extend(part.get("timestamp") for part in message["parts"])
-    return [parsed for value in values if (parsed := _timestamp(value)) is not None]
-
-
-def _timestamp(value: object) -> float | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-    except (ValueError, OverflowError):
-        return None
 
 
 def _request_envelope(state: object, number: int) -> str:
