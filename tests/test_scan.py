@@ -151,3 +151,11 @@ class TestInMemoryTraceData:
     def test_validates_every_jsonl_trace(self):
         with pytest.raises(scan.TraceLookupError, match="line 2"):
             scan.validate_trace_data("[]\n{}\n", format="jsonl", name="stdin")
+
+    def test_iterates_valid_jsonl_without_buffering_blank_lines_as_traces(self):
+        traces = list(scan.iter_jsonl_traces(["\n", "[]\n", "  \n", "[1]\n"], name="runs"))
+        assert traces == [(1, "[]\n"), (2, "[1]\n")]
+
+    def test_iterating_empty_jsonl_is_rejected(self):
+        with pytest.raises(scan.TraceLookupError, match="contains no traces"):
+            list(scan.iter_jsonl_traces(["\n", "  \n"], name="runs"))

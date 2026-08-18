@@ -59,6 +59,12 @@ pixi run paitrace text trace.json -o trace.txt
 pixi run paitrace json runs.jsonl --line 2
 pixi run paitrace json trace.json -o compact.json
 
+# Convert every trace in JSONL to one compact JSON object per line
+pixi run paitrace json runs.jsonl --all -o compact.jsonl
+
+# Indent one compact trajectory for direct inspection
+pixi run paitrace json trace.json --pretty
+
 # Export or view a trace received on stdin
 curl https://example.test/my-traj.json | pixi run paitrace export -o trace.html
 curl https://example.test/my-traj.json | pixi run paitrace --no-open
@@ -73,6 +79,10 @@ order, native tool arguments and results, tool-call IDs, model and token metadat
 variants. It omits display headings, repeated instructions, provider response identifiers, and
 binary payloads. It retains the provider name. Tool calls and results remain separate events
 linked by `id`.
+
+Pass `--all` to convert every trace in a JSONL file or stream. The output remains JSONL, with one
+compact trajectory per line. `--all` cannot be combined with `--line` or `--pretty`. Pass
+`--pretty` to indent single-trace output by two spaces.
 
 The viewer, `text`, `json`, and `export` commands accept a trace from piped stdin when their input
 is omitted. Pass `-` to request stdin explicitly. Stdin can contain one JSON trace or JSONL traces;

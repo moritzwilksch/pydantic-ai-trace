@@ -79,10 +79,16 @@ def compact_trajectory(trace: ParsedTrace, *, name: str) -> dict[str, object]:
     return {"name": name, "stats": stats, "messages": messages}
 
 
-def format_trace_json_as_compact_json(trace_json: str, *, name: str) -> str:
+def format_trace_json_as_compact_json(
+    trace_json: str,
+    *,
+    name: str,
+    indent: int | None = None,
+) -> str:
     """Parse raw trace JSON and emit one compact JSON document."""
     document = compact_trajectory(parse_trace(json.loads(trace_json)), name=name)
-    rendered = json.dumps(document, ensure_ascii=False, separators=(",", ":"))
+    separators = (",", ":") if indent is None else None
+    rendered = json.dumps(document, ensure_ascii=False, indent=indent, separators=separators)
     # Keep Unicode readable while escaping lone surrogates as valid JSON escapes.
     return rendered.encode("utf-8", errors="backslashreplace").decode("utf-8") + "\n"
 

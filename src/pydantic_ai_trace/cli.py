@@ -9,12 +9,15 @@ a file or directory with that name exists.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 import tempfile
 import threading
 import webbrowser
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, Protocol, TextIO
 
 from . import __version__, scan
 
@@ -45,6 +48,10 @@ class CliError(Exception):
 class LoadedTrace:
     text: str
     name: str
+
+
+class TextWriter(Protocol):
+    def write(self, text: str, /) -> int: ...
 
 
 def _run_serve(argv: list[str]) -> int:
@@ -172,13 +179,29 @@ def _run_json(argv: list[str]) -> int:
     parser.add_argument(
         "--line", type=int, help="1-based trace line for .jsonl inputs with multiple traces"
     )
+    parser.add_argument(
+        "--all", action="store_true", help="render every JSONL trace as compact JSONL"
+    )
+    parser.add_argument("--pretty", action="store_true", help="indent single-trace JSON output")
     args = parser.parse_args(argv)
 
     try:
+        if args.all and args.line is not None:
+            raise CliError("--all and --line cannot be used together")
+        if args.all and args.pretty:
+            raise CliError("--all and --pretty cannot be used together")
+        if args.all:
+            _write_all_traces(args.input, args.output, parser)
+            return 0
+
         loaded = _load_trace(args.input, args.line, parser)
         from .trajectory import format_trace_json_as_compact_json
 
-        rendered = format_trace_json_as_compact_json(loaded.text, name=loaded.name)
+        rendered = format_trace_json_as_compact_json(
+            loaded.text,
+            name=loaded.name,
+            indent=2 if args.pretty else None,
+        )
         _write_output(rendered, args.output)
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
@@ -196,11 +219,7 @@ def _load_trace(
         selected = scan.select_trace(text, format=format, name="stdin", line=line)
         return LoadedTrace(selected, "stdin")
 
-    if not input_path.is_file():
-        raise CliError(f"input file does not exist: {input_path}")
-    if input_path.suffix not in scan.TRACE_SUFFIXES:
-        raise CliError(f"not a trace file (expected .json or .jsonl): {input_path}")
-    format = scan.TRACE_SUFFIXES[input_path.suffix]
+    format = _require_trace_file(input_path)
     text = scan.read_trace(input_path.parent, input_path.name, line)
     selected_line = (line or 1) if format == "jsonl" else None
     name = (
@@ -211,11 +230,79 @@ def _load_trace(
     return LoadedTrace(text, name)
 
 
+def _write_all_traces(
+    input_path: Path | None,
+    output: Path | None,
+    parser: argparse.ArgumentParser,
+) -> None:
+    if input_path is None or input_path == Path("-"):
+        source = _stdin_stream(parser, explicit=input_path == Path("-"))
+        _write_compact_jsonl(source, name="stdin", output=output)
+        return
+
+    format = _require_trace_file(input_path)
+    if format != "jsonl":
+        raise CliError(f"--all requires .jsonl input: {input_path}")
+    if output is not None and output.resolve() == input_path.resolve():
+        raise CliError("--output must differ from the JSONL input when using --all")
+    with input_path.open(encoding="utf-8") as source:
+        _write_compact_jsonl(source, name=input_path.name, output=output)
+
+
+def _write_compact_jsonl(lines: Iterable[str], *, name: str, output: Path | None) -> None:
+    if output is None:
+        _render_compact_jsonl(lines, name=name, stream=sys.stdout)
+        return
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=output.parent,
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as stream:
+            temporary_path = Path(stream.name)
+            _render_compact_jsonl(lines, name=name, stream=stream)
+        temporary_path.replace(output)
+    except BaseException:
+        if temporary_path is not None:
+            with contextlib.suppress(OSError):
+                temporary_path.unlink()
+        raise
+    print(f"wrote {output}", file=sys.stderr)
+
+
+def _render_compact_jsonl(lines: Iterable[str], *, name: str, stream: TextWriter) -> None:
+    from .trajectory import format_trace_json_as_compact_json
+
+    for trace_number, trace_json in scan.iter_jsonl_traces(lines, name=name):
+        trace_name = f"{name} · trace {trace_number}"
+        stream.write(format_trace_json_as_compact_json(trace_json, name=trace_name))
+
+
+def _require_trace_file(input_path: Path) -> Literal["json", "jsonl"]:
+    if input_path.is_dir():
+        raise CliError(f"expected a .json or .jsonl trace file, got directory: {input_path}")
+    if not input_path.exists():
+        raise CliError(f"input file does not exist: {input_path}")
+    if not input_path.is_file():
+        raise CliError(f"expected a trace file: {input_path}")
+    if input_path.suffix not in scan.TRACE_SUFFIXES:
+        raise CliError(f"not a trace file (expected .json or .jsonl): {input_path}")
+    return scan.TRACE_SUFFIXES[input_path.suffix]
+
+
 def _read_stdin(parser: argparse.ArgumentParser, *, explicit: bool) -> str:
+    return _stdin_stream(parser, explicit=explicit).read()
+
+
+def _stdin_stream(parser: argparse.ArgumentParser, *, explicit: bool) -> TextIO:
     if not explicit and sys.stdin.isatty():
         parser.print_usage(file=sys.stderr)
         raise CliError("input is required when stdin is interactive")
-    return sys.stdin.read()
+    return sys.stdin
 
 
 def _write_output(rendered: str, output: Path | None) -> None:

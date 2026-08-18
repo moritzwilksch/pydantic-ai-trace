@@ -275,3 +275,125 @@ class TestJsonCommand:
         captured = capsys.readouterr()
         assert "usage: paitrace json" in captured.err
         assert "input is required" in captured.err
+
+    def test_directory_error_explains_that_a_trace_file_is_required(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        assert cli.main(["json", str(fixtures_copy)]) == 1
+        assert (
+            f"expected a .json or .jsonl trace file, got directory: {fixtures_copy}"
+            in capsys.readouterr().err
+        )
+
+    def test_all_renders_each_jsonl_trace_as_one_output_line(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        source = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main(["json", str(source), "--all"]) == 0
+        captured = capsys.readouterr()
+        documents = [json.loads(line) for line in captured.out.splitlines()]
+        assert [document["name"] for document in documents] == [
+            "multi.jsonl · trace 1",
+            "multi.jsonl · trace 2",
+        ]
+        assert documents[0]["messages"][0]["parts"][0]["content"] == "hello from line one"
+        assert documents[1]["messages"][0]["parts"][0]["content"] == "hello from line two"
+        assert captured.err == ""
+
+    def test_all_streams_jsonl_from_stdin(
+        self,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(sys, "stdin", io.StringIO("[]\n[]\n"))
+
+        assert cli.main(["json", "--all"]) == 0
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [document["name"] for document in documents] == [
+            "stdin · trace 1",
+            "stdin · trace 2",
+        ]
+
+    def test_all_can_write_compact_jsonl_to_a_file(
+        self,
+        fixtures_copy: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        source = fixtures_copy / "runs" / "multi.jsonl"
+        output = tmp_path / "compact.jsonl"
+
+        assert cli.main(["json", str(source), "--all", "-o", str(output)]) == 0
+        assert len(output.read_text(encoding="utf-8").splitlines()) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == f"wrote {output}\n"
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (["--all", "--line", "1"], "--all and --line cannot be used together"),
+            (["--all", "--pretty"], "--all and --pretty cannot be used together"),
+        ],
+    )
+    def test_all_rejects_incompatible_options(
+        self,
+        arguments: list[str],
+        message: str,
+        capsys: pytest.CaptureFixture,
+    ):
+        assert cli.main(["json", *arguments]) == 1
+        assert message in capsys.readouterr().err
+
+    def test_all_requires_jsonl_for_file_input(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        source = fixtures_copy / "full_trace.json"
+
+        assert cli.main(["json", str(source), "--all"]) == 1
+        assert f"--all requires .jsonl input: {source}" in capsys.readouterr().err
+
+    def test_all_rejects_overwriting_its_streaming_input(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        source = fixtures_copy / "runs" / "multi.jsonl"
+        original = source.read_text(encoding="utf-8")
+
+        assert cli.main(["json", str(source), "--all", "-o", str(source)]) == 1
+        assert "--output must differ" in capsys.readouterr().err
+        assert source.read_text(encoding="utf-8") == original
+
+    def test_all_does_not_replace_output_when_a_later_trace_is_invalid(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        source = tmp_path / "broken.jsonl"
+        source.write_text("[]\n{}\n", encoding="utf-8")
+        output = tmp_path / "compact.jsonl"
+        output.write_text("existing output\n", encoding="utf-8")
+
+        assert cli.main(["json", str(source), "--all", "-o", str(output)]) == 1
+        assert "line 2" in capsys.readouterr().err
+        assert output.read_text(encoding="utf-8") == "existing output\n"
+
+    def test_pretty_indents_single_trace_output(
+        self,
+        fixtures_copy: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        source = fixtures_copy / "full_trace.json"
+
+        assert cli.main(["json", str(source), "--pretty"]) == 0
+        rendered = capsys.readouterr().out
+        assert rendered.startswith('{\n  "name": "full_trace.json",\n')
+        assert json.loads(rendered)["stats"]["llm_calls"] == 3

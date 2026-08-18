@@ -8,6 +8,7 @@ the file contains JSON array(s) at the expected granularity.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -92,14 +93,24 @@ def validate_trace_data(
         _ensure_json_array(text, name)
         return
 
-    lines = _jsonl_lines(text)
-    if not lines:
-        raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
-    for line_number, candidate in enumerate(lines, start=1):
+    for _ in iter_jsonl_traces(text.splitlines(), name=name):
+        pass
+
+
+def iter_jsonl_traces(lines: Iterable[str], *, name: str) -> Iterator[tuple[int, str]]:
+    """Yield validated non-empty JSONL traces with one-based trace numbers."""
+    trace_number = 0
+    for candidate in lines:
+        if not candidate.strip():
+            continue
+        trace_number += 1
         try:
             _ensure_json_array(candidate, name)
         except TraceLookupError as exc:
-            raise TraceLookupError(f"line {line_number}: {exc}", status_code=400) from exc
+            raise TraceLookupError(f"line {trace_number}: {exc}", status_code=400) from exc
+        yield trace_number, candidate
+    if trace_number == 0:
+        raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
 
 
 def select_trace(
