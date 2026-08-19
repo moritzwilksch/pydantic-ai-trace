@@ -158,6 +158,24 @@ Use `from_json` when the trace is already serialized:
 view = TraceView.from_json(trace_json, title="Candidate response")
 ```
 
+Compose several validated traces into one document with an in-memory sidebar:
+
+```python
+from pydantic_ai_trace import TraceCollectionView, TraceView
+
+view = TraceCollectionView(
+    [
+        TraceView.from_json(original_json, title="Original"),
+        TraceView.from_json(candidate_json, title="Candidate"),
+        TraceView.from_messages(retry_messages, title="Retry"),
+    ],
+    title="Case 42",
+)
+html = view.html()
+```
+
+The sequence order becomes the sidebar order. Trace titles must be non-empty and unique.
+
 Pydantic AI remains an optional dependency. `from_messages` uses the installed
 `ModelMessagesTypeAdapter`; `from_json` works without Pydantic AI installed.
 

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pydantic_ai_trace import TraceView
+from pydantic_ai_trace import TraceCollectionView, TraceView
 from pydantic_ai_trace import view as view_module
 
 INDEX_HTML = "<html><head><style>b{}</style><script>bundle();</script></head></html>"
@@ -119,3 +119,67 @@ class TestDocument:
         TraceView.from_json("[]", title="über").write(output)
 
         assert 'window.__TRACE_NAME__ = "\\u00fcber"' in output.read_text(encoding="utf-8")
+
+
+class TestTraceCollectionView:
+    def test_embeds_named_traces_in_sequence_order(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(view_module, "packaged_index_html", lambda: INDEX_HTML)
+        collection = TraceCollectionView(
+            [
+                TraceView.from_json('[{"kind":"request","parts":[]}]', title="Original"),
+                TraceView.from_json("[]", title="Candidate"),
+            ],
+            title="Case 42",
+        )
+
+        document = collection.html()
+
+        payload = document.split("window.__TRACE_COLLECTION__ = ", 1)[1].split(";</script>")[0]
+        data = json.loads(json.loads(payload))
+        assert data["title"] == "Case 42"
+        assert [trace["name"] for trace in data["traces"]] == ["Original", "Candidate"]
+        assert json.loads(data["traces"][0]["source"])[0]["kind"] == "request"
+        assert "NAME: Candidate" in data["traces"][1]["transcript"]
+
+    def test_trace_content_and_names_cannot_break_out_of_script(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(view_module, "packaged_index_html", lambda: INDEX_HTML)
+        collection = TraceCollectionView(
+            [TraceView.from_json('[{"content":"</script>"}]', title="</script>")],
+            title="</script>",
+        )
+
+        injection = collection.html().split("<script>bundle();", 1)[0]
+
+        assert injection.count("</script>") == 1
+
+    def test_copies_input_sequence(self):
+        traces = [TraceView.from_json("[]", title="Original")]
+
+        collection = TraceCollectionView(traces)
+        traces.append(TraceView.from_json("[]", title="Later"))
+
+        assert [trace.title for trace in collection.traces] == ["Original"]
+
+    def test_requires_at_least_one_trace(self):
+        with pytest.raises(ValueError, match="at least one"):
+            TraceCollectionView([])
+
+    def test_requires_trace_view_instances(self):
+        with pytest.raises(TypeError, match="TraceView instances"):
+            TraceCollectionView([object()])  # type: ignore[list-item]
+
+    @pytest.mark.parametrize("title", ["", "  "])
+    def test_rejects_empty_trace_titles(self, title: str):
+        with pytest.raises(ValueError, match="must not be empty"):
+            TraceCollectionView([TraceView.from_json("[]", title=title)])
+
+    def test_rejects_duplicate_trace_titles(self):
+        with pytest.raises(ValueError, match="must be unique"):
+            TraceCollectionView(
+                [
+                    TraceView.from_json("[]", title="Candidate"),
+                    TraceView.from_json("[]", title="Candidate"),
+                ]
+            )

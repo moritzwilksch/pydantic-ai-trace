@@ -21,14 +21,28 @@ def inject_trace_data(
     transcript: str,
 ) -> str:
     """Insert one trace before the first script tag of the bundled viewer."""
+    return _inject_before_bundle(
+        index_html,
+        (
+            f"<script>window.__TRACE_DATA__ = {_js_string(trace_json)};"
+            f"window.__TRACE_NAME__ = {_js_string(trace_name)};"
+            f"window.__TRACE_TEXT__ = {_js_string(transcript)};</script>"
+        ),
+    )
+
+
+def inject_trace_collection(index_html: str, collection_json: str) -> str:
+    """Insert a named in-memory trace collection before the viewer bundle."""
+    return _inject_before_bundle(
+        index_html,
+        f"<script>window.__TRACE_COLLECTION__ = {_js_string(collection_json)};</script>",
+    )
+
+
+def _inject_before_bundle(index_html: str, injection: str) -> str:
     marker_pos = index_html.find(_INJECTION_MARKER)
     if marker_pos == -1:
         raise ValueError("index.html has no <script> tag to inject before")
-    injection = (
-        f"<script>window.__TRACE_DATA__ = {_js_string(trace_json)};"
-        f"window.__TRACE_NAME__ = {_js_string(trace_name)};"
-        f"window.__TRACE_TEXT__ = {_js_string(transcript)};</script>"
-    )
     return index_html[:marker_pos] + injection + index_html[marker_pos:]
 
 

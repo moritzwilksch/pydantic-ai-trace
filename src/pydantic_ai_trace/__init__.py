@@ -1,7 +1,7 @@
 from importlib.metadata import version
 
-from .view import TraceView
+from .view import TraceCollectionView, TraceView
 
-__all__ = ["TraceView", "__version__"]
+__all__ = ["TraceCollectionView", "TraceView", "__version__"]
 
 __version__ = version("pydantic-ai-trace")

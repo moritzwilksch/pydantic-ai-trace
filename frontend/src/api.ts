@@ -1,14 +1,51 @@
 // Data access: REST endpoints, SSE change feed, and the exported-HTML
 // fallback where the trace is embedded as window.__TRACE_DATA__.
 
-import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
+import type {
+  EmbeddedTraceCollection,
+  Meta,
+  TracePayload,
+  TraceSelection,
+  TreeNode,
+} from "./types";
 
 declare global {
   interface Window {
     __TRACE_DATA__?: unknown;
     __TRACE_NAME__?: string;
     __TRACE_TEXT__?: string;
+    __TRACE_COLLECTION__?: unknown;
   }
+}
+
+export function embeddedTraceCollection(): EmbeddedTraceCollection | null {
+  if (window.__TRACE_COLLECTION__ === undefined) return null;
+  let value = window.__TRACE_COLLECTION__;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<EmbeddedTraceCollection>;
+  if (!Array.isArray(candidate.traces) || candidate.traces.length === 0) return null;
+  if (
+    !candidate.traces.every(
+      (trace) =>
+        trace &&
+        typeof trace.name === "string" &&
+        typeof trace.source === "string" &&
+        typeof trace.transcript === "string",
+    )
+  ) {
+    return null;
+  }
+  return {
+    title: typeof candidate.title === "string" ? candidate.title : "traces",
+    traces: candidate.traces,
+  };
 }
 
 export function embeddedTrace(): { name: string; data: unknown; transcript: string } | null {

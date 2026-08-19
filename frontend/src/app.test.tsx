@@ -77,9 +77,39 @@ afterEach(() => {
   delete window.__TRACE_DATA__;
   delete window.__TRACE_NAME__;
   delete window.__TRACE_TEXT__;
+  delete window.__TRACE_COLLECTION__;
 });
 
 describe("App in exported-trace mode", () => {
+  it("switches between named traces in an embedded collection", () => {
+    window.__TRACE_COLLECTION__ = JSON.stringify({
+      title: "Case 42",
+      traces: [
+        {
+          name: "Original",
+          source: JSON.stringify([
+            { kind: "request", parts: [{ part_kind: "user-prompt", content: "first input" }] },
+          ]),
+          transcript: "original transcript",
+        },
+        {
+          name: "Candidate",
+          source: JSON.stringify([
+            { kind: "response", parts: [{ part_kind: "text", content: "second output" }] },
+          ]),
+          transcript: "candidate transcript",
+        },
+      ],
+    });
+
+    const { getByRole, getAllByText } = render(<App />);
+
+    getAllByText("Case 42");
+    getAllByText("first input");
+    fireEvent.click(getByRole("button", { name: "Candidate" }));
+    getAllByText("second output");
+  });
+
   it("renders every part kind of an embedded trace without crashing", () => {
     window.__TRACE_DATA__ = FULL_TRACE;
     window.__TRACE_NAME__ = "smoke.json";
