@@ -29,6 +29,20 @@ const FULL_TRACE = [
       { part_kind: "thinking", content: "pondering...", provider_name: "openai" },
       { part_kind: "tool-call", tool_name: "search", args: '{"q": "x"}', tool_call_id: "c1" },
       { part_kind: "tool-call", tool_name: "orphaned", args: null, tool_call_id: "gone" },
+      {
+        part_kind: "tool-call",
+        tool_name: "search_tools",
+        tool_kind: "tool-search",
+        args: { queries: ["refund invoice"] },
+        tool_call_id: "ts1",
+      },
+      {
+        part_kind: "tool-call",
+        tool_name: "load_capability",
+        tool_kind: "capability-load",
+        args: { id: "billing" },
+        tool_call_id: "cap1",
+      },
     ],
     usage: { input_tokens: 10, output_tokens: 4 },
     model_name: "test-model",
@@ -51,6 +65,25 @@ const FULL_TRACE = [
         tool_name: "other",
         tool_call_id: "unrelated",
         content: [{ type: "missing", loc: ["q"], msg: "Field required", input: {} }],
+      },
+      {
+        part_kind: "tool-return",
+        tool_name: "search_tools",
+        tool_kind: "tool-search",
+        tool_call_id: "ts1",
+        content: { discovered_tools: [{ name: "refund_invoice" }, { name: "get_invoice" }] },
+      },
+      {
+        part_kind: "tool-return",
+        tool_name: "load_capability",
+        tool_kind: "capability-load",
+        tool_call_id: "cap1",
+        content: { instructions: "Refunds are irreversible." },
+      },
+      {
+        part_kind: "tool-availability-delta",
+        tools_added: ["refund_invoice", "get_invoice"],
+        tool_call_id: "ts1",
       },
     ],
   },
@@ -138,6 +171,7 @@ describe("App in exported-trace mode", () => {
     getByText("Field required"); // retry error table
     getByText("some-future-part"); // fallback for unknown kinds
     getByText("Compaction"); // compaction part label
+    getByText("Tools available"); // tool-availability-delta label
     getAllByText("Instructions"); // request-level instructions block
     // tool return with media content renders the image, not a base64 dump
     const mediaReturn = getByText("screenshot").closest("details")!;
@@ -150,6 +184,52 @@ describe("App in exported-trace mode", () => {
     expect(container.textContent).toContain("30");
     // input, cached, and output totals are always visible in the header.
     expect(container.textContent).toContain("0 cached");
+  });
+
+  it("renders framework tool payloads as named values instead of raw JSON", () => {
+    // Tool search and capability loading keep the plain `tool-call` / `tool-return`
+    // discriminator and carry a typed payload; `tool_kind` is what identifies them.
+    window.__TRACE_DATA__ = FULL_TRACE;
+    const { container, getAllByText, getByText } = render(<App />);
+
+    const searchCall = getAllByText("search_tools")[0].closest("details")!;
+    expect(searchCall.textContent).toContain("refund invoice");
+    expect(searchCall.querySelector(".json-tree")).toBeNull();
+
+    const searchReturn = getAllByText("search_tools")[1].closest("details")!;
+    const discovered = [...searchReturn.querySelectorAll(".tool-chip")].map((c) => c.textContent);
+    expect(discovered).toEqual(["refund_invoice", "get_invoice"]);
+
+    // The capability's instructions render as prose, not as a one-key object.
+    getAllByText("Refunds are irreversible.");
+    // The revealed tools are listed by name, each marked as an addition.
+    const delta = getByText("Tools available").closest("details")!;
+    expect([...delta.querySelectorAll(".tool-chip")].map((c) => c.textContent)).toEqual([
+      "+refund_invoice",
+      "+get_invoice",
+    ]);
+    expect(container.textContent).not.toContain("unknown kind: tool-availability-delta");
+  });
+
+  it("leaves a user tool that shares a framework tool name alone", () => {
+    window.__TRACE_DATA__ = [
+      {
+        kind: "response",
+        parts: [
+          {
+            part_kind: "tool-call",
+            tool_name: "search_tools",
+            args: { queries: "not the framework shape" },
+            tool_call_id: "c1",
+          },
+        ],
+      },
+    ];
+
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".tool-chip")).toBeNull();
+    expect(container.querySelector(".json-tree")).not.toBeNull();
   });
 
   it("copies the ordered text transcript", async () => {

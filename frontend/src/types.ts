@@ -43,6 +43,31 @@ export interface ToolReturnPart {
   tool_kind?: string;
 }
 
+/**
+ * Framework-emitted tool variants. pydantic-ai keeps their `part_kind` as a plain
+ * tool call/return and discriminates on `tool_kind`, so they render as tool parts
+ * with a structured `args`/`content` shape (`_tool_search.py`, `_deferred_capabilities.py`).
+ */
+export const TOOL_SEARCH_KIND = "tool-search";
+export const CAPABILITY_LOAD_KIND = "capability-load";
+
+/** `ToolSearchCallPart.args` / `NativeToolSearchCallPart.args` once parsed. */
+export interface ToolSearchArgs {
+  queries: string[];
+}
+
+/** `ToolSearchReturnPart.content` / `NativeToolSearchReturnPart.content`. */
+export interface ToolSearchReturnContent {
+  discovered_tools: { name: string; [key: string]: unknown }[];
+  /** Model-facing note, set on the empty-results path. */
+  message?: string;
+}
+
+/** `LoadCapabilityReturnPart.content`. */
+export interface LoadCapabilityReturn {
+  instructions?: string;
+}
+
 export interface ErrorDetail {
   type: string;
   loc: (string | number)[];
@@ -91,6 +116,15 @@ export interface CompactionPart {
   provider_name?: string | null;
 }
 
+/** Records that this point in history revealed additional tools to the model. */
+export interface ToolAvailabilityDeltaPart {
+  part_kind: "tool-availability-delta";
+  tools_added?: string[];
+  /** Legacy alias kept as a pydantic validation alias in pydantic-ai. */
+  added?: string[];
+  tool_call_id?: string | null;
+}
+
 export interface FilePart {
   part_kind: "file";
   content: { data?: string; media_type?: string; [key: string]: unknown };
@@ -112,6 +146,7 @@ export type Part =
   | ToolCallPart
   | CompactionPart
   | FilePart
+  | ToolAvailabilityDeltaPart
   | UnknownPart;
 
 export interface ModelRequest {

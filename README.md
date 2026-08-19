@@ -10,6 +10,7 @@ It is a lightweight local tool. Point it at a trace or a directory of traces and
 ## What you can inspect
 
 - The full request and response sequence, including prompts, text, thinking, tool calls, tool results, and unknown parts
+- Tool search and capability loading rendered by what they carry: the queries asked, the tools discovered, and the tools each step made available
 - Tool calls paired with their results, including results in later messages
 - Model, provider, timing, and token usage
 - A searchable directory tree for `.json` and `.jsonl` traces

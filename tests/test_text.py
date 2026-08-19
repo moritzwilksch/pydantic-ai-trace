@@ -16,6 +16,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
             FIXTURES / "runs" / "media_and_builtins.json",
             FIXTURES / "runs" / "media_and_builtins.txt",
         ),
+        (FIXTURES / "runs" / "tool_search.json", FIXTURES / "runs" / "tool_search.txt"),
         (FIXTURES / "text_edge_cases.json", FIXTURES / "text_edge_cases.txt"),
     ],
 )
@@ -84,3 +85,66 @@ def test_json_keys_keep_source_order_in_text_output():
     text = format_trace_as_text(trace, "ordered.json")
 
     assert '"value":{"10":"ten","2":"two","name":"value"}' in text
+
+
+def test_tool_availability_delta_without_names_keeps_the_raw_part():
+    trace = [{"kind": "request", "parts": [{"part_kind": "tool-availability-delta"}]}]
+
+    text = format_trace_as_text(trace, "delta.json")
+
+    assert '--- TOOL AVAILABILITY ---\n\n{"part_kind":"tool-availability-delta"}' in text
+
+
+def test_tool_availability_delta_accepts_the_legacy_added_alias():
+    trace = [
+        {
+            "kind": "request",
+            "parts": [{"part_kind": "tool-availability-delta", "added": ["a", "b"]}],
+        }
+    ]
+
+    assert "--- TOOL AVAILABILITY ---\n\n+a\n+b" in format_trace_as_text(trace, "delta.json")
+
+
+def test_a_user_tool_sharing_a_framework_tool_name_is_not_reinterpreted():
+    """pydantic-ai discriminates on `tool_kind`, never on `tool_name`; so does the formatter."""
+    trace = [
+        {
+            "kind": "response",
+            "parts": [
+                {
+                    "part_kind": "tool-call",
+                    "tool_name": "search_tools",
+                    "args": '{"queries": "not the framework shape"}',
+                    "tool_call_id": "c1",
+                }
+            ],
+        }
+    ]
+
+    text = format_trace_as_text(trace, "lookalike.json")
+
+    assert "QUERIES:" not in text
+    assert 'ARGUMENTS:\n{"queries":"not the framework shape"}' in text
+
+
+def test_malformed_tool_search_payloads_fall_back_to_raw_rendering():
+    trace = [
+        {
+            "kind": "request",
+            "parts": [
+                {
+                    "part_kind": "tool-return",
+                    "tool_name": "search_tools",
+                    "tool_kind": "tool-search",
+                    "tool_call_id": "c1",
+                    "content": {"discovered_tools": "not a list"},
+                }
+            ],
+        }
+    ]
+
+    text = format_trace_as_text(trace, "malformed.json")
+
+    assert "DISCOVERED TOOLS:" not in text
+    assert '{"discovered_tools":"not a list"}' in text
