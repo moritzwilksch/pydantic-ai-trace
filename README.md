@@ -137,6 +137,72 @@ use `--line` to select from multi-trace JSONL. HTML export from stdin requires `
 
 The viewer binds to `127.0.0.1:1205` and opens your browser. Pass `--port`, `--host`, or `--no-open` to change that behavior.
 
+## Embed from Python
+
+`TraceView` turns Pydantic AI messages into the same self-contained HTML document produced by
+`paitrace export`. It does not start a server or write a temporary trace file.
+
+```python
+from pydantic_ai_trace import TraceView
+
+view = TraceView.from_messages(messages, title="Candidate response")
+html = view.html()
+
+# Or write the document directly.
+view.write("candidate-response.html")
+```
+
+Use `from_json` when the trace is already serialized:
+
+```python
+view = TraceView.from_json(trace_json, title="Candidate response")
+```
+
+Pydantic AI remains an optional dependency. `from_messages` uses the installed
+`ModelMessagesTypeAdapter`; `from_json` works without Pydantic AI installed.
+
+### Streamlit
+
+Streamlit renders custom HTML inside an iframe:
+
+```python
+import streamlit.components.v1 as components
+
+from pydantic_ai_trace import TraceView
+
+view = TraceView.from_messages(messages, title="Candidate response")
+components.html(view.html(), height=900, scrolling=True)
+```
+
+### Python HTTP servers
+
+Return the document from a dedicated endpoint, then show that URL in an iframe in the host page.
+For example, with Starlette:
+
+```python
+from starlette.responses import HTMLResponse
+
+from pydantic_ai_trace import TraceView
+
+
+async def trace_view(request):
+    messages = load_messages(request.path_params["run_id"])
+    view = TraceView.from_messages(messages, title=f"Run {request.path_params['run_id']}")
+    return HTMLResponse(view.html())
+```
+
+```html
+<iframe
+  src="/runs/abc123/trace"
+  title="Agent trace"
+  style="width: 100%; height: 100%; border: 0"
+></iframe>
+```
+
+The iframe isolates the viewer's CSS and keyboard shortcuts from the host application. The
+generated document contains inline JavaScript and CSS, so applications with a strict Content
+Security Policy must allow the document or serve it under a suitable policy.
+
 ## Trace files
 
 The viewer reads the JSON emitted by `ModelMessagesTypeAdapter.dump_json(messages)`:

@@ -44,7 +44,7 @@ class TestExportHtml:
     def test_export_writes_selfcontained_html(
         self, fixtures_copy: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
-        import pydantic_ai_trace.export as export_module
+        import pydantic_ai_trace._html as html_module
 
         class FakeResource:
             def __truediv__(self, _name: str) -> "FakeResource":
@@ -53,7 +53,9 @@ class TestExportHtml:
             def read_text(self, encoding: str = "utf-8") -> str:
                 return INDEX_HTML
 
-        monkeypatch.setattr(export_module, "files", lambda _pkg: FakeResource())
+        monkeypatch.setattr(html_module, "files", lambda _pkg: FakeResource())
         output = tmp_path / "out.html"
-        export_module.export_html(fixtures_copy / "full_trace.json", output, line=None)
+        from pydantic_ai_trace.export import export_html
+
+        export_html(fixtures_copy / "full_trace.json", output, line=None)
         assert "__TRACE_DATA__" in output.read_text()
