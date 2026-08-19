@@ -5,16 +5,20 @@ from types import SimpleNamespace
 import pytest
 
 from pydantic_ai_trace import TraceCollectionView, TraceView
+from pydantic_ai_trace import _html as html_module
 from pydantic_ai_trace import view as view_module
 
 INDEX_HTML = "<html><head><style>b{}</style><script>bundle();</script></head></html>"
 
 
-class TestFromJson:
-    def test_accepts_text_and_preserves_it(self, monkeypatch: pytest.MonkeyPatch):
-        trace = '[ {"kind": "request", "parts": []} ]'
-        monkeypatch.setattr(view_module, "packaged_index_html", lambda: INDEX_HTML)
+@pytest.fixture(autouse=True)
+def stub_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(html_module, "packaged_index_html", lambda: INDEX_HTML)
 
+
+class TestFromJson:
+    def test_accepts_text_and_preserves_it(self):
+        trace = '[ {"kind": "request", "parts": []} ]'
         document = TraceView.from_json(trace, title="run 7").html()
 
         payload = document.split("window.__TRACE_DATA__ = ", 1)[1].split(";window.__TRACE_NAME__")[
@@ -44,9 +48,10 @@ class TestFromJson:
         with pytest.raises(ValueError, match="top-level array"):
             TraceView.from_json('{"kind": "request"}')
 
-    def test_direct_construction_is_rejected(self):
-        with pytest.raises(TypeError, match="from_messages"):
-            TraceView()
+    def test_direct_construction_validates_like_from_json(self):
+        assert TraceView("[]", title="run 7").title == "run 7"
+        with pytest.raises(ValueError, match="top-level array"):
+            TraceView('{"kind": "request"}')
 
     def test_view_is_immutable(self):
         view = TraceView.from_json("[]")
@@ -103,27 +108,21 @@ class TestFromMessages:
 
 
 class TestDocument:
-    def test_html_contains_precomputed_transcript(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(view_module, "packaged_index_html", lambda: INDEX_HTML)
-
+    def test_html_contains_precomputed_transcript(self):
         document = TraceView.from_json("[]", title="empty").html()
 
         payload = document.split("window.__TRACE_TEXT__ = ", 1)[1].split(";</script>")[0]
         assert json.loads(payload).startswith("========== TRACE ==========")
         assert "NAME: empty" in json.loads(payload)
 
-    def test_write_creates_utf8_document(self, tmp_path, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(view_module, "packaged_index_html", lambda: INDEX_HTML)
-        output = tmp_path / "trace.html"
+    def test_non_ascii_titles_are_escaped(self):
+        document = TraceView.from_json("[]", title="über").html()
 
-        TraceView.from_json("[]", title="über").write(output)
-
-        assert 'window.__TRACE_NAME__ = "\\u00fcber"' in output.read_text(encoding="utf-8")
+        assert 'window.__TRACE_NAME__ = "\\u00fcber"' in document
 
 
 class TestTraceCollectionView:
-    def test_embeds_named_traces_in_sequence_order(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(view_module, "packaged_index_html", lambda: INDEX_HTML)
+    def test_embeds_named_traces_in_sequence_order(self):
         collection = TraceCollectionView(
             [
                 TraceView.from_json('[{"kind":"request","parts":[]}]', title="Original"),
@@ -141,10 +140,7 @@ class TestTraceCollectionView:
         assert json.loads(data["traces"][0]["source"])[0]["kind"] == "request"
         assert "NAME: Candidate" in data["traces"][1]["transcript"]
 
-    def test_trace_content_and_names_cannot_break_out_of_script(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
-        monkeypatch.setattr(view_module, "packaged_index_html", lambda: INDEX_HTML)
+    def test_trace_content_and_names_cannot_break_out_of_script(self):
         collection = TraceCollectionView(
             [TraceView.from_json('[{"content":"</script>"}]', title="</script>")],
             title="</script>",
@@ -161,6 +157,10 @@ class TestTraceCollectionView:
         traces.append(TraceView.from_json("[]", title="Later"))
 
         assert [trace.title for trace in collection.traces] == ["Original"]
+
+    def test_title_is_keyword_only(self):
+        with pytest.raises(TypeError):
+            TraceCollectionView([TraceView.from_json("[]", title="Original")], "Case 42")  # type: ignore[misc]
 
     def test_requires_at_least_one_trace(self):
         with pytest.raises(ValueError, match="at least one"):

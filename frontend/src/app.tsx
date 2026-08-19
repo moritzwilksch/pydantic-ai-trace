@@ -68,15 +68,19 @@ function ExportedTraceApp({
 }
 
 function ExportedCollectionApp({ collection }: { collection: EmbeddedTraceCollection }) {
-  const [selection, setSelection] = useState<TraceSelection>({ path: "0" });
+  const [selection, setSelection] = useState<TraceSelection>({
+    path: collection.traces[0].name,
+  });
+  // Trace names are the identity here: Python guarantees them non-empty and
+  // unique, and the tree pane filters and labels nodes by `path`.
   const tree = useMemo<TreeNode>(
     () => ({
       name: collection.title,
       path: ".",
       type: "dir",
-      children: collection.traces.map((trace, index) => ({
+      children: collection.traces.map((trace) => ({
         name: trace.name,
-        path: String(index),
+        path: trace.name,
         type: "file",
         format: "json",
         trace_count: 1,
@@ -85,7 +89,8 @@ function ExportedCollectionApp({ collection }: { collection: EmbeddedTraceCollec
     }),
     [collection],
   );
-  const selected = collection.traces[Number(selection.path)] ?? collection.traces[0];
+  const selected =
+    collection.traces.find((trace) => trace.name === selection.path) ?? collection.traces[0];
   return (
     <div class="layout">
       <TreePane

@@ -6,23 +6,26 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from importlib import import_module
-from os import PathLike
-from pathlib import Path
 from typing import Self
 
-from ._html import inject_trace_collection, inject_trace_data, packaged_index_html
+from ._html import collection_document, trace_document
 from .text import format_trace_json_as_text
 
 
-@dataclass(frozen=True, init=False)
+@dataclass(frozen=True)
 class TraceView:
     """An immutable, self-contained view of one Pydantic AI trace."""
 
-    _trace_json: str = field(repr=False)
-    title: str
+    trace_json: str = field(repr=False)
+    title: str = field(default="trace", kw_only=True)
 
-    def __init__(self) -> None:
-        raise TypeError("use TraceView.from_messages() or TraceView.from_json()")
+    def __post_init__(self) -> None:
+        try:
+            parsed = json.loads(self.trace_json, parse_constant=_reject_json_constant)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(f"trace JSON is invalid: {exc}") from exc
+        if not isinstance(parsed, list):
+            raise ValueError("trace JSON must contain a top-level array of messages")
 
     @classmethod
     def from_messages(
@@ -62,92 +65,57 @@ class TraceView:
         *,
         title: str = "trace",
     ) -> Self:
-        """Create a view from one serialized JSON trace."""
+        """Create a view from one serialized JSON trace, decoding bytes as UTF-8."""
         if isinstance(trace_json, str):
-            text = trace_json
-        else:
-            try:
-                text = bytes(trace_json).decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise ValueError("trace JSON is not valid UTF-8") from exc
-
+            return cls(trace_json, title=title)
         try:
-            parsed = json.loads(text, parse_constant=_reject_json_constant)
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise ValueError(f"trace JSON is invalid: {exc}") from exc
-        if not isinstance(parsed, list):
-            raise ValueError("trace JSON must contain a top-level array of messages")
-
-        view = object.__new__(cls)
-        object.__setattr__(view, "_trace_json", text)
-        object.__setattr__(view, "title", title)
-        return view
+            text = bytes(trace_json).decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("trace JSON is not valid UTF-8") from exc
+        return cls(text, title=title)
 
     def html(self) -> str:
         """Return a complete, self-contained HTML document."""
-        transcript = format_trace_json_as_text(self._trace_json, self.title)
-        return inject_trace_data(
-            packaged_index_html(),
-            self._trace_json,
-            trace_name=self.title,
-            transcript=transcript,
-        )
+        return trace_document(self.trace_json, trace_name=self.title)
 
-    def write(self, path: str | PathLike[str]) -> None:
-        """Write the self-contained document as UTF-8."""
-        Path(path).write_text(self.html(), encoding="utf-8")
+    def _embedded(self) -> dict[str, str]:
+        """The payload shape the viewer expects for one trace inside a collection."""
+        return {
+            "name": self.title,
+            "source": self.trace_json,
+            "transcript": format_trace_json_as_text(self.trace_json, self.title),
+        }
 
 
-@dataclass(frozen=True, init=False)
+@dataclass(frozen=True)
 class TraceCollectionView:
     """A self-contained view that selects between named in-memory traces."""
 
-    traces: tuple[TraceView, ...]
-    title: str
+    traces: Sequence[TraceView]
+    title: str = field(default="traces", kw_only=True)
 
-    def __init__(
-        self,
-        traces: Sequence[TraceView],
-        *,
-        title: str = "traces",
-    ) -> None:
-        items = tuple(traces)
-        if not items:
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "traces", tuple(self.traces))
+        if not self.traces:
             raise ValueError("a trace collection requires at least one trace")
-        if any(not isinstance(trace, TraceView) for trace in items):
+        if any(not isinstance(trace, TraceView) for trace in self.traces):
             raise TypeError("traces must contain only TraceView instances")
-        names = [trace.title for trace in items]
+        names = [trace.title for trace in self.traces]
         if any(not name.strip() for name in names):
             raise ValueError("trace titles must not be empty")
         if len(set(names)) != len(names):
             raise ValueError("trace titles must be unique")
 
-        object.__setattr__(self, "traces", items)
-        object.__setattr__(self, "title", title)
-
     def html(self) -> str:
         """Return a complete document with an in-memory trace sidebar."""
-        collection_json = json.dumps(
-            {
-                "title": self.title,
-                "traces": [
-                    {
-                        "name": trace.title,
-                        "source": trace._trace_json,
-                        "transcript": format_trace_json_as_text(
-                            trace._trace_json,
-                            trace.title,
-                        ),
-                    }
-                    for trace in self.traces
-                ],
-            }
+        return collection_document(
+            json.dumps(
+                {
+                    "title": self.title,
+                    "traces": [trace._embedded() for trace in self.traces],
+                }
+            )
         )
-        return inject_trace_collection(packaged_index_html(), collection_json)
-
-    def write(self, path: str | PathLike[str]) -> None:
-        """Write the self-contained collection document as UTF-8."""
-        Path(path).write_text(self.html(), encoding="utf-8")
 
 
 def _reject_json_constant(value: str) -> None:

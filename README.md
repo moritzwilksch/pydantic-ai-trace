@@ -147,9 +147,6 @@ from pydantic_ai_trace import TraceView
 
 view = TraceView.from_messages(messages, title="Candidate response")
 html = view.html()
-
-# Or write the document directly.
-view.write("candidate-response.html")
 ```
 
 Use `from_json` when the trace is already serialized:

@@ -110,6 +110,22 @@ describe("App in exported-trace mode", () => {
     getAllByText("second output");
   });
 
+  it("filters an embedded collection by trace name, not position", () => {
+    window.__TRACE_COLLECTION__ = JSON.stringify({
+      title: "Case 42",
+      traces: [
+        { name: "Original", source: "[]", transcript: "" },
+        { name: "Candidate", source: "[]", transcript: "" },
+      ],
+    });
+
+    const { getByPlaceholderText, getByRole, queryByRole } = render(<App />);
+
+    fireEvent.input(getByPlaceholderText("Filter traces…"), { target: { value: "Candidate" } });
+    getByRole("button", { name: "Candidate" });
+    expect(queryByRole("button", { name: "Original" })).toBeNull();
+  });
+
   it("renders every part kind of an embedded trace without crashing", () => {
     window.__TRACE_DATA__ = FULL_TRACE;
     window.__TRACE_NAME__ = "smoke.json";

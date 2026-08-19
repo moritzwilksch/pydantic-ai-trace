@@ -1,16 +1,38 @@
-"""Internal helpers for composing the bundled viewer HTML."""
+"""Internal helpers for composing the bundled viewer HTML.
+
+The packaged `static/index.html` is a single-file Vite build (JS+CSS inlined).
+A document injects its payload before the bundle script, so the resulting file
+renders offline from `file://`.
+"""
 
 from __future__ import annotations
 
 import json
 from importlib.resources import files
 
+from .text import format_trace_json_as_text
+
 _INJECTION_MARKER = "<script"
 
 
 def packaged_index_html() -> str:
-    """Read the built frontend bundle from the installed package."""
+    """The built frontend bundle; raises FileNotFoundError in a source checkout."""
     return (files("pydantic_ai_trace") / "static" / "index.html").read_text(encoding="utf-8")
+
+
+def trace_document(trace_json: str, *, trace_name: str) -> str:
+    """Compose the self-contained document for one already-loaded trace."""
+    return inject_trace_data(
+        packaged_index_html(),
+        trace_json,
+        trace_name=trace_name,
+        transcript=format_trace_json_as_text(trace_json, trace_name),
+    )
+
+
+def collection_document(collection_json: str) -> str:
+    """Compose the self-contained document for a named in-memory collection."""
+    return inject_trace_collection(packaged_index_html(), collection_json)
 
 
 def inject_trace_data(
