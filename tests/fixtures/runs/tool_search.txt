@@ -1,0 +1,106 @@
+========== TRACE ==========
+
+NAME: tool_search.json
+LLM CALLS: 5 | TOKENS: 8310 in (6100 cached) → 370 out | WALL TIME: 10.0s
+
+========== REQUEST 1 ==========
+
+--- INSTRUCTIONS ---
+
+Never refund more than the original charge.
+
+--- SYSTEM PROMPT ---
+
+You are an operations assistant. The full tool catalogue is too large to load up front: search for the tools you need, then load the capability that owns them before calling anything.
+
+--- USER PROMPT ---
+
+Refund invoice INV-4471 and tell me what the customer was charged.
+
+========== RESPONSE 1 · claude-fable-5 · 1240 in → 88 out ==========
+
+--- THINKING ---
+
+I do not have a refund tool yet. Search the catalogue for billing tools before assuming anything is callable.
+
+--- TOOL CALL: search_tools [TOOL-SEARCH] ---
+
+QUERIES:
+refund invoice
+billing charge lookup
+
+========== REQUEST 2 ==========
+
+--- TOOL RETURN: search_tools [TOOL-SEARCH] ---
+
+DISCOVERED TOOLS: refund_invoice, get_invoice, list_charges
+
+--- TOOL AVAILABILITY ---
+
++refund_invoice
++get_invoice
++list_charges
+
+========== RESPONSE 2 · claude-fable-5 · 1510 in (1100 cached) → 24 out ==========
+
+--- TOOL CALL: load_capability [CAPABILITY-LOAD] ---
+
+CAPABILITY: billing
+
+========== REQUEST 3 ==========
+
+--- TOOL RETURN: load_capability [CAPABILITY-LOAD] ---
+
+**Billing capability**
+
+- Refunds are irreversible; always read the invoice first.
+- Amounts are in minor units (cents).
+
+--- TOOL AVAILABILITY ---
+
++void_invoice
+
+========== RESPONSE 3 · claude-fable-5 · 1720 in (1500 cached) → 140 out ==========
+
+--- BUILTIN TOOL CALL: tool_search [TOOL-SEARCH] ---
+
+QUERIES:
+dispute escalation
+
+--- BUILTIN TOOL RETURN: tool_search [TOOL-SEARCH] ---
+
+DISCOVERED TOOLS: none
+
+No matching tools found. The tools you need may not be available.
+
+--- TOOL CALL: get_invoice ---
+
+ARGUMENTS:
+{"invoice_id":"INV-4471"}
+
+========== REQUEST 4 ==========
+
+--- TOOL RETURN: get_invoice ---
+
+{"invoice_id":"INV-4471","customer":"Client A","amount_cents":24900,"currency":"EUR","status":"paid"}
+
+========== RESPONSE 4 · claude-fable-5 · 1880 in (1700 cached) → 46 out ==========
+
+--- TOOL CALL: refund_invoice ---
+
+ARGUMENTS:
+{"invoice_id":"INV-4471","amount_cents":24900}
+
+========== REQUEST 5 ==========
+
+--- TOOL RETURN: refund_invoice ---
+
+{"refund_id":"RF-9021","amount_cents":24900,"state":"pending"}
+
+========== RESPONSE 5 · claude-fable-5 · 1960 in (1800 cached) → 72 out ==========
+
+--- TEXT ---
+
+Refund **RF-9021** is pending for invoice INV-4471.
+
+The customer was charged **249.00 EUR**, and that is the full amount being returned.

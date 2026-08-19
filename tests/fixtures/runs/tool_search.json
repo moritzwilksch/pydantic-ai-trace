@@ -1,0 +1,303 @@
+[
+  {
+    "parts": [
+      {
+        "content": "You are an operations assistant. The full tool catalogue is too large to load up front: search for the tools you need, then load the capability that owns them before calling anything.",
+        "timestamp": "2026-07-03T10:00:00Z",
+        "part_kind": "system-prompt"
+      },
+      {
+        "content": "Refund invoice INV-4471 and tell me what the customer was charged.",
+        "timestamp": "2026-07-03T10:00:00.200000Z",
+        "part_kind": "user-prompt"
+      }
+    ],
+    "timestamp": "2026-07-03T10:00:00.200000Z",
+    "instructions": "Never refund more than the original charge.",
+    "kind": "request",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "content": "I do not have a refund tool yet. Search the catalogue for billing tools before assuming anything is callable.",
+        "provider_name": "anthropic",
+        "part_kind": "thinking"
+      },
+      {
+        "tool_name": "search_tools",
+        "args": {
+          "queries": [
+            "refund invoice",
+            "billing charge lookup"
+          ]
+        },
+        "tool_call_id": "search_1",
+        "tool_kind": "tool-search",
+        "part_kind": "tool-call"
+      }
+    ],
+    "usage": {
+      "input_tokens": 1240,
+      "cache_write_tokens": 1100,
+      "cache_read_tokens": 0,
+      "output_tokens": 88,
+      "input_audio_tokens": 0,
+      "cache_audio_read_tokens": 0,
+      "output_audio_tokens": 0,
+      "details": {}
+    },
+    "model_name": "claude-fable-5",
+    "timestamp": "2026-07-03T10:00:02Z",
+    "kind": "response",
+    "provider_name": "anthropic",
+    "provider_response_id": "resp_ts_1",
+    "finish_reason": "tool_call",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "search_tools",
+        "content": {
+          "discovered_tools": [
+            {
+              "name": "refund_invoice"
+            },
+            {
+              "name": "get_invoice"
+            },
+            {
+              "name": "list_charges"
+            }
+          ]
+        },
+        "tool_call_id": "search_1",
+        "tool_kind": "tool-search",
+        "timestamp": "2026-07-03T10:00:02.399999Z",
+        "outcome": "success",
+        "part_kind": "tool-return"
+      },
+      {
+        "tools_added": [
+          "refund_invoice",
+          "get_invoice",
+          "list_charges"
+        ],
+        "tool_call_id": "search_1",
+        "part_kind": "tool-availability-delta"
+      }
+    ],
+    "timestamp": "2026-07-03T10:00:02.399999Z",
+    "instructions": "Never refund more than the original charge.",
+    "kind": "request",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "load_capability",
+        "args": {
+          "id": "billing"
+        },
+        "tool_call_id": "cap_1",
+        "tool_kind": "capability-load",
+        "part_kind": "tool-call"
+      }
+    ],
+    "usage": {
+      "input_tokens": 1510,
+      "cache_write_tokens": 0,
+      "cache_read_tokens": 1100,
+      "output_tokens": 24,
+      "input_audio_tokens": 0,
+      "cache_audio_read_tokens": 0,
+      "output_audio_tokens": 0,
+      "details": {}
+    },
+    "model_name": "claude-fable-5",
+    "timestamp": "2026-07-03T10:00:04Z",
+    "kind": "response",
+    "provider_name": "anthropic",
+    "provider_response_id": "resp_ts_2",
+    "finish_reason": "tool_call",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "load_capability",
+        "content": {
+          "instructions": "**Billing capability**\n\n- Refunds are irreversible; always read the invoice first.\n- Amounts are in minor units (cents)."
+        },
+        "tool_call_id": "cap_1",
+        "tool_kind": "capability-load",
+        "timestamp": "2026-07-03T10:00:04.299999Z",
+        "outcome": "success",
+        "part_kind": "tool-return"
+      },
+      {
+        "tools_added": [
+          "void_invoice"
+        ],
+        "tool_call_id": "cap_1",
+        "part_kind": "tool-availability-delta"
+      }
+    ],
+    "timestamp": "2026-07-03T10:00:04.299999Z",
+    "instructions": "Never refund more than the original charge.",
+    "kind": "request",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "tool_search",
+        "args": {
+          "queries": [
+            "dispute escalation"
+          ]
+        },
+        "tool_call_id": "native_search_1",
+        "tool_kind": "tool-search",
+        "provider_name": "anthropic",
+        "part_kind": "builtin-tool-call"
+      },
+      {
+        "tool_name": "tool_search",
+        "content": {
+          "discovered_tools": [],
+          "message": "No matching tools found. The tools you need may not be available."
+        },
+        "tool_call_id": "native_search_1",
+        "tool_kind": "tool-search",
+        "timestamp": "2026-07-03T10:00:05.500000Z",
+        "outcome": "success",
+        "provider_name": "anthropic",
+        "part_kind": "builtin-tool-return"
+      },
+      {
+        "tool_name": "get_invoice",
+        "args": {
+          "invoice_id": "INV-4471"
+        },
+        "tool_call_id": "call_invoice",
+        "part_kind": "tool-call"
+      }
+    ],
+    "usage": {
+      "input_tokens": 1720,
+      "cache_write_tokens": 0,
+      "cache_read_tokens": 1500,
+      "output_tokens": 140,
+      "input_audio_tokens": 0,
+      "cache_audio_read_tokens": 0,
+      "output_audio_tokens": 0,
+      "details": {}
+    },
+    "model_name": "claude-fable-5",
+    "timestamp": "2026-07-03T10:00:06Z",
+    "kind": "response",
+    "provider_name": "anthropic",
+    "provider_response_id": "resp_ts_3",
+    "finish_reason": "tool_call",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "get_invoice",
+        "content": {
+          "invoice_id": "INV-4471",
+          "customer": "Client A",
+          "amount_cents": 24900,
+          "currency": "EUR",
+          "status": "paid"
+        },
+        "tool_call_id": "call_invoice",
+        "timestamp": "2026-07-03T10:00:06.400000Z",
+        "outcome": "success",
+        "part_kind": "tool-return"
+      }
+    ],
+    "timestamp": "2026-07-03T10:00:06.400000Z",
+    "instructions": "Never refund more than the original charge.",
+    "kind": "request",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "refund_invoice",
+        "args": {
+          "invoice_id": "INV-4471",
+          "amount_cents": 24900
+        },
+        "tool_call_id": "call_refund",
+        "part_kind": "tool-call"
+      }
+    ],
+    "usage": {
+      "input_tokens": 1880,
+      "cache_write_tokens": 0,
+      "cache_read_tokens": 1700,
+      "output_tokens": 46,
+      "input_audio_tokens": 0,
+      "cache_audio_read_tokens": 0,
+      "output_audio_tokens": 0,
+      "details": {}
+    },
+    "model_name": "claude-fable-5",
+    "timestamp": "2026-07-03T10:00:08Z",
+    "kind": "response",
+    "provider_name": "anthropic",
+    "provider_response_id": "resp_ts_4",
+    "finish_reason": "tool_call",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "tool_name": "refund_invoice",
+        "content": {
+          "refund_id": "RF-9021",
+          "amount_cents": 24900,
+          "state": "pending"
+        },
+        "tool_call_id": "call_refund",
+        "timestamp": "2026-07-03T10:00:08.500000Z",
+        "outcome": "success",
+        "part_kind": "tool-return"
+      }
+    ],
+    "timestamp": "2026-07-03T10:00:08.500000Z",
+    "instructions": "Never refund more than the original charge.",
+    "kind": "request",
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "content": "Refund **RF-9021** is pending for invoice INV-4471.\n\nThe customer was charged **249.00 EUR**, and that is the full amount being returned.",
+        "part_kind": "text"
+      }
+    ],
+    "usage": {
+      "input_tokens": 1960,
+      "cache_write_tokens": 0,
+      "cache_read_tokens": 1800,
+      "output_tokens": 72,
+      "input_audio_tokens": 0,
+      "cache_audio_read_tokens": 0,
+      "output_audio_tokens": 0,
+      "details": {}
+    },
+    "model_name": "claude-fable-5",
+    "timestamp": "2026-07-03T10:00:10Z",
+    "kind": "response",
+    "provider_name": "anthropic",
+    "provider_response_id": "resp_ts_5",
+    "finish_reason": "stop",
+    "state": "complete"
+  }
+]

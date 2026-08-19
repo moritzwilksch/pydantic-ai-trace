@@ -154,3 +154,76 @@ def test_binary_payloads_are_replaced_with_metadata():
             "payload_omitted": True,
         }
     }
+
+
+def test_tool_search_and_capability_parts_compact_to_their_payloads():
+    raw = json.loads((FIXTURES / "runs" / "tool_search.json").read_text(encoding="utf-8"))
+
+    messages = compact_trajectory(parse_trace(raw), name="tool_search.json")["messages"]
+
+    assert isinstance(messages, list)
+    assert messages[1]["parts"][1] == {
+        "type": "tool_call",
+        "name": "search_tools",
+        "args": {"queries": ["refund invoice", "billing charge lookup"]},
+        "id": "search_1",
+        "tool_kind": "tool-search",
+    }
+    # Per-match objects are unwrapped to the names they carry.
+    assert messages[2]["parts"][0] == {
+        "type": "tool_result",
+        "name": "search_tools",
+        "result": {"discovered_tools": ["refund_invoice", "get_invoice", "list_charges"]},
+        "id": "search_1",
+        "outcome": "success",
+        "tool_kind": "tool-search",
+    }
+    assert messages[2]["parts"][1] == {
+        "type": "tools_available",
+        "tools_added": ["refund_invoice", "get_invoice", "list_charges"],
+        "id": "search_1",
+    }
+    assert messages[3]["parts"][0]["args"] == {"id": "billing"}
+    assert messages[4]["parts"][0]["result"]["instructions"].startswith("**Billing capability**")
+    empty_search = messages[5]["parts"][1]
+    assert empty_search["builtin"] is True
+    assert empty_search["result"] == {
+        "discovered_tools": [],
+        "message": "No matching tools found. The tools you need may not be available.",
+    }
+
+
+def test_tool_availability_delta_accepts_the_legacy_added_alias():
+    trace = [
+        {
+            "kind": "request",
+            "parts": [{"part_kind": "tool-availability-delta", "added": ["a", "b"]}],
+        }
+    ]
+
+    messages = compact_trajectory(parse_trace(trace), name="delta.json")["messages"]
+
+    assert isinstance(messages, list)
+    assert messages[0]["parts"] == [{"type": "tools_available", "tools_added": ["a", "b"]}]
+
+
+def test_a_tool_return_only_unwraps_matches_when_its_tool_kind_says_so():
+    """Discrimination follows `tool_kind`, so a user tool of the same name is left alone."""
+    trace = [
+        {
+            "kind": "request",
+            "parts": [
+                {
+                    "part_kind": "tool-return",
+                    "tool_name": "search_tools",
+                    "tool_call_id": "c1",
+                    "content": {"discovered_tools": [{"name": "a", "score": 1}]},
+                }
+            ],
+        }
+    ]
+
+    messages = compact_trajectory(parse_trace(trace), name="lookalike.json")["messages"]
+
+    assert isinstance(messages, list)
+    assert messages[0]["parts"][0]["result"] == {"discovered_tools": [{"name": "a", "score": 1}]}

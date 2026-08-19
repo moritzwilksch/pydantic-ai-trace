@@ -9,6 +9,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+# Framework-emitted tool variants. pydantic-ai keeps their `part_kind` as a plain tool
+# call/return and discriminates on `tool_kind`, so their typed `args` / `content` payloads
+# are recognized by shape (`_tool_search.py`, `_deferred_capabilities.py`).
+TOOL_SEARCH_KIND = "tool-search"
+CAPABILITY_LOAD_KIND = "capability-load"
+
 
 @dataclass(frozen=True)
 class TraceStats:
@@ -224,7 +230,7 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
         compact = {
             "type": "tool_result",
             "name": part.get("tool_name"),
-            "result": _compact_value(part.get("content")),
+            "result": _compact_tool_return_content(part),
         }
         _copy_nonempty(part, compact, "tool_call_id", "id")
         _copy_nonempty(part, compact, "outcome", "outcome")
@@ -236,6 +242,11 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
     if kind == "retry-prompt":
         compact = {"type": "retry", "content": _compact_value(part.get("content"))}
         _copy_nonempty(part, compact, "tool_name", "name")
+        _copy_nonempty(part, compact, "tool_call_id", "id")
+        return compact
+
+    if kind == "tool-availability-delta":
+        compact = {"type": "tools_available", "tools_added": _tools_added(part)}
         _copy_nonempty(part, compact, "tool_call_id", "id")
         return compact
 
@@ -260,6 +271,35 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
     else:
         data = raw
     return {"type": "unknown", "original_type": original_type, "data": _compact_value(data)}
+
+
+def _compact_tool_return_content(part: dict[str, Any]) -> object:
+    """A tool-search return is a list of names wrapped in per-match objects; unwrap it."""
+    content = part.get("content")
+    if part.get("tool_kind") != TOOL_SEARCH_KIND or not isinstance(content, dict):
+        return _compact_value(content)
+    matches = content.get("discovered_tools")
+    if not isinstance(matches, list):
+        return _compact_value(content)
+    compact: dict[str, object] = {
+        "discovered_tools": [
+            match["name"]
+            for match in matches
+            if isinstance(match, dict) and isinstance(match.get("name"), str)
+        ]
+    }
+    _copy_nonempty(content, compact, "message", "message")
+    return compact
+
+
+def _tools_added(part: dict[str, Any]) -> list[str]:
+    """`tools_added`, or the `added` alias older dumps used."""
+    raw = part.get("tools_added")
+    if not isinstance(raw, list):
+        raw = part.get("added")
+    if not isinstance(raw, list):
+        return []
+    return [name for name in raw if isinstance(name, str)]
 
 
 def _compact_usage(usage: dict[str, object]) -> dict[str, object]:

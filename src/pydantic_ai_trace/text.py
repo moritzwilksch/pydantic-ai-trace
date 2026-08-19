@@ -13,7 +13,7 @@ import re
 from decimal import Decimal
 from typing import Any
 
-from .trajectory import ParsedTrace, parse_trace
+from .trajectory import CAPABILITY_LOAD_KIND, TOOL_SEARCH_KIND, ParsedTrace, parse_trace
 
 
 def format_trace_json_as_text(trace_json: str, name: str) -> str:
@@ -119,6 +119,8 @@ def _format_part(part: dict[str, Any]) -> str:
         )
     if kind == "file":
         return _part_section("FILE", _format_file(part.get("content")))
+    if kind == "tool-availability-delta":
+        return _format_tool_availability_delta(part)
     return _part_section(f"UNKNOWN PART: {_inline(kind)}", _json(part))
 
 
@@ -127,23 +129,104 @@ def _format_tool_call(part: dict[str, Any]) -> str:
     tool_kind = f" [{_inline(part['tool_kind']).upper()}]" if part.get("tool_kind") else ""
     return _part_section(
         f"{kind}: {_inline(part.get('tool_name'))}{tool_kind}",
-        f"ARGUMENTS:\n{_format_value(part.get('parsed_args'))}",
+        _format_tool_call_args(part),
     )
+
+
+def _format_tool_call_args(part: dict[str, Any]) -> str:
+    """Framework-emitted tool calls carry a typed payload worth naming; see `_tool_search`."""
+    queries = _tool_search_queries(part)
+    if queries is not None:
+        return "QUERIES:\n" + "\n".join(queries)
+    capability = _capability_id(part)
+    if capability is not None:
+        return f"CAPABILITY: {capability}"
+    return f"ARGUMENTS:\n{_format_value(part.get('parsed_args'))}"
 
 
 def _format_tool_return(part: dict[str, Any]) -> str:
     kind = "BUILTIN TOOL RETURN" if part["part_kind"] == "builtin-tool-return" else "TOOL RETURN"
+    tool_kind = f" [{_inline(part['tool_kind']).upper()}]" if part.get("tool_kind") else ""
     outcome = part.get("outcome")
     outcome_label = f" [{outcome.upper()}]" if outcome in {"failed", "denied"} else ""
     return _part_section(
-        f"{kind}: {_inline(part.get('tool_name'))}{outcome_label}",
-        _format_value(part.get("content")),
+        f"{kind}: {_inline(part.get('tool_name'))}{tool_kind}{outcome_label}",
+        _format_tool_return_content(part),
     )
+
+
+def _format_tool_return_content(part: dict[str, Any]) -> str:
+    discovered = _discovered_tools(part)
+    if discovered is not None:
+        content = part["content"]
+        message = content.get("message")
+        body = f"DISCOVERED TOOLS: {', '.join(discovered) if discovered else 'none'}"
+        return f"{body}\n\n{message}" if isinstance(message, str) and message else body
+    instructions = _capability_instructions(part)
+    if instructions is not None:
+        return instructions
+    return _format_value(part.get("content"))
+
+
+def _format_tool_availability_delta(part: dict[str, Any]) -> str:
+    added = _tools_added(part)
+    body = "\n".join(f"+{name}" for name in added) if added else _json(part)
+    return _part_section("TOOL AVAILABILITY", body)
 
 
 def _format_retry_prompt(part: dict[str, Any]) -> str:
     tool = f": {_inline(part['tool_name'])}" if part.get("tool_name") else ""
     return _part_section(f"RETRY PROMPT{tool}", _format_value(part.get("content")))
+
+
+def _tools_added(part: dict[str, Any]) -> list[str]:
+    """`tools_added`, or the `added` alias older dumps used."""
+    raw = part.get("tools_added")
+    if not isinstance(raw, list):
+        raw = part.get("added")
+    if not isinstance(raw, list):
+        return []
+    return [name for name in raw if isinstance(name, str)]
+
+
+def _tool_search_queries(part: dict[str, Any]) -> list[str] | None:
+    """Queries of a tool-search call, or None when the part is not one."""
+    if part.get("tool_kind") != TOOL_SEARCH_KIND:
+        return None
+    args = part.get("parsed_args")
+    if not isinstance(args, dict) or not isinstance(args.get("queries"), list):
+        return None
+    return [query for query in args["queries"] if isinstance(query, str)]
+
+
+def _discovered_tools(part: dict[str, Any]) -> list[str] | None:
+    """Tool names a tool-search return revealed, or None when the part is not one."""
+    if part.get("tool_kind") != TOOL_SEARCH_KIND:
+        return None
+    content = part.get("content")
+    if not isinstance(content, dict) or not isinstance(content.get("discovered_tools"), list):
+        return None
+    return [
+        match["name"]
+        for match in content["discovered_tools"]
+        if isinstance(match, dict) and isinstance(match.get("name"), str)
+    ]
+
+
+def _capability_id(part: dict[str, Any]) -> str | None:
+    if part.get("tool_kind") != CAPABILITY_LOAD_KIND:
+        return None
+    args = part.get("parsed_args")
+    return args["id"] if isinstance(args, dict) and isinstance(args.get("id"), str) else None
+
+
+def _capability_instructions(part: dict[str, Any]) -> str | None:
+    if part.get("tool_kind") != CAPABILITY_LOAD_KIND:
+        return None
+    content = part.get("content")
+    if not isinstance(content, dict) or not isinstance(content.get("instructions"), str):
+        return None
+    return content["instructions"]
 
 
 def _format_user_content(content: object) -> str:

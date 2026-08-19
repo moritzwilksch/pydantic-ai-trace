@@ -581,6 +581,24 @@ summary svg,
   margin-bottom: 6px;
 }
 
+/* Named values a tool part carries as structure rather than free-form JSON:
+   search queries, discovered tools, revealed tool names. */
+.tool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-inset);
+  color: var(--tool);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
 /* ---- collapsible / details ---- */
 
 details.collapsible > summary {

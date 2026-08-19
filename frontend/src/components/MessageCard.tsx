@@ -11,6 +11,7 @@ import type {
   SystemPromptPart,
   TextPart as TextPartType,
   ThinkingPart as ThinkingPartType,
+  ToolAvailabilityDeltaPart as ToolAvailabilityDeltaPartType,
   ToolCallPart,
   ToolReturnPart,
   Usage,
@@ -26,6 +27,7 @@ import { RetryPrompt } from "./parts/RetryPrompt";
 import { SystemPrompt } from "./parts/SystemPrompt";
 import { TextPart } from "./parts/TextPart";
 import { ThinkingPart } from "./parts/ThinkingPart";
+import { ToolAvailabilityDelta } from "./parts/ToolAvailabilityDelta";
 import { ToolCallGroup, ToolReturn } from "./parts/ToolCallGroup";
 import { UserPrompt } from "./parts/UserPrompt";
 
@@ -147,6 +149,8 @@ function PartView({ part, pairing }: { part: Part; pairing: Pairing }) {
       return <CompactionPart part={part as CompactionPartType} />;
     case "file":
       return <FilePart part={part as FilePartType} />;
+    case "tool-availability-delta":
+      return <ToolAvailabilityDelta part={part as ToolAvailabilityDeltaPartType} />;
     default:
       return <FallbackPart part={part as Record<string, unknown>} />;
   }
