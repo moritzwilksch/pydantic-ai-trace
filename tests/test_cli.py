@@ -116,28 +116,37 @@ class TestServeCommand:
 
 
 class TestExportCommand:
-    def test_export_writes_html(
-        self, fixtures_copy: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    @pytest.fixture(autouse=True)
+    def _stub_bundle(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import pydantic_ai_trace._html as html_module
+
         monkeypatch.setattr(
-            "pydantic_ai_trace.export.write_export_html",
-            lambda trace_json, out, trace_name: out.write_text("<html>fake</html>"),
+            html_module,
+            "packaged_index_html",
+            lambda: "<html><head><script>bundle();</script></head></html>",
         )
+
+    def test_export_writes_selfcontained_html(self, fixtures_copy: Path, tmp_path: Path):
         output = tmp_path / "out.html"
         code = cli.main(["export", str(fixtures_copy / "full_trace.json"), "-o", str(output)])
         assert code == 0
-        assert output.read_text() == "<html>fake</html>"
+        document = output.read_text(encoding="utf-8")
+        assert "__TRACE_DATA__" in document
+        assert document.index("__TRACE_DATA__") < document.index("bundle();")
 
-    def test_default_output_is_input_with_html_suffix(
-        self, fixtures_copy: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        written: list[Path] = []
-        monkeypatch.setattr(
-            "pydantic_ai_trace.export.write_export_html",
-            lambda trace_json, out, trace_name: written.append(out),
-        )
+    def test_default_output_is_input_with_html_suffix(self, fixtures_copy: Path):
         cli.main(["export", str(fixtures_copy / "full_trace.json")])
-        assert written == [fixtures_copy / "full_trace.html"]
+        assert (fixtures_copy / "full_trace.html").exists()
+
+    def test_exports_a_trace_the_embedding_api_would_reject(self, tmp_path: Path):
+        # `TraceView` rejects non-standard JSON constants; export stays as
+        # permissive as `scan` and renders whatever it loaded.
+        source = tmp_path / "nan.json"
+        source.write_text('[{"cost": NaN}]')
+        output = tmp_path / "nan.html"
+
+        assert cli.main(["export", str(source), "-o", str(output)]) == 0
+        assert "__TRACE_DATA__" in output.read_text(encoding="utf-8")
 
     def test_missing_input_fails(self, capsys: pytest.CaptureFixture):
         assert cli.main(["export", "/nope.json"]) == 1
@@ -161,18 +170,13 @@ class TestExportCommand:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        captured: dict[str, object] = {}
         monkeypatch.setattr(sys, "stdin", io.StringIO("[]"))
-        monkeypatch.setattr(
-            "pydantic_ai_trace.export.write_export_html",
-            lambda trace_json, out, trace_name: captured.update(
-                {"trace": trace_json, "output": out, "name": trace_name}
-            ),
-        )
         output = tmp_path / "stdin.html"
 
         assert cli.main(["export", "-o", str(output)]) == 0
-        assert captured == {"trace": "[]", "output": output, "name": "stdin"}
+        document = output.read_text(encoding="utf-8")
+        assert 'window.__TRACE_DATA__ = "[]"' in document
+        assert 'window.__TRACE_NAME__ = "stdin"' in document
 
     def test_exporting_stdin_requires_output(self, capsys: pytest.CaptureFixture):
         assert cli.main(["export"]) == 1

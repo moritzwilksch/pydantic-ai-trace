@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { embeddedTrace, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
+import {
+  embeddedTrace,
+  embeddedTraceCollection,
+  fetchMeta,
+  fetchTrace,
+  fetchTree,
+  subscribeChanges,
+} from "./api";
 import { parseTrace } from "./parse";
 import { defaultSelection } from "./selection";
 import { CopyTraceButton } from "./components/CopyTraceButton";
@@ -7,7 +14,13 @@ import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
-import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
+import type {
+  EmbeddedTraceCollection,
+  Meta,
+  TracePayload,
+  TraceSelection,
+  TreeNode,
+} from "./types";
 
 type TraceState =
   | { status: "unselected" }
@@ -16,11 +29,14 @@ type TraceState =
   | { status: "error"; message: string };
 
 export function App() {
+  const collection = useMemo(embeddedTraceCollection, []);
   const embedded = useMemo(embeddedTrace, []);
   const { helpOpen, closeHelp } = useKeyboardNav();
   return (
     <>
-      {embedded ? (
+      {collection ? (
+        <ExportedCollectionApp collection={collection} />
+      ) : embedded ? (
         <ExportedTraceApp
           name={embedded.name}
           data={embedded.data}
@@ -44,21 +60,77 @@ function ExportedTraceApp({
   data: unknown;
   transcript: string;
 }) {
-  const messages = useMemo(() => parseTrace(data), [data]);
   return (
     <div class="layout">
-      <main class="main-pane">
-        <header class="trace-header">
-          <span class="trace-title">{name}</span>
-          <TraceStatsBar messages={messages} />
-          <CopyTraceButton text={transcript} />
-          <ThemeToggle />
-        </header>
-        <div class="trace-body">
-          <TraceView messages={messages} />
-        </div>
-      </main>
+      <ExportedTracePane name={name} data={data} transcript={transcript} />
     </div>
+  );
+}
+
+function ExportedCollectionApp({ collection }: { collection: EmbeddedTraceCollection }) {
+  const [selection, setSelection] = useState<TraceSelection>({
+    path: collection.traces[0].name,
+  });
+  // Trace names are the identity here: Python guarantees them non-empty and
+  // unique, and the tree pane filters and labels nodes by `path`.
+  const tree = useMemo<TreeNode>(
+    () => ({
+      name: collection.title,
+      path: ".",
+      type: "dir",
+      children: collection.traces.map((trace) => ({
+        name: trace.name,
+        path: trace.name,
+        type: "file",
+        format: "json",
+        trace_count: 1,
+        error: false,
+      })),
+    }),
+    [collection],
+  );
+  const selected =
+    collection.traces.find((trace) => trace.name === selection.path) ?? collection.traces[0];
+  return (
+    <div class="layout">
+      <TreePane
+        root={tree}
+        rootLabel={collection.title}
+        selection={selection}
+        onSelect={setSelection}
+      />
+      <ExportedTracePane
+        key={selected.name}
+        name={selected.name}
+        data={selected.source}
+        transcript={selected.transcript}
+      />
+    </div>
+  );
+}
+
+function ExportedTracePane({
+  name,
+  data,
+  transcript,
+}: {
+  name: string;
+  data: unknown;
+  transcript: string;
+}) {
+  const messages = useMemo(() => parseTrace(data), [data]);
+  return (
+    <main class="main-pane">
+      <header class="trace-header">
+        <span class="trace-title">{name}</span>
+        <TraceStatsBar messages={messages} />
+        <CopyTraceButton text={transcript} />
+        <ThemeToggle />
+      </header>
+      <div class="trace-body">
+        <TraceView messages={messages} />
+      </div>
+    </main>
   );
 }
 

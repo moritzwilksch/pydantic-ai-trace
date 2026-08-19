@@ -15,7 +15,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Route
 
 from . import scan
-from .export import packaged_index_html
+from ._html import packaged_index_html
 from .text import format_trace_json_as_text
 
 WATCH_DEBOUNCE_MS = 200

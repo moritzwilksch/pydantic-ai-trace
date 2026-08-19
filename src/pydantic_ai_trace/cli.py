@@ -170,9 +170,9 @@ def _run_export(argv: list[str]) -> int:
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
-        from .export import write_export_html
+        from ._html import trace_document
 
-        write_export_html(loaded.text, output, trace_name=loaded.name)
+        output.write_text(trace_document(loaded.text, trace_name=loaded.name), encoding="utf-8")
     except (scan.TraceLookupError, FileNotFoundError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     print(f"wrote {output}")

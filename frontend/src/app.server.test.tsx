@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
   embeddedTrace: () => null,
+  embeddedTraceCollection: () => null,
   fetchMeta: vi.fn(() => Promise.resolve({ mode: "dir", root: "traces" })),
   fetchTree: vi.fn(() =>
     Promise.resolve({

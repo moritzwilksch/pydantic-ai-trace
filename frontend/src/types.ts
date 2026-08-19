@@ -171,3 +171,14 @@ export interface TracePayload {
   source: string;
   transcript: string;
 }
+
+export interface EmbeddedTrace {
+  name: string;
+  source: string;
+  transcript: string;
+}
+
+export interface EmbeddedTraceCollection {
+  title: string;
+  traces: EmbeddedTrace[];
+}
