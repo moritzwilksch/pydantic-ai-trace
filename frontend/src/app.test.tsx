@@ -159,6 +159,38 @@ describe("App in exported-trace mode", () => {
     expect(queryByRole("button", { name: "Original" })).toBeNull();
   });
 
+  it("focuses trace search with slash and resets it when the trace changes", () => {
+    window.__TRACE_COLLECTION__ = JSON.stringify({
+      title: "Case 42",
+      traces: [
+        {
+          name: "Original",
+          source: JSON.stringify([
+            { kind: "request", parts: [{ part_kind: "user-prompt", content: "first input" }] },
+          ]),
+          transcript: "",
+        },
+        {
+          name: "Candidate",
+          source: JSON.stringify([
+            { kind: "response", parts: [{ part_kind: "text", content: "second output" }] },
+          ]),
+          transcript: "",
+        },
+      ],
+    });
+    const { getByRole } = render(<App />);
+    const input = getByRole("searchbox", { name: "Search trace" });
+
+    fireEvent.keyDown(window, { key: "/" });
+    expect(document.activeElement).toBe(input);
+    fireEvent.input(input, { target: { value: "first" } });
+    expect((input as HTMLInputElement).value).toBe("first");
+
+    fireEvent.click(getByRole("button", { name: "Candidate" }));
+    expect((getByRole("searchbox", { name: "Search trace" }) as HTMLInputElement).value).toBe("");
+  });
+
   it("renders every part kind of an embedded trace without crashing", () => {
     window.__TRACE_DATA__ = FULL_TRACE;
     window.__TRACE_NAME__ = "smoke.json";

@@ -15,6 +15,7 @@ It is a lightweight local tool. Point it at a trace or a directory of traces and
 - Model, provider, timing, and token usage
 - A searchable directory tree for `.json` and `.jsonl` traces
 - Collapsible large values, rendered Markdown, and keyboard navigation
+- In-trace search with `/`, match highlighting, and automatic expansion of collapsed results
 - One-click copying as a compact text transcript that preserves request and response order
 - CLI rendering of the same compact transcript for use by people, scripts, and AI agents
 

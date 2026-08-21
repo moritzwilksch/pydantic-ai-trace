@@ -186,6 +186,14 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+function focusTraceSearch(): boolean {
+  const input = document.querySelector<HTMLInputElement>("[data-trace-search]");
+  if (!input) return false;
+  input.focus();
+  input.select();
+  return true;
+}
+
 export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -203,6 +211,7 @@ export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
 
       if (key === "?") setHelpOpen((open) => !open);
       else if (key === "Escape") setHelpOpen(false);
+      else if (key === "/") handled = focusTraceSearch();
       // Trace-wide actions work from either pane. In server mode, focus stays
       // on the selected tree button after a trace opens.
       else if (key === "E") setAllInTrace(true);
@@ -243,6 +252,7 @@ export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
 }
 
 const KEY_HELP: [string, string][] = [
+  ["/", "search within the trace"],
   ["j / k · ↑ / ↓", "next / previous block (or trace in the file tree)"],
   ["h / l · ← / →", "collapse / expand block (tree: parent / open trace)"],
   ["n / p", "next / previous message"],
