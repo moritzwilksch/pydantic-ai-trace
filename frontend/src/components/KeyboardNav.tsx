@@ -25,11 +25,14 @@ function focusedTarget(): HTMLElement | null {
   return document.querySelector<HTMLElement>(`.trace-body .${FOCUS_CLASS}`);
 }
 
-function setFocus(element: HTMLElement | undefined, scrollBlock: ScrollLogicalPosition): void {
+export function focusTraceTarget(
+  element: HTMLElement | undefined,
+  scrollBlock?: ScrollLogicalPosition,
+): void {
   focusedTarget()?.classList.remove(FOCUS_CLASS);
   if (!element) return;
   element.classList.add(FOCUS_CLASS);
-  element.scrollIntoView({ block: scrollBlock });
+  if (scrollBlock) element.scrollIntoView({ block: scrollBlock });
 }
 
 function moveFocus(delta: number): void {
@@ -46,7 +49,7 @@ function moveFocus(delta: number): void {
     const current = focused ? targets.indexOf(focused) : -1;
     next = current === -1 ? (delta > 0 ? 0 : targets.length - 1) : current + delta;
   }
-  setFocus(targets[Math.max(0, Math.min(targets.length - 1, next))], "nearest");
+  focusTraceTarget(targets[Math.max(0, Math.min(targets.length - 1, next))], "nearest");
 }
 
 function moveCard(delta: number): void {
@@ -61,7 +64,7 @@ function moveCard(delta: number): void {
   // must still land on the extreme the jump names.
   else if (Number.isFinite(delta)) next = delta > 0 ? 0 : cards.length - 1;
   else next = delta > 0 ? cards.length - 1 : 0;
-  setFocus(cards[Math.max(0, Math.min(cards.length - 1, next))], "start");
+  focusTraceTarget(cards[Math.max(0, Math.min(cards.length - 1, next))], "start");
 }
 
 /**
@@ -186,6 +189,24 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+function focusTraceSearch(): boolean {
+  const input = document.querySelector<HTMLInputElement>("[data-trace-search]");
+  if (!input) return false;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  return true;
+}
+
+function advanceTraceSearch(backward: boolean): boolean {
+  const input = document.querySelector<HTMLInputElement>("[data-trace-search]");
+  const next = document.querySelector<HTMLButtonElement>(
+    backward ? "[data-trace-search-previous]" : "[data-trace-search-next]",
+  );
+  if (!input?.value || !next || next.disabled) return false;
+  next.click();
+  return true;
+}
+
 export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -203,6 +224,7 @@ export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
 
       if (key === "?") setHelpOpen((open) => !open);
       else if (key === "Escape") setHelpOpen(false);
+      else if (key === "/") handled = focusTraceSearch();
       // Trace-wide actions work from either pane. In server mode, focus stays
       // on the selected tree button after a trace opens.
       else if (key === "E") setAllInTrace(true);
@@ -225,6 +247,7 @@ export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
       else if (key === "End" && inTree) moveTreeFocus(Number.POSITIVE_INFINITY);
       else if (key === "n" && !inTree) moveCard(1);
       else if (key === "p" && !inTree) moveCard(-1);
+      else if (key === "Enter" && !inTree && advanceTraceSearch(event.shiftKey)) handled = true;
       else if ((key === "o" || key === "Enter") && !inTree) toggleFocused();
       else if (key === "e" && !inTree) setAllInCard(true);
       else if (key === "c" && !inTree) setAllInCard(false);
@@ -243,10 +266,12 @@ export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
 }
 
 const KEY_HELP: [string, string][] = [
+  ["/", "focus trace search"],
+  ["Enter / Shift+Enter", "next / previous search match; otherwise toggle focused block"],
   ["j / k · ↑ / ↓", "next / previous block (or trace in the file tree)"],
   ["h / l · ← / →", "collapse / expand block (tree: parent / open trace)"],
   ["n / p", "next / previous message"],
-  ["o / Enter", "toggle focused block (or whole message)"],
+  ["o", "toggle focused block (or whole message)"],
   ["e / c", "expand / collapse all blocks in the message"],
   ["E / C", "expand / collapse all blocks in the trace"],
   ["gg / G", "first / last message"],

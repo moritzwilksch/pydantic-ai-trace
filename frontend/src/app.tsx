@@ -12,6 +12,7 @@ import { defaultSelection } from "./selection";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { TraceSearch } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
 import type {
@@ -119,16 +120,20 @@ function ExportedTracePane({
   transcript: string;
 }) {
   const messages = useMemo(() => parseTrace(data), [data]);
+  const traceRootRef = useRef<HTMLDivElement>(null);
   return (
     <main class="main-pane">
       <header class="trace-header">
         <span class="trace-title">{name}</span>
         <TraceStatsBar messages={messages} />
+        {messages.length > 0 ? <TraceSearch rootRef={traceRootRef} /> : null}
         <CopyTraceButton text={transcript} />
         <ThemeToggle />
       </header>
       <div class="trace-body">
-        <TraceView messages={messages} />
+        <div ref={traceRootRef}>
+          <TraceView messages={messages} />
+        </div>
       </div>
     </main>
   );
@@ -140,6 +145,7 @@ function ServerApp() {
   const [selection, setSelection] = useState<TraceSelection | null>(readHash);
   const [trace, setTrace] = useState<TraceState>({ status: "unselected" });
   const [appError, setAppError] = useState<string | null>(null);
+  const traceRootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchMeta()
@@ -239,6 +245,9 @@ function ServerApp() {
           <span class="trace-title">{title}</span>
           {selection && messages.length > 0 ? <TraceStatsBar messages={messages} /> : null}
           {selection && messages.length > 0 ? (
+            <TraceSearch key={title} rootRef={traceRootRef} />
+          ) : null}
+          {selection && messages.length > 0 ? (
             <CopyTraceButton
               key={title}
               text={trace.status === "ready" ? trace.data.transcript : ""}
@@ -247,8 +256,10 @@ function ServerApp() {
           <ThemeToggle />
         </header>
         <div class="trace-body">
-          {appError ? <div class="banner-error">{appError}</div> : null}
-          <TraceContent trace={trace} messages={messages} />
+          <div ref={traceRootRef}>
+            {appError ? <div class="banner-error">{appError}</div> : null}
+            <TraceContent trace={trace} messages={messages} />
+          </div>
         </div>
       </main>
     </div>

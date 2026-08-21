@@ -159,6 +159,69 @@ describe("App in exported-trace mode", () => {
     expect(queryByRole("button", { name: "Original" })).toBeNull();
   });
 
+  it("focuses trace search with slash and resets it when the trace changes", () => {
+    window.__TRACE_COLLECTION__ = JSON.stringify({
+      title: "Case 42",
+      traces: [
+        {
+          name: "Original",
+          source: JSON.stringify([
+            { kind: "request", parts: [{ part_kind: "user-prompt", content: "first input" }] },
+          ]),
+          transcript: "",
+        },
+        {
+          name: "Candidate",
+          source: JSON.stringify([
+            { kind: "response", parts: [{ part_kind: "text", content: "second output" }] },
+          ]),
+          transcript: "",
+        },
+      ],
+    });
+    const { getByRole } = render(<App />);
+    const input = getByRole("searchbox", { name: "Search trace" });
+
+    fireEvent.keyDown(window, { key: "/" });
+    expect(document.activeElement).toBe(input);
+    fireEvent.input(input, { target: { value: "first" } });
+    expect((input as HTMLInputElement).value).toBe("first");
+
+    fireEvent.click(getByRole("button", { name: "Candidate" }));
+    expect((getByRole("searchbox", { name: "Search trace" }) as HTMLInputElement).value).toBe("");
+  });
+
+  it("moves keyboard focus through search matches and reopens each block", async () => {
+    window.__TRACE_DATA__ = [
+      { kind: "request", parts: [{ part_kind: "user-prompt", content: "first needle" }] },
+      { kind: "response", parts: [{ part_kind: "text", content: "second needle" }] },
+      { kind: "request", parts: [{ part_kind: "user-prompt", content: "third needle" }] },
+    ];
+    const { container, getByRole, getByText } = render(<App />);
+    const input = getByRole("searchbox", { name: "Search trace" }) as HTMLInputElement;
+    const details = Array.from(container.querySelectorAll<HTMLDetailsElement>("details"));
+
+    fireEvent.keyDown(window, { key: "/" });
+    fireEvent.input(input, { target: { value: "needle" } });
+    await waitFor(() => getByText("0 / 3"));
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => getByText("1 / 3"));
+    expect(document.activeElement).toBe(details[0].closest("[data-nav]"));
+    expect(details[0].open).toBe(true);
+    fireEvent.keyDown(document.activeElement!, { key: "c" });
+    expect(details[0].open).toBe(false);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    await waitFor(() => getByText("2 / 3"));
+    expect(document.activeElement).toBe(details[1].closest("[data-nav]"));
+    expect(details[1].open).toBe(true);
+
+    fireEvent.keyDown(document.activeElement!, { key: "/" });
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(input.value.length);
+  });
+
   it("renders every part kind of an embedded trace without crashing", () => {
     window.__TRACE_DATA__ = FULL_TRACE;
     window.__TRACE_NAME__ = "smoke.json";
