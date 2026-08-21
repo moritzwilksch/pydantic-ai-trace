@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Search, X } from "lucide-preact";
 import type { RefObject } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { focusTraceTarget } from "./KeyboardNav";
 
 const MATCH_HIGHLIGHT = "trace-search-match";
 const CURRENT_HIGHLIGHT = "trace-search-current";
@@ -11,6 +12,7 @@ export interface TraceSearchProps {
 
 interface TraceMatch {
   range: Range;
+  segments: Range[];
   anchor: HTMLElement;
 }
 
@@ -19,6 +21,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<TraceMatch[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const observerRef = useRef<MutationObserver | null>(null);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -28,25 +31,41 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
     function refresh() {
       const next = query ? findTextMatches(searchRoot, query) : [];
       setMatches(next);
-      setActiveIndex(next.length > 0 ? 0 : -1);
+      setActiveIndex(-1);
     }
 
     refresh();
     const observer = new MutationObserver(refresh);
+    observerRef.current = observer;
     observer.observe(searchRoot, { childList: true, characterData: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
   }, [query, rootRef]);
 
   useEffect(() => {
+    const observer = observerRef.current;
+    const root = rootRef.current;
+    observer?.disconnect();
     publishHighlights(matches, activeIndex);
     const active = matches[activeIndex];
     if (active) revealMatch(active, rootRef.current);
-    return clearHighlights;
+    if (observer && root) {
+      observer.observe(root, { childList: true, characterData: true, subtree: true });
+    }
+    return () => {
+      observer?.disconnect();
+      clearHighlights();
+    };
   }, [activeIndex, matches, rootRef]);
 
   function move(delta: number) {
     if (matches.length === 0) return;
-    setActiveIndex((current) => (current + delta + matches.length) % matches.length);
+    setActiveIndex((current) => {
+      if (current === -1) return delta < 0 ? matches.length - 1 : 0;
+      return (current + delta + matches.length) % matches.length;
+    });
   }
 
   function clear(input: HTMLInputElement) {
@@ -54,7 +73,8 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
     input.blur();
   }
 
-  const result = matches.length > 0 ? `${activeIndex + 1} / ${matches.length}` : "0 / 0";
+  const result =
+    matches.length > 0 ? `${Math.max(0, activeIndex + 1)} / ${matches.length}` : "0 / 0";
   return (
     <div class="trace-search">
       <Search class="trace-search-icon" size={14} aria-hidden="true" />
@@ -81,6 +101,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
             {result}
           </span>
           <button
+            data-trace-search-previous
             type="button"
             aria-label="Previous search match"
             title="Previous match (Shift+Enter)"
@@ -90,6 +111,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
             <ChevronUp size={14} />
           </button>
           <button
+            data-trace-search-next
             type="button"
             aria-label="Next search match"
             title="Next match (Enter)"
@@ -130,7 +152,22 @@ function findTextMatches(root: HTMLElement, query: string): TraceMatch[] {
       range.setStart(startSegment.node, start - startSegment.start);
       range.setEnd(endSegment.node, end - endSegment.start);
       const anchor = startSegment.node.parentElement;
-      if (anchor) matches.push({ range, anchor });
+      if (anchor) {
+        const first = segments.indexOf(startSegment);
+        const last = segments.indexOf(endSegment);
+        const highlightSegments = segments
+          .slice(first, last + 1)
+          .map((segment, index, selected) => {
+            const part = document.createRange();
+            part.setStart(segment.node, index === 0 ? start - segment.start : 0);
+            part.setEnd(
+              segment.node,
+              index === selected.length - 1 ? end - segment.start : segment.node.data.length,
+            );
+            return part;
+          });
+        matches.push({ range, segments: highlightSegments, anchor });
+      }
     }
   }
   return matches;
@@ -172,22 +209,38 @@ function escapeRegExp(value: string): string {
 
 function publishHighlights(matches: TraceMatch[], activeIndex: number): void {
   clearHighlights();
-  if (!supportsHighlights() || matches.length === 0) return;
-  const all = new Highlight(...matches.map(({ range }) => range));
-  all.priority = 0;
-  CSS.highlights.set(MATCH_HIGHLIGHT, all);
-  const active = matches[activeIndex];
-  if (active) {
-    const current = new Highlight(active.range);
-    current.priority = 1;
-    CSS.highlights.set(CURRENT_HIGHLIGHT, current);
+  if (matches.length === 0) return;
+  if (supportsHighlights()) {
+    const all = new Highlight(...matches.map(({ range }) => range));
+    all.priority = 0;
+    CSS.highlights.set(MATCH_HIGHLIGHT, all);
+    const active = matches[activeIndex];
+    if (active) {
+      const current = new Highlight(active.range);
+      current.priority = 1;
+      CSS.highlights.set(CURRENT_HIGHLIGHT, current);
+    }
+    return;
+  }
+  for (let matchIndex = matches.length - 1; matchIndex >= 0; matchIndex -= 1) {
+    const match = matches[matchIndex];
+    for (const segment of [...match.segments].reverse()) {
+      const mark = document.createElement("mark");
+      mark.className = `trace-search-mark${matchIndex === activeIndex ? " current" : ""}`;
+      mark.dataset.traceSearchMark = "";
+      segment.surroundContents(mark);
+    }
   }
 }
 
 function clearHighlights(): void {
-  if (!supportsHighlights()) return;
-  CSS.highlights.delete(MATCH_HIGHLIGHT);
-  CSS.highlights.delete(CURRENT_HIGHLIGHT);
+  if (supportsHighlights()) {
+    CSS.highlights.delete(MATCH_HIGHLIGHT);
+    CSS.highlights.delete(CURRENT_HIGHLIGHT);
+  }
+  for (const mark of document.querySelectorAll<HTMLElement>("[data-trace-search-mark]")) {
+    mark.replaceWith(...mark.childNodes);
+  }
 }
 
 function supportsHighlights(): boolean {
@@ -205,5 +258,11 @@ function revealMatch(match: TraceMatch, root: HTMLElement | null): void {
     current = details.parentElement;
   }
   for (const details of ancestors.reverse()) details.open = true;
+  const container = match.anchor.closest<HTMLElement>("[data-nav]");
+  if (container) {
+    container.tabIndex = -1;
+    container.focus({ preventScroll: true });
+    focusTraceTarget(container);
+  }
   match.anchor.scrollIntoView?.({ block: "center" });
 }

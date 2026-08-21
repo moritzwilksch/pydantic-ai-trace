@@ -39,7 +39,7 @@ describe("TraceSearch", () => {
       <>
         <TraceSearch rootRef={rootRef} />
         <div ref={rootRef}>
-          <div class="part">
+          <div class="part" data-nav>
             <details>
               <summary>
                 Label <span class="block-preview">needle duplicate preview</span>
@@ -58,8 +58,12 @@ describe("TraceSearch", () => {
 
     fireEvent.input(input, { target: { value: "needle" } });
 
-    await waitFor(() => expect(getByText("1 / 2")).not.toBeNull());
+    await waitFor(() => expect(getByText("0 / 2")).not.toBeNull());
+    expect(rootRef.current!.querySelector("details")!.open).toBe(false);
+    fireEvent.keyDown(input, { key: "Enter" });
+    getByText("1 / 2");
     expect(rootRef.current!.querySelector("details")!.open).toBe(true);
+    expect(rootRef.current!.querySelector(".part")!.classList.contains("kb-focus")).toBe(true);
     expect((highlights.get("trace-search-match") as unknown as TestHighlight).ranges).toHaveLength(
       2,
     );
@@ -82,9 +86,11 @@ describe("TraceSearch", () => {
     const input = getByRole("searchbox", { name: "Search trace" });
 
     fireEvent.input(input, { target: { value: "bold move" } });
-    await waitFor(() => expect(getByText("1 / 2")).not.toBeNull());
+    await waitFor(() => expect(getByText("0 / 2")).not.toBeNull());
 
     fireEvent.keyDown(input, { key: "Enter" });
+    getByText("1 / 2");
+    fireEvent.click(getByRole("button", { name: "Next search match" }));
     getByText("2 / 2");
     fireEvent.keyDown(input, { key: "Enter" });
     getByText("1 / 2");
@@ -110,6 +116,7 @@ describe("TraceSearch", () => {
     const input = getByRole("searchbox", { name: "Search trace" });
 
     fireEvent.input(input, { target: { value: "target" } });
+    fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(rootRef.current!.querySelector("details")!.open).toBe(true));
     fireEvent.keyDown(input, { key: "Escape" });
 
@@ -118,5 +125,30 @@ describe("TraceSearch", () => {
     expect(queryByText("1 / 1")).toBeNull();
     expect(rootRef.current!.querySelector("details")!.open).toBe(true);
     expect(highlights.size).toBe(0);
+  });
+
+  it("falls back to mark elements when custom highlights are unavailable", async () => {
+    vi.stubGlobal("CSS", {});
+    vi.stubGlobal("Highlight", undefined);
+    const rootRef = createRef<HTMLDivElement>();
+    const { getByRole, getByText } = render(
+      <>
+        <TraceSearch rootRef={rootRef} />
+        <div ref={rootRef}>
+          <div class="part">first target and second target</div>
+        </div>
+      </>,
+    );
+    const input = getByRole("searchbox", { name: "Search trace" });
+
+    fireEvent.input(input, { target: { value: "target" } });
+    await waitFor(() => expect(getByText("0 / 2")).not.toBeNull());
+    expect(rootRef.current!.querySelectorAll("mark.trace-search-mark")).toHaveLength(2);
+    expect(rootRef.current!.querySelector("mark.current")).toBeNull();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    getByText("1 / 2");
+    expect(rootRef.current!.querySelectorAll("mark.trace-search-mark")).toHaveLength(2);
+    expect(rootRef.current!.querySelectorAll("mark.current")).toHaveLength(1);
   });
 });

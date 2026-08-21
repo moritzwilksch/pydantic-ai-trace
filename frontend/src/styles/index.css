@@ -361,6 +361,15 @@ body {
   background: var(--search-current);
 }
 
+.trace-search-mark {
+  color: inherit;
+  background: var(--search-match);
+}
+
+.trace-search-mark.current {
+  background: var(--search-current);
+}
+
 .trace-body {
   flex: 1;
   overflow-y: auto;
