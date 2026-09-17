@@ -146,9 +146,21 @@ export function ToolReturnValue({ content }: { content: unknown }) {
  * to the display max height (scrolls internally); very large strings render
  * collapsed so the DOM stays small.
  */
-export function ValueView({ value, markdown = false }: { value: unknown; markdown?: boolean }) {
+export function ValueView({
+  value,
+  markdown = false,
+  preserveNewlines = false,
+}: {
+  value: unknown;
+  markdown?: boolean;
+  preserveNewlines?: boolean;
+}) {
   if (typeof value === "string") {
-    const body = markdown ? <Markdown source={value} /> : <pre class="raw-text">{value}</pre>;
+    const body = markdown ? (
+      <Markdown source={value} preserveNewlines={preserveNewlines} />
+    ) : (
+      <pre class="raw-text">{value}</pre>
+    );
     const size = byteLength(value);
     if (size > LARGE_PAYLOAD_BYTES) {
       return <CollapsedPayload sizeLabel={formatBytes(size)}>{body}</CollapsedPayload>;

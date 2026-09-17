@@ -530,6 +530,53 @@ describe("App in exported-trace mode", () => {
     );
   });
 
+  it.each(["\n", "\r\n"])("preserves prompt line breaks (%j)", (newline) => {
+    const content = [
+      "first **line**",
+      "second line",
+      "",
+      "paragraph",
+      "",
+      "```text",
+      "code one",
+      "code two",
+      "```",
+    ].join(newline);
+    window.__TRACE_DATA__ = [
+      {
+        kind: "request",
+        instructions: content,
+        parts: [
+          { part_kind: "system-prompt", content },
+          { part_kind: "user-prompt", content },
+          { part_kind: "user-prompt", content: [content] },
+          { part_kind: "user-prompt", content: [{ kind: "text-content", content }] },
+          { part_kind: "user-prompt", content: [{ kind: "text", text: content }] },
+          { part_kind: "user-prompt", content: [{ kind: "text-content", text: content }] },
+          { part_kind: "retry-prompt", content },
+        ],
+      },
+    ];
+
+    const { container, getAllByRole } = render(<App />);
+    fireEvent.keyDown(window, { key: "E" });
+    const prompts = container.querySelectorAll(".markdown");
+    expect(prompts).toHaveLength(7);
+    for (const prompt of prompts) {
+      expect(prompt.querySelector("p")?.innerHTML).toBe(
+        "first <strong>line</strong><br>second line",
+      );
+      expect(prompt.querySelectorAll("p")).toHaveLength(2);
+      expect(prompt.querySelector("pre code")?.textContent?.trimEnd()).toBe("code one\ncode two");
+      expect(prompt.querySelector("pre br")).toBeNull();
+    }
+    expect(container.querySelector(".tone-error .raw-text")?.textContent).toBe(content);
+    for (const button of getAllByRole("button", { name: "raw" })) fireEvent.click(button);
+    expect(container.querySelectorAll(".raw-text")).toHaveLength(8);
+    for (const raw of container.querySelectorAll(".raw-text"))
+      expect(raw.textContent).toBe(content);
+  });
+
   it("renders scalar and one-item sequence user text consistently", () => {
     window.__TRACE_DATA__ = [
       {

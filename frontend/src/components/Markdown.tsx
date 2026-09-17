@@ -36,14 +36,25 @@ renderer.code = (token) => {
 };
 
 // Sanitize even though the server is local: exported HTML files get shared.
-function renderMarkdown(source: string): string {
-  return DOMPurify.sanitize(marked.parse(source, { async: false, renderer }));
+function renderMarkdown(source: string, preserveNewlines: boolean): string {
+  return DOMPurify.sanitize(
+    marked.parse(source, { async: false, renderer, breaks: preserveNewlines }),
+  );
 }
 
 /** Markdown with code highlighting and a toggle to the raw text. */
-export function Markdown({ source }: { source: string }) {
+export function Markdown({
+  source,
+  preserveNewlines = false,
+}: {
+  source: string;
+  preserveNewlines?: boolean;
+}) {
   const [showRaw, setShowRaw] = useState(false);
-  const html = useMemo(() => (showRaw ? "" : renderMarkdown(source)), [source, showRaw]);
+  const html = useMemo(
+    () => (showRaw ? "" : renderMarkdown(source, preserveNewlines)),
+    [source, showRaw, preserveNewlines],
+  );
 
   return (
     <div>

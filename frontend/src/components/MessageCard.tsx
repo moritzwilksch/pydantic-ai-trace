@@ -86,7 +86,7 @@ export function MessageCard({
               tone="system"
               preview={message.instructions}
             >
-              <ValueView value={message.instructions} markdown />
+              <ValueView value={message.instructions} markdown preserveNewlines />
             </Block>
           </div>
         ) : null}

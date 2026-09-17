@@ -14,7 +14,7 @@ export function SystemPrompt({ part }: { part: SystemPromptPart }) {
       tone="system"
       preview={part.content}
     >
-      <ValueView value={part.content} markdown />
+      <ValueView value={part.content} markdown preserveNewlines />
     </Block>
   );
 }
