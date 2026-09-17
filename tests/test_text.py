@@ -25,6 +25,18 @@ def test_formatter_matches_shared_golden(trace_path: Path, expected_path: Path):
     assert format_trace_as_text(trace, trace_path.name) == expected_path.read_text(encoding="utf-8")
 
 
+def test_prompt_parts_keep_their_embedded_newlines_verbatim():
+    trace = json.loads((FIXTURES / "newlines.json").read_text(encoding="utf-8"))
+
+    text = format_trace_as_text(trace, "newlines.json")
+
+    assert "First line.\nSecond line.\n\nA second paragraph." in text
+    assert '```python\nprint("code one")\nprint("code two")\n```' in text
+    assert "List form:\nline one\nline two\n\n\ttabbed indentation" in text
+    assert "CRLF form:\r\nfirst\r\nsecond\r\n\r\nthird" in text
+    assert "tool output line one\ntool output line two\n\nthird" in text
+
+
 def test_non_array_input_formats_as_an_empty_trace():
     assert format_trace_as_text({"kind": "request"}, "broken.json") == (
         "========== TRACE ==========\n\nNAME: broken.json\nLLM CALLS: 0 | TOKENS: 0 in → 0 out\n"
