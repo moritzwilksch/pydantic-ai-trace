@@ -55,7 +55,7 @@ function ContentItem({ item }: { item: UserContentItem }) {
   if (typeof item === "string") {
     return (
       <div class="media-item">
-        <ValueView value={item} markdown />
+        <ValueView value={item} markdown preserveNewlines />
       </div>
     );
   }
@@ -69,7 +69,7 @@ function ContentItem({ item }: { item: UserContentItem }) {
     case "text-content":
       return (
         <div class="media-item">
-          <ValueView value={userContentText(item) ?? ""} markdown />
+          <ValueView value={userContentText(item) ?? ""} markdown preserveNewlines />
         </div>
       );
     case "uploaded-file":
