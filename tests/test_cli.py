@@ -537,3 +537,73 @@ class TestJsonCommand:
 
         assert cli.main(["json", str(path), str(path)]) == 1
         assert "duplicate trace file" in capsys.readouterr().err
+
+
+class TestStatsCommand:
+    def test_summarizes_every_trace_under_a_directory_and_reports_invalid_ones(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        assert cli.main(["stats", str(fixtures_copy)]) == 1
+
+        lines = capsys.readouterr().out.splitlines()
+        assert lines[0].split() == ["trace", "runs", "calls", "in", "cached", "out", "cost", "wall"]
+        rows = {line.split()[0]: line.split() for line in lines[1:] if line and line[0] != " "}
+        assert rows["trajectory.json"][1:3] == ["4", "5"]
+        assert rows["full_trace.json"][-2:] == ["$0.0028", "6.0s"]
+        assert "runs/multi.jsonl" in rows  # each JSONL line is its own row
+        assert rows["total"][1] == "12"
+        assert "  broken.json: not valid JSON" in "\n".join(lines)
+
+    def test_json_prints_one_object_per_trace(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        source = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main(["stats", str(source), "--json"]) == 0
+
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [document["name"] for document in documents] == [
+            f"{source.as_posix()} · trace 1",
+            f"{source.as_posix()} · trace 2",
+        ]
+        assert documents[0]["runs"] == 1
+        assert documents[0]["stats"]["llm_calls"] == 1
+
+    def test_json_reports_an_invalid_trace_as_an_error_object(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        source = tmp_path / "bad.json"
+        source.write_text("[]")
+
+        assert cli.main(["stats", str(source), "--json"]) == 1
+
+        assert json.loads(capsys.readouterr().out) == {
+            "name": source.as_posix(),
+            "error": f"run {source.as_posix()!r} has no messages",
+        }
+
+    def test_reads_stdin(self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(sys, "stdin", io.StringIO(minimal_trace()))
+
+        assert cli.main(["stats"]) == 0
+
+        assert capsys.readouterr().out.splitlines()[1].startswith("stdin ")
+
+    def test_names_traces_by_directory_when_given_several_paths(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        assert (
+            cli.main(
+                [
+                    "stats",
+                    str(fixtures_copy / "runs"),
+                    str(fixtures_copy / "full_trace.json"),
+                    "--json",
+                ]
+            )
+            == 0
+        )
+
+        names = [json.loads(line)["name"] for line in capsys.readouterr().out.splitlines()]
+        assert names[0] == "runs/media_and_builtins.json"
+        assert names[-1] == (fixtures_copy / "full_trace.json").as_posix()

@@ -197,7 +197,7 @@ def select_trace(
         _ensure_json_container(text, name)
         return text
 
-    lines = _jsonl_lines(text)
+    lines = jsonl_traces(text)
     if not lines:
         raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
     index = 1 if line is None and len(lines) == 1 else line
@@ -222,19 +222,32 @@ def _ensure_json_container(text: str, relative_path: str) -> None:
         )
 
 
-def _jsonl_lines(text: str) -> list[str]:
+def iter_trace_files(directory: Path) -> Iterator[Path]:
+    """Trace files under `directory`, in the sidebar's order and with its exclusions."""
+    for entry in _visible_entries(directory):
+        if entry.is_dir():
+            yield from iter_trace_files(entry)
+        elif entry.suffix in TRACE_SUFFIXES:
+            yield entry
+
+
+def jsonl_traces(text: str) -> list[str]:
+    """The non-empty lines of JSONL text, one trace each, unvalidated."""
     return [line for line in text.splitlines() if line.strip()]
+
+
+def _visible_entries(directory: Path) -> list[Path]:
+    """Directory entries without hidden files or symlinks: directories first, then by name."""
+    try:
+        entries = sorted(directory.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+    except OSError:
+        return []
+    return [entry for entry in entries if not entry.name.startswith(".") and not entry.is_symlink()]
 
 
 def _dir_node(root: Path, directory: Path, name: str) -> TreeNode:
     children: list[TreeNode] = []
-    try:
-        entries = sorted(directory.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
-    except OSError:
-        entries = []
-    for entry in entries:
-        if entry.name.startswith(".") or entry.is_symlink():
-            continue
+    for entry in _visible_entries(directory):
         if entry.is_dir():
             child = _dir_node(root, entry, name=entry.name)
             if child["children"]:
@@ -269,7 +282,7 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
         node["trace_count"] = 1
         error = _trace_error(text, relative_path)
     else:
-        lines = _jsonl_lines(text)
+        lines = jsonl_traces(text)
         node["trace_count"] = len(lines)
         if not lines:
             error = "contains no traces"

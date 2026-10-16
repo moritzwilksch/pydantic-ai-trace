@@ -44,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run_text(argv[1:])
         if argv and argv[0] == "json" and not Path("json").exists():
             return _run_json(argv[1:])
+        if argv and argv[0] == "stats" and not Path("stats").exists():
+            return _run_stats(argv[1:])
         return _run_serve(argv)
     except CliError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -77,7 +79,7 @@ class TextWriter(Protocol):
 def _run_serve(argv: list[str]) -> int:
     parser = _parser(
         "paitrace",
-        usage="%(prog)s [options] [PATHS ...]\n       %(prog)s {export,text,json} ...",
+        usage="%(prog)s [options] [PATHS ...]\n       %(prog)s {export,text,json,stats} ...",
         description=f"""\
 Browse Pydantic AI traces in a local web viewer. The viewer lists every trace
 under a directory, or the files you name, and reloads a trace when it changes
@@ -89,6 +91,7 @@ commands:
   export    write one trace as a self-contained HTML file
   text      print one trace as a plain-text transcript
   json      print traces as compact JSON for jq, scripts, and agents
+  stats     print LLM calls, tokens, cost, and wall time per trace
 
 Run `paitrace COMMAND --help` for a command's options.
 
@@ -327,6 +330,81 @@ examples:
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     return 0
+
+
+def _run_stats(argv: list[str]) -> int:
+    parser = _parser(
+        "paitrace stats",
+        description=f"""\
+Print one summary row per trace: runs, LLM calls, input, cached, and output
+tokens, cost, and wall time, with a totals row for several traces. A
+directory is searched like the viewer's sidebar. Traces that do not validate
+are listed with their error after the table, and the exit status is 1.
+
+{_TRACE_FORMATS}""",
+        epilog="""\
+examples:
+  paitrace stats ./traces/
+  paitrace stats first.json runs.jsonl
+  paitrace stats ./traces/ --json | jq -s 'map(.stats.cost_usd // 0) | add'""",
+    )
+    parser.add_argument(
+        "paths",
+        metavar="PATHS",
+        type=Path,
+        nargs="*",
+        help="directories or .json/.jsonl trace files, or - for stdin (default: stdin when piped)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print JSONL: {name, runs, stats} per trace, or {name, error} when invalid",
+    )
+    args = parser.parse_args(argv)
+
+    from .stats import InvalidTrace, format_jsonl, format_table, stats_row
+
+    paths: list[Path] = args.paths
+    if Path("-") in paths and len(paths) > 1:
+        raise CliError("stdin cannot be combined with file or directory inputs")
+    if not paths or paths == [Path("-")]:
+        text = _read_stdin(parser, explicit=paths == [Path("-")])
+        traces = _split_traces(text, scan.detect_trace_format(text), name="stdin")
+    else:
+        traces = [trace for path in paths for trace in _stats_inputs(path, prefix=len(paths) > 1)]
+
+    rows = [stats_row(text, name=name) for name, text in traces]
+    sys.stdout.write(format_jsonl(rows) if args.json else format_table(rows))
+    return 1 if any(isinstance(row, InvalidTrace) for row in rows) else 0
+
+
+def _stats_inputs(path: Path, *, prefix: bool) -> list[tuple[str, str]]:
+    """`(name, text)` per trace under `path`; names are relative to a directory argument."""
+    if path.is_dir():
+        base = path if not prefix else path.parent
+        files = [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
+    else:
+        files = [(path, path.as_posix())]
+    traces: list[tuple[str, str]] = []
+    for file, name in files:
+        format = _require_trace_file(file)
+        try:
+            text = file.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise CliError(f"cannot read {file}: {exc}") from exc
+        traces.extend(_split_traces(text, format, name=name))
+    return traces
+
+
+def _split_traces(
+    text: str, format: Literal["json", "jsonl"], *, name: str
+) -> list[tuple[str, str]]:
+    if format == "json":
+        return [(name, text)]
+    return [
+        (f"{name} · trace {number}", line)
+        for number, line in enumerate(scan.jsonl_traces(text), start=1)
+    ]
 
 
 def _load_trace(

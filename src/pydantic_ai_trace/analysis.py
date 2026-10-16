@@ -86,7 +86,7 @@ def analyze(trajectory: Trajectory) -> Analysis:
             children = [subtree_of(child) for child in trajectory.children(run.id)]
             members = [run, *(member for _, members in children for member in members)]
             subtree[run.id] = (
-                _combine([own[run.id], *(totals for totals, _ in children)], _span(members)),
+                combine_totals([own[run.id], *(totals for totals, _ in children)], _span(members)),
                 members,
             )
         return subtree[run.id]
@@ -101,7 +101,7 @@ def analyze(trajectory: Trajectory) -> Analysis:
         )
         for run in trajectory.runs
     )
-    return Analysis(totals=_combine(own.values(), _span(trajectory.runs)), runs=runs)
+    return Analysis(totals=combine_totals(own.values(), _span(trajectory.runs)), runs=runs)
 
 
 def _analyze_run(
@@ -202,7 +202,8 @@ def _run_totals(run: Run) -> Totals:
     )
 
 
-def _combine(totals: Iterable[Totals], duration_seconds: float) -> Totals:
+def combine_totals(totals: Iterable[Totals], duration_seconds: float) -> Totals:
+    """Sum calls, tokens, and cost; the caller decides what the combined duration is."""
     items = list(totals)
     costs = [item.cost_usd for item in items if item.cost_usd is not None]
     return Totals(

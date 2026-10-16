@@ -37,6 +37,7 @@ pixi run paitrace trace.json
 | `paitrace export [INPUT]` | Writes one trace as a self-contained HTML file |
 | `paitrace text [INPUT]` | Prints one trace as a plain-text transcript |
 | `paitrace json [INPUTS ...]` | Prints traces as compact JSON for jq, scripts, and AI agents |
+| `paitrace stats [PATHS ...]` | Prints LLM calls, tokens, cost, and wall time per trace |
 
 `paitrace COMMAND --help` lists every option with examples. From a checkout, prefix commands
 with `pixi run`.
@@ -143,6 +144,31 @@ paitrace json trace.json | jq '.stats'
 # Several documents as one JSON array
 paitrace json first.json second.json | jq -s '.'
 ```
+
+### `paitrace stats` — summarize traces
+
+```bash
+paitrace stats ./traces/
+paitrace stats runs/multi.jsonl full_trace.json trajectory.json
+paitrace stats ./traces/ --json | jq -s 'map(.stats.cost_usd // 0) | add'
+```
+
+```text
+trace                       runs  calls    in  cached  out     cost   wall
+runs/multi.jsonl · trace 1     1      1     5       0    6  $0.0004   1.0s
+runs/multi.jsonl · trace 2     1      1     5       0    6  $0.0004   1.0s
+full_trace.json                1      3   930       0  165  $0.0028   6.0s
+trajectory.json                4      5   500       0  100  $0.0023   6.0s
+total                          7     10  1440       0  277  $0.0058  14.0s
+```
+
+`stats` prints one row per trace and, for several traces, a totals row. It searches a
+directory like the viewer's sidebar, and each JSONL line is its own trace. A cost marked `*`
+includes responses whose model has no known price; `-` means none could be priced. Traces that
+do not validate are listed with their error after the table, and the command exits with status 1.
+
+`--json` prints JSONL instead: `{name, runs, stats}` per trace, where `stats` has the same shape
+as in `paitrace json`, or `{name, error}` for an invalid trace.
 
 ## Trajectories
 

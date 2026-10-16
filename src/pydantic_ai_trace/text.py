@@ -71,7 +71,7 @@ def _totals(totals: Totals) -> str:
     ]
     if totals.cost_usd is not None:
         unpriced = f" (+{totals.unpriced_calls} unpriced)" if totals.unpriced_calls else ""
-        summary.append(f"COST: {_usd(totals.cost_usd)}{unpriced}")
+        summary.append(f"COST: {format_usd(totals.cost_usd)}{unpriced}")
     summary.append(f"WALL TIME: {totals.duration_seconds:.1f}s")
     return " | ".join(summary)
 
@@ -119,7 +119,7 @@ def _response_envelope(response: dict[str, Any], number: int, cost_usd: Decimal 
         _token_usage(usage["input_tokens"], usage["output_tokens"], usage["cache_read_tokens"])
     )
     if cost_usd is not None:
-        details.append(_usd(cost_usd))
+        details.append(format_usd(cost_usd))
     return _envelope(" · ".join(details))
 
 
@@ -127,7 +127,8 @@ def _state_label(state: object) -> str:
     return f" [{_inline(state).upper()}]" if state and state != "complete" else ""
 
 
-def _usd(amount: Decimal) -> str:
+def format_usd(amount: Decimal) -> str:
+    """A cost rounded half-up to four decimals, e.g. `$0.0028`."""
     return f"${amount.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)}"
 
 

@@ -20,7 +20,7 @@ def compact_payload(payload: TracePayload) -> dict[str, object]:
     analyses = {run.run_id: run for run in payload.analysis.runs}
     return {
         "name": payload.name,
-        "stats": _compact_totals(payload.analysis.totals),
+        "stats": compact_totals(payload.analysis.totals),
         "runs": [_compact_run(run, analyses[run.id].totals) for run in payload.trajectory.runs],
     }
 
@@ -42,7 +42,7 @@ def _compact_run(run: Run, totals: Totals) -> dict[str, object]:
     compact["outcome"] = run.outcome.model_dump(mode="json")
     compact["started_at"] = run.started_at.isoformat()
     compact["ended_at"] = run.ended_at.isoformat()
-    compact["stats"] = _compact_totals(totals)
+    compact["stats"] = compact_totals(totals)
 
     messages: list[dict[str, Any]] = ModelMessagesTypeAdapter.dump_python(
         list(run.messages), mode="json"
@@ -63,7 +63,8 @@ def _compact_run(run: Run, totals: Totals) -> dict[str, object]:
     return compact
 
 
-def _compact_totals(totals: Totals) -> dict[str, object]:
+def compact_totals(totals: Totals) -> dict[str, object]:
+    """The `stats` object of `paitrace json` and `paitrace stats --json`."""
     stats: dict[str, object] = {
         "llm_calls": totals.llm_calls,
         "tokens": _compact_tokens(
