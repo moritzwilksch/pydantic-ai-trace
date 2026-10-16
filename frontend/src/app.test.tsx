@@ -227,6 +227,30 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".child-run")!.textContent).toContain("cost unknown");
   });
 
+  it("opens another run at its top", () => {
+    embed(
+      payloadFromRuns([
+        {
+          id: "a",
+          name: "first",
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "a" }] }],
+        },
+        {
+          id: "b",
+          name: "second",
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "b" }] }],
+        },
+      ]),
+    );
+    const { container, getByRole } = render(<App />);
+    const body = container.querySelector<HTMLElement>(".trace-body")!;
+
+    body.scrollTop = 500;
+    fireEvent.click(getByRole("button", { name: /^second/ }));
+
+    expect(body.scrollTop).toBe(0);
+  });
+
   it("flags a run whose parent has not been recorded yet", () => {
     embed(
       payloadFromRuns([

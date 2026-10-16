@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { embeddedPayload, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
 import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
 import { defaultSelection } from "./selection";
@@ -108,6 +108,12 @@ function TracePane({
   banner?: ComponentChildren;
 }) {
   const traceRootRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const runId = runs?.selected.run.id;
+  // Another run opens at its top; a live reload of the same run keeps its position.
+  useLayoutEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [runId]);
   return (
     <main class="main-pane">
       <header class="trace-header">
@@ -129,7 +135,7 @@ function TracePane({
         ) : null}
         <ThemeToggle />
       </header>
-      <div class="trace-body">
+      <div class="trace-body" ref={bodyRef}>
         <div ref={traceRootRef}>
           {banner}
           {runs ? (
