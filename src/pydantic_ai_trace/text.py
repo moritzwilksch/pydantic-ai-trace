@@ -22,10 +22,20 @@ TOOL_SEARCH_KIND = "tool-search"
 
 
 def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> str:
-    """Render every run in tree order; a one-run trajectory has no run headings."""
+    """Render every run in tree order.
+
+    A one-run trajectory has no run heading; its parent and an unsuccessful outcome
+    move into the trace details instead, so diagnostics are never dropped.
+    """
     by_id = {run.run_id: run for run in analysis.runs}
-    sections = [_section(_envelope("TRACE"), f"NAME: {_inline(name)}\n{_totals(analysis.totals)}")]
     ordered = _tree_order(trajectory)
+    details = [f"NAME: {_inline(name)}", _totals(analysis.totals)]
+    if len(ordered) == 1:
+        [run] = ordered
+        details.extend(_parent_lines(run, by_id[run.id]))
+        if run.outcome.status != "completed":
+            details.append(_outcome_line(run))
+    sections = [_section(_envelope("TRACE"), "\n".join(details))]
     for run in ordered:
         if len(ordered) > 1:
             sections.append(
@@ -49,18 +59,28 @@ def _tree_order(trajectory: Trajectory) -> list[Run]:
 
 
 def _run_details(run: Run, analysis: RunAnalysis) -> str:
-    lines = [f"ID: {run.id}"]
-    if run.parent is not None:
-        via = f" via tool call {run.parent.tool_call_id}" if run.parent.tool_call_id else ""
-        missing = " (not recorded)" if analysis.parent_missing else ""
-        lines.append(f"PARENT: {run.parent.run_id}{missing}{via}")
+    lines = [
+        f"ID: {run.id}",
+        *_parent_lines(run, analysis),
+        _outcome_line(run),
+        _totals(analysis.totals),
+    ]
+    return "\n".join(lines)
+
+
+def _parent_lines(run: Run, analysis: RunAnalysis) -> list[str]:
+    if run.parent is None:
+        return []
+    via = f" via tool call {run.parent.tool_call_id}" if run.parent.tool_call_id else ""
+    missing = " (not recorded)" if analysis.parent_missing else ""
+    return [f"PARENT: {run.parent.run_id}{missing}{via}"]
+
+
+def _outcome_line(run: Run) -> str:
     outcome = run.outcome
     if outcome.status == "failed":
-        lines.append(f"OUTCOME: failed · {_inline(outcome.error_type)}: {_inline(outcome.detail)}")
-    else:
-        lines.append(f"OUTCOME: {outcome.status}")
-    lines.append(_totals(analysis.totals))
-    return "\n".join(lines)
+        return f"OUTCOME: failed · {_inline(outcome.error_type)}: {_inline(outcome.detail)}"
+    return f"OUTCOME: {outcome.status}"
 
 
 def _totals(totals: Totals) -> str:

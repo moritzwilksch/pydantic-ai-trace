@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -112,3 +113,35 @@ def test_a_message_list_has_no_run_headings():
     text = transcript((FIXTURES / "full_trace.json").read_text(encoding="utf-8"), "t")
 
     assert "RUN:" not in text
+
+
+@pytest.mark.parametrize(
+    ("fields", "expected"),
+    [
+        (
+            {"outcome": {"status": "failed", "error_type": "TimeoutError", "detail": "slow"}},
+            "OUTCOME: failed · TimeoutError: slow",
+        ),
+        ({"outcome": {"status": "cancelled"}}, "OUTCOME: cancelled"),
+        (
+            {"parent": {"run_id": "later", "tool_call_id": "call_1"}},
+            "PARENT: later (not recorded) via tool call call_1",
+        ),
+    ],
+)
+def test_a_single_run_keeps_its_outcome_and_parent(fields: dict, expected: str):
+    run = {
+        "id": "only",
+        "name": "only",
+        "parent": None,
+        "started_at": "2026-01-01T09:00:00Z",
+        "ended_at": "2026-01-01T09:00:01Z",
+        "outcome": {"status": "completed"},
+        "messages": json.loads(messages_json([request()])),
+        **fields,
+    }
+
+    text = transcript(json.dumps({"runs": [run]}), "t")
+
+    assert "RUN:" not in text
+    assert expected in text.split("========== REQUEST 1")[0]
