@@ -116,6 +116,24 @@ class TestServeCommand:
         assert "got directory" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("command", ["export", "text", "json"])
+@pytest.mark.parametrize("alias", ["dotdot", "symlink"])
+def test_output_naming_the_input_file_is_refused(
+    command: str, alias: str, fixtures_copy: Path, capsys: pytest.CaptureFixture
+):
+    source = fixtures_copy / "full_trace.json"
+    original = source.read_text(encoding="utf-8")
+    if alias == "dotdot":
+        output = fixtures_copy / "runs" / ".." / "full_trace.json"
+    else:
+        output = fixtures_copy / "link.json"
+        output.symlink_to(source)
+
+    assert cli.main([command, str(source), "-o", str(output)]) == 1
+    assert "--output must differ from the input" in capsys.readouterr().err
+    assert source.read_text(encoding="utf-8") == original
+
+
 class TestExportCommand:
     @pytest.fixture(autouse=True)
     def _stub_bundle(self, monkeypatch: pytest.MonkeyPatch) -> None:

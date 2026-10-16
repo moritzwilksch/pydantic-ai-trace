@@ -222,6 +222,7 @@ examples:
     if args.output is None and (args.input is None or args.input == Path("-")):
         raise CliError("--output is required when exporting stdin")
     output = args.output or args.input.with_suffix(".html")
+    _require_output_not_input(output, [args.input])
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
@@ -252,6 +253,7 @@ examples:
     parser.add_argument("-o", "--output", type=Path, help="write to this file instead of stdout")
     parser.add_argument("--line", type=int, help=_LINE_HELP)
     args = parser.parse_args(argv)
+    _require_output_not_input(args.output, [args.input])
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
@@ -304,8 +306,9 @@ examples:
     parser.add_argument("--pretty", action="store_true", help="indent a single document")
     args = parser.parse_args(argv)
 
+    inputs: list[Path] = args.inputs
+    _require_output_not_input(args.output, inputs)
     try:
-        inputs: list[Path] = args.inputs
         multiple = len(inputs) > 1
         if multiple and Path("-") in inputs:
             raise CliError("stdin cannot be combined with file inputs")
@@ -453,8 +456,6 @@ def _write_json_batch(
         jsonl = next((path for path, format, _ in sources if format == "jsonl"), None)
         if jsonl is not None:
             raise CliError(f"multiple inputs containing JSONL require --all: {jsonl}")
-    if output is not None and output.resolve() in {path.resolve() for path in input_paths}:
-        raise CliError("--output must differ from every batch input")
     _write_compact_traces(_iter_file_traces(sources), output=output)
 
 
@@ -525,6 +526,15 @@ def _require_trace_file(input_path: Path) -> Literal["json", "jsonl"]:
     if input_path.suffix not in scan.TRACE_SUFFIXES:
         raise CliError(f"not a trace file (expected .json or .jsonl): {input_path}")
     return scan.TRACE_SUFFIXES[input_path.suffix]
+
+
+def _require_output_not_input(output: Path | None, inputs: Iterable[Path | None]) -> None:
+    """Refuse to write over an input, under any path that names the same file."""
+    if output is None or not output.exists():
+        return
+    for path in inputs:
+        if path is not None and path != Path("-") and path.exists() and output.samefile(path):
+            raise CliError(f"--output must differ from the input: {path}")
 
 
 def _read_stdin(parser: argparse.ArgumentParser, *, explicit: bool) -> str:
