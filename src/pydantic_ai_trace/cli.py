@@ -376,17 +376,19 @@ examples:
     rows: list[StatsRow] = []
     if not paths or paths == [Path("-")]:
         text = _read_stdin(parser, explicit=paths == [Path("-")])
-        rows.extend(source_rows(text, format=scan.detect_trace_format(text), name="stdin"))
+        rows.extend(source_rows([text], format=scan.detect_trace_format(text), name="stdin"))
     else:
         for path in paths:
             for file, name in _stats_files(path, prefix=len(paths) > 1):
                 format = _require_trace_file(file)
                 try:
-                    text = file.read_text(encoding="utf-8")
+                    with file.open(encoding="utf-8") as stream:
+                        # Stream JSONL so a large evaluation log is never held whole.
+                        chunks = [stream.read()] if format == "json" else stream
+                        for row in source_rows(chunks, format=format, name=name):
+                            rows.append(row)
                 except (OSError, UnicodeDecodeError) as exc:
                     rows.append(InvalidTrace(name=name, error=f"cannot read file: {exc}"))
-                    continue
-                rows.extend(source_rows(text, format=format, name=name))
 
     sys.stdout.write(format_jsonl(rows) if args.json else format_table(rows))
     return 1 if any(isinstance(row, InvalidTrace) for row in rows) else 0

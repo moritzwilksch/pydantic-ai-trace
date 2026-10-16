@@ -116,6 +116,12 @@ class TestReadTrace:
             scan.read_trace(fixtures_copy, "runs/multi.jsonl", line=None)
         assert exc_info.value.status_code == 400
 
+    def test_jsonl_selection_stops_reading_at_the_requested_line(self, tmp_path: Path):
+        # Undecodable bytes far past line 1 prove the rest of the file is never read.
+        log = b"[]\n" + b"[1]\n" * 100_000 + b"\xff\n"
+        (tmp_path / "big.jsonl").write_bytes(log)
+        assert scan.read_trace(tmp_path, "big.jsonl", line=1) == "[]"
+
     def test_single_line_jsonl_defaults_to_its_only_trace(self, tmp_path: Path):
         (tmp_path / "one.jsonl").write_text('[{"kind": "request", "parts": []}]\n')
         assert "request" in scan.read_trace(tmp_path, "one.jsonl", line=None)

@@ -7,7 +7,7 @@ traces without counting a subagent twice.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -45,17 +45,21 @@ class InvalidTrace:
 type StatsRow = TraceStats | InvalidTrace
 
 
-def source_rows(text: str, *, format: Literal["json", "jsonl"], name: str) -> list[StatsRow]:
-    """One row per trace in a source; an empty JSONL source is one invalid row."""
+def source_rows(
+    chunks: Iterable[str], *, format: Literal["json", "jsonl"], name: str
+) -> Iterator[StatsRow]:
+    """One row per trace in a source; an empty JSONL source is one invalid row.
+
+    `chunks` is the source text, whole or streamed line by line from a file.
+    """
     if format == "json":
-        return [stats_row(text, name=name)]
-    traces = jsonl_traces(text)
-    if not traces:
-        return [InvalidTrace(name=name, error="contains no traces")]
-    return [
-        stats_row(trace, name=f"{name} · trace {number}")
-        for number, trace in enumerate(traces, start=1)
-    ]
+        yield stats_row("".join(chunks), name=name)
+        return
+    count = 0
+    for count, trace in enumerate(jsonl_traces(chunks), start=1):
+        yield stats_row(trace, name=f"{name} · trace {count}")
+    if count == 0:
+        yield InvalidTrace(name=name, error="contains no traces")
 
 
 def stats_row(text: str, *, name: str) -> StatsRow:

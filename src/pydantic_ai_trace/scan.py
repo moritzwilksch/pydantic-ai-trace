@@ -135,16 +135,15 @@ def read_trace(root: Path, relative_path: str, line: int | None) -> str:
         raise TraceLookupError(f"no such trace: {relative_path!r}", status_code=404)
 
     try:
-        text = path.read_text(encoding="utf-8")
+        if TRACE_SUFFIXES[path.suffix] == "json":
+            return select_trace(
+                path.read_text(encoding="utf-8"), format="json", name=relative_path, line=line
+            )
+        # Stream JSONL: an evaluation log can be far larger than the one trace asked for.
+        with path.open(encoding="utf-8") as lines:
+            return _select_jsonl(lines, name=relative_path, line=line)
     except (OSError, UnicodeDecodeError) as exc:
         raise TraceLookupError(f"cannot read {relative_path!r}: {exc}", status_code=400) from exc
-
-    return select_trace(
-        text,
-        format=TRACE_SUFFIXES[path.suffix],
-        name=relative_path,
-        line=line,
-    )
 
 
 def detect_trace_format(text: str) -> Literal["json", "jsonl"]:
@@ -199,16 +198,29 @@ def select_trace(
         _ensure_json_container(text, name)
         return text
 
-    lines = jsonl_traces(text)
-    if not lines:
+    return _select_jsonl([text], name=name, line=line)
+
+
+def _select_jsonl(chunks: Iterable[str], *, name: str, line: int | None) -> str:
+    """Select one JSONL trace, keeping only that trace in memory.
+
+    Stops at the requested line; without one, counts every trace to tell a
+    one-trace file from an ambiguous one.
+    """
+    count = 0
+    selected: str | None = None
+    for count, candidate in enumerate(_jsonl_lines(chunks), start=1):
+        if count == (1 if line is None else line):
+            selected = candidate
+            if line is not None:
+                break
+    if count == 0:
         raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
-    index = 1 if line is None and len(lines) == 1 else line
-    if index is None or not 1 <= index <= len(lines):
+    if selected is None or (line is None and count > 1):
         raise TraceLookupError(
-            f"{name!r} has {len(lines)} traces; pass line 1..{len(lines)}",
+            f"{name!r} has {count} traces; pass line 1..{count}",
             status_code=400,
         )
-    selected = lines[index - 1]
     _ensure_json_container(selected, name)
     return selected
 
@@ -233,9 +245,9 @@ def iter_trace_files(directory: Path) -> Iterator[Path]:
             yield entry
 
 
-def jsonl_traces(text: str) -> list[str]:
-    """The non-empty lines of JSONL text, one trace each, unvalidated."""
-    return list(_jsonl_lines([text]))
+def jsonl_traces(chunks: Iterable[str]) -> Iterator[str]:
+    """The non-empty lines of JSONL text or a streamed file, one trace each, unvalidated."""
+    return _jsonl_lines(chunks)
 
 
 def _jsonl_lines(chunks: Iterable[str]) -> Iterator[str]:
