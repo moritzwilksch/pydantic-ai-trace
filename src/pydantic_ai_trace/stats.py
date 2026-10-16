@@ -1,6 +1,8 @@
-"""`paitrace stats`: one summary row per trace, as a table or as JSONL.
+"""`paitrace stats`: one summary row per trace, with its runs, as a table or as JSONL.
 
-The numbers are the same totals the viewer and `paitrace json` show.
+The numbers are the same totals the viewer and `paitrace json` show. A run's numbers
+are its own, without the runs it started, so they can be summed by run name across
+traces without counting a subagent twice.
 """
 
 from __future__ import annotations
@@ -15,12 +17,22 @@ from .compact import compact_totals
 from .load import TraceLoadError, load_trajectory
 from .scan import jsonl_traces
 from .text import format_usd
+from .trajectory import RunId
+
+
+@dataclass(frozen=True)
+class RunStats:
+    id: RunId
+    name: str
+    parent_id: RunId | None
+    depth: int  # 0 for a top-level run
+    totals: Totals  # this run only
 
 
 @dataclass(frozen=True)
 class TraceStats:
     name: str
-    runs: int
+    runs: tuple[RunStats, ...]  # in tree order
     totals: Totals
 
 
@@ -51,23 +63,45 @@ def stats_row(text: str, *, name: str) -> StatsRow:
         trajectory = load_trajectory(text, name=name)
     except TraceLoadError as exc:
         return InvalidTrace(name=name, error=str(exc))
-    return TraceStats(name=name, runs=len(trajectory.runs), totals=analyze(trajectory).totals)
+    analysis = analyze(trajectory)
+    own = {run.run_id: run.totals for run in analysis.runs}
+    runs = tuple(
+        RunStats(
+            id=run.id,
+            name=run.name,
+            parent_id=run.parent.run_id if run.parent else None,
+            depth=depth,
+            totals=own[run.id],
+        )
+        for run, depth in trajectory.walk()
+    )
+    return TraceStats(name=name, runs=runs, totals=analysis.totals)
 
 
 def format_table(rows: Sequence[StatsRow]) -> str:
-    """Aligned columns, a totals row when there are several traces, then invalid traces."""
+    """Aligned columns, then invalid traces.
+
+    A trace with several runs is followed by one indented row per run. Several traces
+    get a totals row.
+    """
     valid = [row for row in rows if isinstance(row, TraceStats)]
     invalid = [row for row in rows if isinstance(row, InvalidTrace)]
     lines: list[str] = []
     if valid:
-        body = [_cells(row.name, row.runs, row.totals) for row in valid]
+        body: list[tuple[str, ...]] = []
+        for row in valid:
+            body.append(_cells(row.name, str(len(row.runs)), row.totals))
+            if len(row.runs) > 1:
+                body.extend(
+                    _cells("  " * (run.depth + 1) + run.name, "", run.totals) for run in row.runs
+                )
         if len(valid) > 1:
             # Traces are unrelated, so their wall times add up rather than overlap.
             total = combine_totals(
                 (row.totals for row in valid),
                 sum(row.totals.duration_seconds for row in valid),
             )
-            body.append(_cells("total", sum(row.runs for row in valid), total))
+            body.append(_cells("total", str(sum(len(row.runs) for row in valid)), total))
         lines.extend(_align([_HEADER, *body]))
         if any(row.totals.unpriced_calls for row in valid):
             lines.append("* includes responses without a known price")
@@ -80,9 +114,24 @@ def format_table(rows: Sequence[StatsRow]) -> str:
 
 
 def format_jsonl(rows: Iterable[StatsRow]) -> str:
-    """One object per trace: `{name, runs, stats}`, or `{name, error}` when it is invalid."""
+    """One object per trace: `{name, stats, runs}`, or `{name, error}` when it is invalid.
+
+    Each run is `{id, name, parent, stats}` with its own stats, in tree order.
+    """
     documents = (
-        {"name": row.name, "runs": row.runs, "stats": compact_totals(row.totals)}
+        {
+            "name": row.name,
+            "stats": compact_totals(row.totals),
+            "runs": [
+                {
+                    "id": run.id,
+                    "name": run.name,
+                    "parent": run.parent_id,
+                    "stats": compact_totals(run.totals),
+                }
+                for run in row.runs
+            ],
+        }
         if isinstance(row, TraceStats)
         else {"name": row.name, "error": row.error}
         for row in rows
@@ -93,11 +142,11 @@ def format_jsonl(rows: Iterable[StatsRow]) -> str:
 _HEADER = ("trace", "runs", "calls", "in", "cached", "out", "cost", "wall")
 
 
-def _cells(name: str, runs: int, totals: Totals) -> tuple[str, ...]:
+def _cells(name: str, runs: str, totals: Totals) -> tuple[str, ...]:
     tokens = totals.tokens
     return (
         name,
-        str(runs),
+        runs,
         str(totals.llm_calls),
         str(tokens.input),
         str(tokens.cache_read),

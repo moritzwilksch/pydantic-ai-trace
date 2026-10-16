@@ -153,26 +153,47 @@ paitrace json first.json second.json | jq -s '.'
 
 ```bash
 paitrace stats ./traces/
-paitrace stats runs/multi.jsonl full_trace.json trajectory.json
-paitrace stats ./traces/ --json | jq -s 'map(.stats.cost_usd // 0) | add'
+paitrace stats trajectory.json runs/multi.jsonl
+paitrace stats ./traces/ --json > stats.jsonl
 ```
 
 ```text
-trace                       runs  calls    in  cached  out     cost   wall
-runs/multi.jsonl · trace 1     1      1     5       0    6  $0.0004   1.0s
-runs/multi.jsonl · trace 2     1      1     5       0    6  $0.0004   1.0s
-full_trace.json                1      3   930       0  165  $0.0028   6.0s
-trajectory.json                4      5   500       0  100  $0.0023   6.0s
-total                          7     10  1440       0  277  $0.0058  14.0s
+trace                       runs  calls   in  cached  out     cost  wall
+trajectory.json                4      5  500       0  100  $0.0023  6.0s
+  planner                             1  100       0   20  $0.0005  2.0s
+  worker                              2  200       0   40  $0.0009  3.0s
+    subagent                          1  100       0   20  $0.0005  1.0s
+  summarizer                          1  100       0   20  $0.0005  1.0s
+runs/multi.jsonl · trace 1     1      1    5       0    6  $0.0004  1.0s
+runs/multi.jsonl · trace 2     1      1    5       0    6  $0.0004  1.0s
+total                          6      7  510       0  112  $0.0030  8.0s
 ```
 
-`stats` prints one row per trace and, for several traces, a totals row. It searches a
-directory like the viewer's sidebar, and each JSONL line is its own trace. A cost marked `*`
-includes responses whose model has no known price; `-` means none could be priced. Traces that
-do not validate are listed with their error after the table, and the command exits with status 1.
+`stats` prints one row per trace and, for several traces, a totals row. A trajectory with
+several runs gets one indented row per run, in tree order. A run's row counts only that run's
+own LLM calls, tokens, and cost, not the runs it started, so run rows add up to their trace.
+Its wall time is the run's own start to end.
 
-`--json` prints JSONL instead: `{name, runs, stats}` per trace, where `stats` has the same shape
-as in `paitrace json`, or `{name, error}` for an invalid trace.
+It searches a directory like the viewer's sidebar, and each JSONL line is its own trace. A cost
+marked `*` includes responses whose model has no known price; `-` means none could be priced.
+Traces that do not validate are listed with their error after the table, and the command exits
+with status 1.
+
+`--json` prints JSONL instead, one object per trace: `{name, stats, runs}`, or `{name, error}`
+for an invalid trace. `stats` has the same shape as in `paitrace json`. Each run is
+`{id, name, parent, stats}`, with `parent` the parent run's ID. Group runs by name to compare
+agents across traces, for example each agent's share of the cost:
+
+```bash
+paitrace stats ./traces/ --json | jq -s '
+  [.[] | .runs[]?]
+  | group_by(.name)
+  | map({name: .[0].name, cost_usd: (map(.stats.cost_usd // 0) | add)})
+  | (map(.cost_usd) | add) as $total
+  | map(.share = (100 * .cost_usd / $total | round))
+  | sort_by(-.cost_usd)
+'
+```
 
 ## Trajectories
 

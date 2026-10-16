@@ -566,8 +566,34 @@ class TestStatsCommand:
             f"{source.as_posix()} · trace 1",
             f"{source.as_posix()} · trace 2",
         ]
-        assert documents[0]["runs"] == 1
+        assert [run["name"] for run in documents[0]["runs"]] == [f"{source.as_posix()} · trace 1"]
         assert documents[0]["stats"]["llm_calls"] == 1
+
+    def test_lists_each_run_of_a_trajectory_with_its_own_stats(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        source = fixtures_copy / "trajectory.json"
+
+        assert cli.main(["stats", str(source)]) == 0
+        table = capsys.readouterr().out.splitlines()
+        assert cli.main(["stats", str(source), "--json"]) == 0
+        [document] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+
+        assert [line.split()[0:2] for line in table[2:6]] == [
+            ["planner", "1"],
+            ["worker", "2"],
+            ["subagent", "1"],
+            ["summarizer", "1"],
+        ]
+        assert table[4].startswith("    subagent")  # indented under its parent
+        runs = {run["name"]: run for run in document["runs"]}
+        assert list(runs) == ["planner", "worker", "subagent", "summarizer"]
+        assert runs["subagent"]["parent"] == "worker"
+        # A run's stats exclude its subagents, so per-run costs add up to the trace's.
+        assert runs["worker"]["stats"]["llm_calls"] == 2
+        assert sum(run["stats"]["cost_usd"] for run in runs.values()) == pytest.approx(
+            document["stats"]["cost_usd"]
+        )
 
     def test_json_reports_an_invalid_trace_as_an_error_object(
         self, tmp_path: Path, capsys: pytest.CaptureFixture

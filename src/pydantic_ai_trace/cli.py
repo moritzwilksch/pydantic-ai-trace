@@ -337,16 +337,18 @@ def _run_stats(argv: list[str]) -> int:
         "paitrace stats",
         description=f"""\
 Print one summary row per trace: runs, LLM calls, input, cached, and output
-tokens, cost, and wall time, with a totals row for several traces. A
-directory is searched like the viewer's sidebar. Traces that do not validate
-are listed with their error after the table, and the exit status is 1.
+tokens, cost, and wall time, with a totals row for several traces. A trace
+with several runs gets one indented row per run, counting only that run's own
+calls, tokens, and cost. A directory is searched like the viewer's sidebar.
+Traces that do not validate are listed with their error after the table, and
+the exit status is 1.
 
 {_TRACE_FORMATS}""",
         epilog="""\
 examples:
   paitrace stats ./traces/
   paitrace stats first.json runs.jsonl
-  paitrace stats ./traces/ --json | jq -s 'map(.stats.cost_usd // 0) | add'""",
+  paitrace stats ./traces/ --json | jq -s '[.[].runs[]?] | group_by(.name)'""",
     )
     parser.add_argument(
         "paths",
@@ -358,7 +360,8 @@ examples:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="print JSONL: {name, runs, stats} per trace, or {name, error} when invalid",
+        help="print JSONL: {name, stats, runs: [{id, name, parent, stats}]} per trace, "
+        "or {name, error} when invalid",
     )
     args = parser.parse_args(argv)
 
