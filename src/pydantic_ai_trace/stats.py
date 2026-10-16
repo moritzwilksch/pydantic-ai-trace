@@ -15,7 +15,7 @@ from ._json import dumps_readable
 from .analysis import Totals, analyze, combine_totals
 from .compact import compact_totals
 from .load import TraceLoadError, load_trajectory
-from .scan import jsonl_traces
+from .scan import jsonl_lines
 from .text import format_usd
 from .trajectory import RunId
 
@@ -56,7 +56,7 @@ def source_rows(
         yield stats_row("".join(chunks), name=name)
         return
     count = 0
-    for count, trace in enumerate(jsonl_traces(chunks), start=1):
+    for count, trace in enumerate(jsonl_lines(chunks), start=1):
         yield stats_row(trace, name=f"{name} · trace {count}")
     if count == 0:
         yield InvalidTrace(name=name, error="contains no traces")

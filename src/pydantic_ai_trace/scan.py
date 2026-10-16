@@ -166,17 +166,14 @@ def validate_trace_data(
         _ensure_json_container(text, name)
         return
 
-    for _ in iter_jsonl_traces(text.splitlines(), name=name):
+    for _ in iter_jsonl_traces([text], name=name):
         pass
 
 
-def iter_jsonl_traces(lines: Iterable[str], *, name: str) -> Iterator[tuple[int, str]]:
-    """Yield validated non-empty JSONL traces with one-based trace numbers."""
+def iter_jsonl_traces(chunks: Iterable[str], *, name: str) -> Iterator[tuple[int, str]]:
+    """Yield validated JSONL traces with one-based trace numbers."""
     trace_number = 0
-    for candidate in lines:
-        if not candidate.strip():
-            continue
-        trace_number += 1
+    for trace_number, candidate in enumerate(jsonl_lines(chunks), start=1):
         try:
             _ensure_json_container(candidate, name)
         except TraceLookupError as exc:
@@ -209,7 +206,7 @@ def _select_jsonl(chunks: Iterable[str], *, name: str, line: int | None) -> str:
     """
     count = 0
     selected: str | None = None
-    for count, candidate in enumerate(_jsonl_lines(chunks), start=1):
+    for count, candidate in enumerate(jsonl_lines(chunks), start=1):
         if count == (1 if line is None else line):
             selected = candidate
             if line is not None:
@@ -245,17 +242,16 @@ def iter_trace_files(directory: Path) -> Iterator[Path]:
             yield entry
 
 
-def jsonl_traces(chunks: Iterable[str]) -> Iterator[str]:
-    """The non-empty lines of JSONL text or a streamed file, one trace each, unvalidated."""
-    return _jsonl_lines(chunks)
+def jsonl_lines(chunks: Iterable[str]) -> Iterator[str]:
+    """The non-empty lines of JSONL text or a streamed file, one trace each, unvalidated.
 
-
-def _jsonl_lines(chunks: Iterable[str]) -> Iterator[str]:
-    """Non-empty lines split as `str.splitlines` does, also when `chunks` streams a file."""
+    Splits at `\\n` only: `str.splitlines` also splits at U+2028, which a JSON string
+    may hold unescaped.
+    """
     for chunk in chunks:
-        for line in chunk.splitlines():
+        for line in chunk.split("\n"):
             if line.strip():
-                yield line
+                yield line.removesuffix("\r")
 
 
 def _visible_entries(directory: Path) -> list[Path]:
@@ -314,7 +310,7 @@ def _jsonl_summary(path: Path, relative_path: str) -> tuple[int, str | None]:
     count = 0
     error: str | None = None
     with path.open(encoding="utf-8") as stream:
-        for line in _jsonl_lines(stream):
+        for line in jsonl_lines(stream):
             count += 1
             if count == 1 and (first_error := _trace_error(line, relative_path)) is not None:
                 error = f"line 1: {first_error}"
