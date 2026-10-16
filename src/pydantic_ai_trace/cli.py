@@ -362,21 +362,20 @@ examples:
     )
     args = parser.parse_args(argv)
 
-    from .stats import InvalidTrace, format_jsonl, format_table, source_rows
+    from .stats import InvalidTrace, StatsRow, format_jsonl, format_table, source_rows
 
     paths: list[Path] = args.paths
     if Path("-") in paths and len(paths) > 1:
         raise CliError("stdin cannot be combined with file or directory inputs")
+    rows: list[StatsRow] = []
     if not paths or paths == [Path("-")]:
         text = _read_stdin(parser, explicit=paths == [Path("-")])
-        rows = source_rows(text, format=scan.detect_trace_format(text), name="stdin")
+        rows.extend(source_rows(text, format=scan.detect_trace_format(text), name="stdin"))
     else:
-        rows = [
-            row
-            for path in paths
-            for file, name in _stats_files(path, prefix=len(paths) > 1)
-            for row in source_rows(_read_text(file), format=_require_trace_file(file), name=name)
-        ]
+        for path in paths:
+            for file, name in _stats_files(path, prefix=len(paths) > 1):
+                format = _require_trace_file(file)
+                rows.extend(source_rows(_read_text(file), format=format, name=name))
 
     sys.stdout.write(format_jsonl(rows) if args.json else format_table(rows))
     return 1 if any(isinstance(row, InvalidTrace) for row in rows) else 0
