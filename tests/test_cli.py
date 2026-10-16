@@ -607,3 +607,29 @@ class TestStatsCommand:
         names = [json.loads(line)["name"] for line in capsys.readouterr().out.splitlines()]
         assert names[0] == "runs/media_and_builtins.json"
         assert names[-1] == (fixtures_copy / "full_trace.json").as_posix()
+
+    @pytest.mark.parametrize("target", ["file", "directory", "stdin"])
+    def test_an_empty_jsonl_source_is_reported_as_invalid(
+        self,
+        target: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        source = tmp_path / "empty.jsonl"
+        source.write_text("\n")
+        arguments = {"file": [str(source)], "directory": [str(tmp_path)], "stdin": []}[target]
+        monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+
+        assert cli.main(["stats", *arguments, "--json"]) == 1
+
+        [document] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert document["error"] == "contains no traces"
+        assert (
+            document["name"]
+            == {
+                "file": source.as_posix(),
+                "directory": "empty.jsonl",
+                "stdin": "stdin",
+            }[target]
+        )

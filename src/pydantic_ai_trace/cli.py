@@ -362,49 +362,39 @@ examples:
     )
     args = parser.parse_args(argv)
 
-    from .stats import InvalidTrace, format_jsonl, format_table, stats_row
+    from .stats import InvalidTrace, format_jsonl, format_table, source_rows
 
     paths: list[Path] = args.paths
     if Path("-") in paths and len(paths) > 1:
         raise CliError("stdin cannot be combined with file or directory inputs")
     if not paths or paths == [Path("-")]:
         text = _read_stdin(parser, explicit=paths == [Path("-")])
-        traces = _split_traces(text, scan.detect_trace_format(text), name="stdin")
+        rows = source_rows(text, format=scan.detect_trace_format(text), name="stdin")
     else:
-        traces = [trace for path in paths for trace in _stats_inputs(path, prefix=len(paths) > 1)]
+        rows = [
+            row
+            for path in paths
+            for file, name in _stats_files(path, prefix=len(paths) > 1)
+            for row in source_rows(_read_text(file), format=_require_trace_file(file), name=name)
+        ]
 
-    rows = [stats_row(text, name=name) for name, text in traces]
     sys.stdout.write(format_jsonl(rows) if args.json else format_table(rows))
     return 1 if any(isinstance(row, InvalidTrace) for row in rows) else 0
 
 
-def _stats_inputs(path: Path, *, prefix: bool) -> list[tuple[str, str]]:
-    """`(name, text)` per trace under `path`; names are relative to a directory argument."""
-    if path.is_dir():
-        base = path if not prefix else path.parent
-        files = [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
-    else:
-        files = [(path, path.as_posix())]
-    traces: list[tuple[str, str]] = []
-    for file, name in files:
-        format = _require_trace_file(file)
-        try:
-            text = file.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            raise CliError(f"cannot read {file}: {exc}") from exc
-        traces.extend(_split_traces(text, format, name=name))
-    return traces
+def _stats_files(path: Path, *, prefix: bool) -> list[tuple[Path, str]]:
+    """Trace files under `path`, named relative to a directory argument."""
+    if not path.is_dir():
+        return [(path, path.as_posix())]
+    base = path.parent if prefix else path
+    return [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
 
 
-def _split_traces(
-    text: str, format: Literal["json", "jsonl"], *, name: str
-) -> list[tuple[str, str]]:
-    if format == "json":
-        return [(name, text)]
-    return [
-        (f"{name} · trace {number}", line)
-        for number, line in enumerate(scan.jsonl_traces(text), start=1)
-    ]
+def _read_text(file: Path) -> str:
+    try:
+        return file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CliError(f"cannot read {file}: {exc}") from exc
 
 
 def _load_trace(

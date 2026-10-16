@@ -8,10 +8,12 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from .analysis import Totals, analyze, combine_totals
 from .compact import compact_totals
 from .load import TraceLoadError, load_trajectory
+from .scan import jsonl_traces
 from .text import format_usd
 
 
@@ -29,6 +31,19 @@ class InvalidTrace:
 
 
 type StatsRow = TraceStats | InvalidTrace
+
+
+def source_rows(text: str, *, format: Literal["json", "jsonl"], name: str) -> list[StatsRow]:
+    """One row per trace in a source; an empty JSONL source is one invalid row."""
+    if format == "json":
+        return [stats_row(text, name=name)]
+    traces = jsonl_traces(text)
+    if not traces:
+        return [InvalidTrace(name=name, error="contains no traces")]
+    return [
+        stats_row(trace, name=f"{name} · trace {number}")
+        for number, trace in enumerate(traces, start=1)
+    ]
 
 
 def stats_row(text: str, *, name: str) -> StatsRow:
