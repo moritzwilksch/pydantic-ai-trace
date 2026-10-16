@@ -21,6 +21,8 @@ export interface TrajectoryIndex {
   /** Top-level runs, including runs whose parent is not recorded, by start time. */
   roots: RunEntry[];
   children(runId: string): RunEntry[];
+  /** The recorded ancestors of a run, outermost first. */
+  ancestors(runId: string): RunEntry[];
 }
 
 export function indexTrajectory(payload: TracePayload): TrajectoryIndex {
@@ -42,6 +44,15 @@ export function indexTrajectory(payload: TracePayload): TrajectoryIndex {
     entries,
     roots: all.filter((entry) => !entries.has(entry.run.parent?.run_id ?? "")).sort(byStart),
     children: (runId) => childrenOf.get(runId) ?? [],
+    ancestors: (runId) => {
+      const chain: RunEntry[] = [];
+      let parent = entries.get(entries.get(runId)?.run.parent?.run_id ?? "");
+      while (parent !== undefined) {
+        chain.unshift(parent);
+        parent = entries.get(parent.run.parent?.run_id ?? "");
+      }
+      return chain;
+    },
   };
 }
 

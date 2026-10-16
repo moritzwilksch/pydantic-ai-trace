@@ -2,7 +2,7 @@
 // Render smoke test: the full app must render a realistic trace (the same
 // shape `paitrace export` embeds) without crashing, covering every part renderer.
 
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { embed, embedMessages, payloadFromRuns } from "./testing/payload";
@@ -167,13 +167,19 @@ describe("App in exported-trace mode", () => {
       ]),
     );
 
-    const { container, getByText } = render(<App />);
+    const { container, getByRole, getByText } = render(<App />);
     const childCard = container.querySelector<HTMLButtonElement>(".tool-group .child-run")!;
     expect(childCard.textContent).toContain("helper");
     expect(childCard.textContent).toContain("failed");
 
     fireEvent.click(childCard);
     getByText("Run failed with TimeoutError: took too long");
+
+    // The breadcrumb names the parent and leads back to it.
+    const path = getByRole("navigation", { name: "Run path" });
+    expect(within(path).getByText("helper").getAttribute("aria-current")).toBe("page");
+    fireEvent.click(within(path).getByRole("button", { name: "worker" }));
+    expect(container.querySelector(".tool-group .child-run")).not.toBeNull();
   });
 
   it("flags a run whose parent has not been recorded yet", () => {
@@ -193,9 +199,10 @@ describe("App in exported-trace mode", () => {
       ]),
     );
 
-    const { getByText } = render(<App />);
+    const { getByRole } = render(<App />);
 
-    getByText("parent not recorded");
+    const child = getByRole("button", { name: /child/ });
+    expect(child.getAttribute("title")).toContain("parent not recorded");
   });
 
   it("focuses trace search with slash and resets it when the run changes", () => {

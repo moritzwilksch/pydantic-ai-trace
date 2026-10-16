@@ -1,8 +1,11 @@
+import { Ban, Bot, TriangleAlert, Unlink, Workflow } from "lucide-preact";
 import { formatCost } from "../format";
 import type { RunEntry, TrajectoryIndex } from "../runIndex";
-import { OutcomeBadge } from "./ChildRunCard";
 
-/** The trajectory's runs as a tree; nothing for a single-run trace. */
+/**
+ * The trajectory's runs, styled as sidebar tree rows so they can nest under
+ * the file that holds them. Renders nothing for a single-run trace.
+ */
 export function RunTree({
   trajectory,
   selected,
@@ -14,7 +17,7 @@ export function RunTree({
 }) {
   if (trajectory.entries.size < 2) return null;
   return (
-    <nav class="run-tree" aria-label="Runs">
+    <div role="group" aria-label="Runs">
       {trajectory.roots.map((entry) => (
         <RunNode
           key={entry.run.id}
@@ -24,7 +27,7 @@ export function RunTree({
           onSelect={onSelect}
         />
       ))}
-    </nav>
+    </div>
   );
 }
 
@@ -39,23 +42,23 @@ function RunNode({
   selected: string;
   onSelect: (runId: string) => void;
 }) {
-  const children = trajectory.children(entry.run.id);
-  const cost = entry.analysis.subtree_totals.cost_usd;
+  const { run, analysis } = entry;
+  const children = trajectory.children(run.id);
+  const cost = analysis.subtree_totals.cost_usd;
+  const isSelected = run.id === selected;
   return (
     <div>
       <button
         type="button"
-        class={`tree-node${entry.run.id === selected ? " selected" : ""}`}
-        aria-current={entry.run.id === selected ? "true" : undefined}
-        onClick={() => onSelect(entry.run.id)}
+        class={`tree-node run-node ${run.outcome.status} ${isSelected ? "selected" : ""}`}
+        aria-current={isSelected ? "true" : undefined}
+        title={runSummary(entry)}
+        onClick={() => onSelect(run.id)}
       >
-        <span class="run-name">{entry.run.name}</span>
-        <OutcomeBadge status={entry.run.outcome.status} />
-        {entry.analysis.parent_missing ? (
-          <span class="badge warn" title="This run names a parent the trace does not contain yet">
-            parent not recorded
-          </span>
-        ) : null}
+        <span class="icon">
+          <RunIcon entry={entry} />
+        </span>
+        <span class="run-name">{run.name}</span>
         {cost !== null ? <span class="count">{formatCost(cost)}</span> : null}
       </button>
       {children.length > 0 ? (
@@ -73,4 +76,27 @@ function RunNode({
       ) : null}
     </div>
   );
+}
+
+/** Problems replace the kind icon, like an invalid file in the file tree. */
+function RunIcon({ entry }: { entry: RunEntry }) {
+  const { run, analysis } = entry;
+  if (run.outcome.status === "failed") return <TriangleAlert size={14} />;
+  if (run.outcome.status === "cancelled") return <Ban size={14} />;
+  if (analysis.parent_missing) return <Unlink size={14} />;
+  return run.parent === null ? <Workflow size={14} /> : <Bot size={14} />;
+}
+
+function runSummary({ run, analysis }: RunEntry): string {
+  const totals = analysis.subtree_totals;
+  const lines = [
+    run.name,
+    `${totals.llm_calls} LLM calls · ${totals.duration_seconds.toFixed(1)}s`,
+  ];
+  if (run.outcome.status === "failed") {
+    lines.push(`failed: ${run.outcome.error_type}: ${run.outcome.detail}`);
+  }
+  if (run.outcome.status === "cancelled") lines.push("cancelled");
+  if (analysis.parent_missing) lines.push("parent not recorded");
+  return lines.join("\n");
 }

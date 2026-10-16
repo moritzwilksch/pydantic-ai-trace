@@ -1,4 +1,5 @@
 import { CornerDownRight, FileText, Folder, TriangleAlert } from "lucide-preact";
+import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { defaultSelection, isMultiTrace } from "../selection";
 import type { TraceSelection, TreeNode } from "../types";
@@ -8,11 +9,14 @@ export function TreePane({
   rootLabel,
   selection,
   onSelect,
+  selectedChildren,
 }: {
   root: TreeNode;
   rootLabel: string;
   selection: TraceSelection | null;
   onSelect: (selection: TraceSelection) => void;
+  /** Nested under the selected trace, such as the runs of a trajectory. */
+  selectedChildren?: ComponentChildren;
 }) {
   const [filter, setFilter] = useState("");
   const query = filter.trim().toLowerCase();
@@ -34,7 +38,13 @@ export function TreePane({
       <div class="tree-body">
         {topLevel.length > 0 ? (
           topLevel.map((node) => (
-            <NodeView key={node.path} node={node} selection={selection} onSelect={onSelect} />
+            <NodeView
+              key={node.path}
+              node={node}
+              selection={selection}
+              onSelect={onSelect}
+              selectedChildren={selectedChildren}
+            />
           ))
         ) : (
           <div class="tree-empty">No traces match “{filter}”.</div>
@@ -48,10 +58,12 @@ function NodeView({
   node,
   selection,
   onSelect,
+  selectedChildren,
 }: {
   node: TreeNode;
   selection: TraceSelection | null;
   onSelect: (selection: TraceSelection) => void;
+  selectedChildren: ComponentChildren;
 }) {
   if (node.type === "dir") {
     return (
@@ -64,7 +76,13 @@ function NodeView({
         </div>
         <div class="tree-children">
           {(node.children ?? []).map((child) => (
-            <NodeView key={child.path} node={child} selection={selection} onSelect={onSelect} />
+            <NodeView
+              key={child.path}
+              node={child}
+              selection={selection}
+              onSelect={onSelect}
+              selectedChildren={selectedChildren}
+            />
           ))}
         </div>
       </div>
@@ -72,32 +90,39 @@ function NodeView({
   }
 
   const multiTrace = isMultiTrace(node);
+  const target = defaultSelection(node);
   return (
     <div>
-      <FileButton
-        node={node}
-        target={defaultSelection(node)}
-        selection={selection}
-        onSelect={onSelect}
-      />
+      <FileButton node={node} target={target} selection={selection} onSelect={onSelect} />
+      {target && isSelected(selection, target.path, target.line) ? (
+        <NestedUnderSelection>{selectedChildren}</NestedUnderSelection>
+      ) : null}
       {multiTrace ? (
         <div class="tree-children">
           {Array.from({ length: node.trace_count ?? 0 }, (_, i) => i + 1).map((line) => (
-            <button
-              key={line}
-              class={`tree-node ${isSelected(selection, node.path, line) ? "selected" : ""}`}
-              onClick={() => onSelect({ path: node.path, line })}
-            >
-              <span class="icon">
-                <CornerDownRight size={12} />
-              </span>
-              trace {line}
-            </button>
+            <div key={line}>
+              <button
+                class={`tree-node ${isSelected(selection, node.path, line) ? "selected" : ""}`}
+                onClick={() => onSelect({ path: node.path, line })}
+              >
+                <span class="icon">
+                  <CornerDownRight size={12} />
+                </span>
+                trace {line}
+              </button>
+              {isSelected(selection, node.path, line) ? (
+                <NestedUnderSelection>{selectedChildren}</NestedUnderSelection>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : null}
     </div>
   );
+}
+
+function NestedUnderSelection({ children }: { children: ComponentChildren }) {
+  return children ? <div class="tree-children">{children}</div> : null;
 }
 
 function FileButton({

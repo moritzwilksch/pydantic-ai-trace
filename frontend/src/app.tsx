@@ -5,6 +5,7 @@ import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex
 import { defaultSelection } from "./selection";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
+import { RunBreadcrumb } from "./components/RunBreadcrumb";
 import { RunTree } from "./components/RunTree";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceSearch } from "./components/TraceSearch";
@@ -23,68 +24,110 @@ export function App() {
   const { helpOpen, closeHelp } = useKeyboardNav();
   return (
     <>
-      {embedded ? (
-        <div class="layout">
-          <TracePane title={embedded.name} payload={embedded} />
-        </div>
-      ) : (
-        <ServerApp />
-      )}
+      {embedded ? <ExportedApp payload={embedded} /> : <ServerApp />}
       {helpOpen ? <KeyboardHelp onClose={closeHelp} /> : null}
     </>
   );
 }
 
+/** Exported HTML: one embedded payload, with a runs sidebar for a trajectory. */
+function ExportedApp({ payload }: { payload: TracePayload }) {
+  const runs = useRuns(payload, payload.name);
+  return (
+    <div class="layout">
+      {runs?.multiRun ? (
+        <nav class="tree-pane">
+          <div class="tree-header" title={payload.name}>
+            {payload.name}
+          </div>
+          <div class="tree-body">
+            <RunTreeFor runs={runs} />
+          </div>
+        </nav>
+      ) : null}
+      <TracePane title={payload.name} payload={payload} runs={runs} />
+    </div>
+  );
+}
+
+interface Runs {
+  trajectory: TrajectoryIndex;
+  selected: RunEntry;
+  select: (runId: string) => void;
+  multiRun: boolean;
+}
+
 /**
- * One trace: its header, the run tree when there are several runs, and the
- * selected run. `placeholder` replaces the body while no payload is loaded.
+ * The payload's runs and the selected one. The selection survives live reloads
+ * while the run still exists and resets when `traceKey` names another trace.
+ */
+function useRuns(payload: TracePayload | null, traceKey: string): Runs | null {
+  const [choice, setChoice] = useState<{ traceKey: string; runId: string } | null>(null);
+  const trajectory = useMemo(() => (payload ? indexTrajectory(payload) : null), [payload]);
+  if (trajectory === null) return null;
+  const chosen = choice?.traceKey === traceKey ? trajectory.entries.get(choice.runId) : undefined;
+  return {
+    trajectory,
+    selected: chosen ?? trajectory.roots[0],
+    select: (runId) => setChoice({ traceKey, runId }),
+    multiRun: trajectory.entries.size > 1,
+  };
+}
+
+function RunTreeFor({ runs }: { runs: Runs }) {
+  return (
+    <RunTree trajectory={runs.trajectory} selected={runs.selected.run.id} onSelect={runs.select} />
+  );
+}
+
+/**
+ * One trace: its header and the selected run. `placeholder` replaces the body
+ * while no payload is loaded.
  */
 function TracePane({
   title,
   payload,
+  runs,
   placeholder,
   banner,
 }: {
   title: string;
   payload: TracePayload | null;
+  runs: Runs | null;
   placeholder?: ComponentChildren;
   banner?: ComponentChildren;
 }) {
   const traceRootRef = useRef<HTMLDivElement>(null);
-  const trajectory = useMemo(() => (payload ? indexTrajectory(payload) : null), [payload]);
-  const [selectedRun, selectRun] = useRunSelection(trajectory);
-  const multiRun = trajectory !== null && trajectory.entries.size > 1;
   return (
     <main class="main-pane">
       <header class="trace-header">
-        <span class="trace-title">
-          {title}
-          {multiRun && selectedRun ? ` · ${selectedRun.run.name}` : ""}
-        </span>
-        {payload && selectedRun ? (
+        <RunBreadcrumb
+          title={title}
+          trajectory={runs?.trajectory ?? null}
+          selected={runs?.selected ?? null}
+          onSelect={(runId) => runs?.select(runId)}
+        />
+        {payload && runs ? (
           <>
             <TraceStatsBar
-              totals={selectedRun.analysis.totals}
-              subtreeTotals={selectedRun.analysis.subtree_totals}
+              totals={runs.selected.analysis.totals}
+              subtreeTotals={runs.selected.analysis.subtree_totals}
             />
-            <TraceSearch key={`${title}/${selectedRun.run.id}`} rootRef={traceRootRef} />
+            <TraceSearch key={`${title}/${runs.selected.run.id}`} rootRef={traceRootRef} />
             <CopyTraceButton key={title} text={payload.transcript} />
           </>
         ) : null}
         <ThemeToggle />
       </header>
-      <div class={`trace-body${multiRun ? " with-runs" : ""}`}>
-        {multiRun && selectedRun ? (
-          <RunTree trajectory={trajectory} selected={selectedRun.run.id} onSelect={selectRun} />
-        ) : null}
-        <div ref={traceRootRef} class="trace-content">
+      <div class="trace-body">
+        <div ref={traceRootRef}>
           {banner}
-          {trajectory && selectedRun ? (
+          {runs ? (
             <TraceView
-              key={selectedRun.run.id}
-              entry={selectedRun}
-              trajectory={trajectory}
-              onOpenRun={selectRun}
+              key={runs.selected.run.id}
+              entry={runs.selected}
+              trajectory={runs.trajectory}
+              onOpenRun={runs.select}
             />
           ) : (
             placeholder
@@ -93,17 +136,6 @@ function TracePane({
       </div>
     </main>
   );
-}
-
-/** The selected run, kept across live reloads while it still exists; else the first root. */
-function useRunSelection(
-  trajectory: TrajectoryIndex | null,
-): [RunEntry | null, (runId: string) => void] {
-  const [runId, setRunId] = useState<string | null>(null);
-  if (trajectory === null) return [null, setRunId];
-  const selected =
-    (runId !== null ? trajectory.entries.get(runId) : undefined) ?? trajectory.roots[0];
-  return [selected ?? null, setRunId];
 }
 
 function ServerApp() {
@@ -185,12 +217,17 @@ function ServerApp() {
     setSelection(next);
   }
 
-  // File mode hides the tree — unless the file needs it (multi-trace or broken).
-  const showTree =
-    meta === null || meta.mode === "dir" || (tree !== null && defaultSelection(tree) === null);
   const title = selection
     ? `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`
     : (meta?.root ?? "");
+  const payload = trace.status === "ready" ? trace.data : null;
+  const runs = useRuns(payload, title);
+  // File mode hides the tree — unless the file needs it (multi-trace, broken, or several runs).
+  const showTree =
+    meta === null ||
+    meta.mode === "dir" ||
+    (tree !== null && defaultSelection(tree) === null) ||
+    Boolean(runs?.multiRun);
 
   return (
     <div class="layout">
@@ -200,12 +237,14 @@ function ServerApp() {
           rootLabel={meta?.root ?? ""}
           selection={selection}
           onSelect={select}
+          selectedChildren={runs?.multiRun ? <RunTreeFor runs={runs} /> : null}
         />
       ) : null}
       <TracePane
         key={title}
         title={title}
-        payload={trace.status === "ready" ? trace.data : null}
+        payload={payload}
+        runs={runs}
         banner={appError ? <div class="banner-error">{appError}</div> : null}
         placeholder={<TraceStatus trace={trace} />}
       />

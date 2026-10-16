@@ -376,28 +376,50 @@ body {
   padding: 18px;
 }
 
-/* A trajectory with several runs: the run tree beside the selected run. */
-.trace-body.with-runs {
-  display: flex;
-  align-items: flex-start;
-  gap: 18px;
+/* A trajectory's runs, nested under their file in the sidebar. */
+.run-node .run-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.trace-content {
-  flex: 1;
+.run-node.failed .icon {
+  color: var(--danger);
+}
+
+.run-node.cancelled .icon {
+  color: var(--text-dim);
+}
+
+/* `file › parent › run` in the trace header. */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
 }
 
-.run-tree {
-  position: sticky;
-  top: 0;
-  width: 220px;
-  flex-shrink: 0;
+.breadcrumb-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
 }
 
-.run-tree .run-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.breadcrumb-step [aria-current] {
+  color: var(--text);
+}
+
+.breadcrumb-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.breadcrumb-link:hover {
+  color: var(--accent);
 }
 
 /* A run started by a tool call or nested in this run; opens that run. */

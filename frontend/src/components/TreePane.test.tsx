@@ -55,4 +55,29 @@ describe("TreePane", () => {
     fireEvent.click(broken);
     expect(onSelect).toHaveBeenCalledWith({ path: "broken.json" });
   });
+
+  it("nests the selected trace's runs under the selected JSONL line only", () => {
+    const tree: TreeNode = {
+      name: "fixtures",
+      path: ".",
+      type: "dir",
+      children: [
+        { name: "runs.jsonl", path: "runs.jsonl", type: "file", format: "jsonl", trace_count: 2 },
+      ],
+    };
+    const { getByRole } = render(
+      <TreePane
+        root={tree}
+        rootLabel="fixtures"
+        selection={{ path: "runs.jsonl", line: 2 }}
+        onSelect={() => undefined}
+        selectedChildren={<button>planner</button>}
+      />,
+    );
+
+    const planner = getByRole("button", { name: "planner" });
+    const line2 = getByRole("button", { name: "trace 2" });
+    expect(line2.parentElement!.contains(planner)).toBe(true);
+    expect(getByRole("button", { name: "trace 1" }).parentElement!.contains(planner)).toBe(false);
+  });
 });
