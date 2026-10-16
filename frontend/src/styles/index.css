@@ -675,8 +675,9 @@ summary svg,
   overflow-y: auto;
 }
 
-.block-body > .clamp {
-  max-height: none; /* the block body already scrolls */
+/* The block body already scrolls; a nested clamp would add a second scrollbar. */
+.block-body .clamp {
+  max-height: none;
 }
 
 .interrupted-message {
