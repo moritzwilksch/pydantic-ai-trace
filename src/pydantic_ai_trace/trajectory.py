@@ -7,6 +7,7 @@ trajectory written mid-workflow may hold runs whose parent has not been recorded
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, NewType, Self
@@ -134,10 +135,14 @@ class Trajectory(_Frozen):
             parent = by_id.get(run.parent.run_id) if run.parent is not None else None
             if parent is None or run.parent is None or run.parent.tool_call_id is None:
                 continue
-            if run.parent.tool_call_id not in _tool_call_ids(parent):
+            # Results pair with a reused call ID in order, but a child names the call by
+            # ID alone, so it must name exactly one call.
+            calls = _tool_call_counts(parent)[run.parent.tool_call_id]
+            if calls != 1:
+                found = "does not contain" if calls == 0 else f"contains {calls} times"
                 raise ValueError(
                     f"run {run.id!r} names tool call {run.parent.tool_call_id!r}, "
-                    f"which run {parent.id!r} does not contain"
+                    f"which run {parent.id!r} {found}"
                 )
         for run in self.runs:
             seen = {run.id}
@@ -228,10 +233,10 @@ def _datetime(value: object) -> datetime | None:
         return None
 
 
-def _tool_call_ids(run: Run) -> set[str]:
-    return {
+def _tool_call_counts(run: Run) -> Counter[str]:
+    return Counter(
         part.tool_call_id
         for message in run.messages
         for part in message.parts
         if isinstance(part, BaseToolCallPart)
-    }
+    )

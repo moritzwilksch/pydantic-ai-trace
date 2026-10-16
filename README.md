@@ -224,7 +224,7 @@ completed. Construct `Run` directly to set `started_at`, `ended_at`, or an `outc
 `Completed(output=...)`, `Failed(error_type=..., detail=...)`, or `Cancelled()`. A run holds only
 the messages it produced, without inherited history; use `result.new_messages()`.
 
-`Trajectory` validates that run IDs are unique, that a `tool_call_id` exists in its parent run,
+`Trajectory` validates that run IDs are unique, that a `tool_call_id` names exactly one tool call in its parent run,
 and that no run is its own ancestor. A run whose parent is not in the trajectory is shown as a
 top-level run marked "parent not recorded", so a file written while a workflow runs stays
 viewable.

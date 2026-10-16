@@ -150,6 +150,13 @@ class TestTrajectory:
         with pytest.raises(ValidationError, match="does not contain"):
             Trajectory(runs=(child, run("parent")))
 
+    def test_a_tool_call_id_the_parent_reuses_is_ambiguous(self):
+        reused = (*exchange(0, 1, call_id="same"), *exchange(1, 2, call_id="same"))
+        child = run("child", parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("same")))
+
+        with pytest.raises(ValidationError, match="'same', which run 'parent' contains 2 times"):
+            Trajectory(runs=(child, run("parent", messages=reused)))
+
     def test_a_cycle_is_rejected(self):
         a = run("a", parent=Parent(run_id=RunId("b")))
         b = run("b", parent=Parent(run_id=RunId("a")))
