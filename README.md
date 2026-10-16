@@ -66,7 +66,8 @@ curl -s https://example.test/trace.json | paitrace
 ```
 
 The viewer binds to `127.0.0.1:1205` and opens a browser tab. `--port`, `--host`, and
-`--no-open` change that. Each line of a JSONL file appears as its own trace, listed 100 at a
+`--no-open` change that. The viewer has no authentication: binding `--host` to anything
+but loopback exposes every trace under the served path to whoever can reach the port. Each line of a JSONL file appears as its own trace, listed 100 at a
 time; a trajectory's runs appear under their trace in the sidebar.
 
 ### `paitrace export` — write HTML

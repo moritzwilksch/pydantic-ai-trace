@@ -37,6 +37,18 @@ class TestServeCommand:
         assert serve_captures_app["port"] == 9999
         assert serve_captures_app["host"] == "0.0.0.0"
 
+    @pytest.mark.parametrize(("host", "warned"), [("0.0.0.0", True), ("127.0.0.1", False)])
+    def test_warns_when_serving_beyond_loopback(
+        self,
+        fixtures_copy: Path,
+        serve_captures_app: dict,
+        capsys: pytest.CaptureFixture,
+        host: str,
+        warned: bool,
+    ):
+        cli.main([str(fixtures_copy), "--host", host, "--no-open"])
+        assert ("without authentication" in capsys.readouterr().err) is warned
+
     def test_missing_path_fails_with_message(self, capsys: pytest.CaptureFixture):
         assert cli.main(["/definitely/not/here"]) == 1
         assert "does not exist" in capsys.readouterr().err

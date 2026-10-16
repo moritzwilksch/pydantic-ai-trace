@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import ipaddress
 import sys
 import tempfile
 import threading
@@ -113,7 +114,10 @@ examples:
         "--port", type=int, default=DEFAULT_PORT, help="port to listen on (default: %(default)s)"
     )
     parser.add_argument(
-        "--host", default=DEFAULT_HOST, help="address to bind (default: %(default)s)"
+        "--host",
+        default=DEFAULT_HOST,
+        help="address to bind (default: %(default)s); the viewer has no authentication, "
+        "so any other address exposes every trace to whoever can reach the port",
     )
     parser.add_argument("--no-open", action="store_true", help="do not open a browser tab")
     parser.add_argument("--version", action="version", version=f"paitrace {__version__}")
@@ -178,6 +182,12 @@ def _serve_source(
     no_open: bool,
 ) -> int:
     url = f"http://{host}:{port}/"
+    if not _is_loopback(host):
+        print(
+            f"warning: serving on {host} without authentication; "
+            "anyone who can reach this port can read every trace",
+            file=sys.stderr,
+        )
 
     def on_bound() -> None:
         print(f"paitrace serving {display_name} at {url}")
@@ -193,6 +203,15 @@ def _serve_source(
     except ServerStartError as exc:
         raise CliError(f"{exc} — pick another port with --port") from exc
     return 0
+
+
+def _is_loopback(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:  # a hostname
+        return False
 
 
 def _run_export(argv: list[str]) -> int:
