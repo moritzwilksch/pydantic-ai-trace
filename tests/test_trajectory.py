@@ -1,18 +1,23 @@
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 from pydantic_ai.messages import (
+    BinaryContent,
+    ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
     TextPart,
     ToolCallPart,
+    ToolReturnPart,
     UserPromptPart,
 )
 
 from pydantic_ai_trace import Completed, Failed, Parent, Run, RunId, ToolCallId, Trajectory
+from pydantic_ai_trace.payload import build_payload
 
 FIXTURES = Path(__file__).parent / "fixtures"
 START = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
@@ -168,3 +173,38 @@ class TestTrajectory:
     def test_unknown_fields_are_rejected(self):
         with pytest.raises(ValidationError, match="Extra inputs"):
             Trajectory.model_validate({"runs": [], "version": 2})
+
+
+class TestBytes:
+    @pytest.mark.parametrize("content", [b"hello", b"\xff"])
+    def test_serialize_like_pydantic_ais_adapter(self, content: bytes):
+        messages: list[ModelMessage] = [
+            ModelRequest(
+                parts=[
+                    ToolReturnPart(
+                        tool_name="t", content=content, tool_call_id="c", timestamp=at(0)
+                    )
+                ]
+            )
+        ]
+        trajectory = Trajectory.from_messages(messages)
+        canonical = json.loads(ModelMessagesTypeAdapter.dump_json(messages))
+
+        dumped = json.loads(trajectory.model_dump_json())
+        payload = json.loads(build_payload(trajectory, name="t").to_json())
+
+        assert dumped["runs"][0]["messages"] == canonical
+        assert payload["trajectory"]["runs"][0]["messages"] == canonical
+
+    def test_typed_bytes_round_trip(self):
+        image = BinaryContent(data=b"\xff\x00", media_type="image/png")
+        messages = [ModelRequest(parts=[UserPromptPart(content=[image], timestamp=at(0))])]
+        trajectory = Trajectory.from_messages(messages)
+
+        again = Trajectory.model_validate_json(trajectory.model_dump_json())
+
+        # Pydantic AI narrows `BinaryContent` to `BinaryImage`; the bytes survive.
+        [part] = again.runs[0].messages[0].parts
+        assert isinstance(part, UserPromptPart) and not isinstance(part.content, str)
+        [item] = part.content
+        assert isinstance(item, BinaryContent) and item.data == b"\xff\x00"

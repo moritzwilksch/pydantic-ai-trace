@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -36,3 +37,28 @@ def test_an_object_is_a_trajectory():
 def test_invalid_text_names_the_first_problem(text: str, message: str):
     with pytest.raises(TraceLoadError, match=message):
         load_trajectory(text, name="t")
+
+
+def test_naive_and_aware_timestamps_load_as_utc():
+    text = (
+        '[{"kind": "request", "timestamp": "2026-01-01T09:00:00",'
+        ' "parts": [{"part_kind": "user-prompt", "content": "hi",'
+        ' "timestamp": "2026-01-01T09:00:05Z"}]}]'
+    )
+
+    [run] = load_trajectory(text, name="t").runs
+
+    assert (run.started_at.isoformat(), run.ended_at.isoformat()) == (
+        "2026-01-01T09:00:00+00:00",
+        "2026-01-01T09:00:05+00:00",
+    )
+
+
+def test_runs_with_naive_and_aware_times_order_together():
+    trajectory = load_trajectory((FIXTURES / "trajectory.json").read_text(), name="t")
+    data = trajectory.model_dump(mode="json")
+    data["runs"][0]["started_at"] = "2026-01-01T09:00:00"  # naive, read as UTC
+
+    reloaded = load_trajectory(json.dumps(data), name="t")
+
+    assert [run.name for run in reloaded.roots()] == ["planner", "worker", "summarizer"]

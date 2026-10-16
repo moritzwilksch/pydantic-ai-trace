@@ -12,11 +12,11 @@ from pydantic import BaseModel, ConfigDict, JsonValue
 
 from .analysis import Analysis, analyze
 from .text import format_transcript
-from .trajectory import Trajectory
+from .trajectory import MESSAGE_BYTES_CONFIG, Trajectory
 
 
 class TracePayload(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid") | MESSAGE_BYTES_CONFIG
 
     name: str
     trajectory: Trajectory

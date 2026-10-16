@@ -8,10 +8,10 @@ trajectory written mid-workflow may hold runs whose parent has not been recorded
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, NewType, Self
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, model_validator
 from pydantic_ai.messages import BaseToolCallPart, ModelMessage, ModelMessagesTypeAdapter
 from uuid_utils import uuid7
 
@@ -22,12 +22,25 @@ type MessagesLike = Sequence[ModelMessage] | Sequence[Mapping[str, Any]]
 """Pydantic AI messages, or their JSON-compatible dump."""
 
 
+def as_utc(value: datetime) -> datetime:
+    """Read a naive timestamp as UTC, so naive and aware timestamps compare."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+type UtcDatetime = Annotated[datetime, AfterValidator(as_utc)]
+
+
 def new_run_id() -> RunId:
     return RunId(str(uuid7()))
 
 
+# Pydantic AI writes bytes in messages as base64 in JSON. Byte settings apply from the
+# model being (de)serialized, so every model that can hold messages repeats them.
+MESSAGE_BYTES_CONFIG = ConfigDict(ser_json_bytes="base64", val_json_bytes="base64")
+
+
 class _Frozen(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid") | MESSAGE_BYTES_CONFIG
 
 
 class Parent(_Frozen):
@@ -58,13 +71,13 @@ Outcome = Annotated[Completed | Failed | Cancelled, Field(discriminator="status"
 class Run(_Frozen):
     # Nested stdlib dataclasses inherit this config. Ignoring extras validates messages
     # exactly as `ModelMessagesTypeAdapter` does, so newer dumps still load.
-    model_config = ConfigDict(frozen=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, extra="ignore") | MESSAGE_BYTES_CONFIG
 
     id: RunId = Field(default_factory=new_run_id)
     name: str
     parent: Parent | None  # None for a workflow step.
-    started_at: datetime
-    ended_at: datetime
+    started_at: UtcDatetime
+    ended_at: UtcDatetime
     outcome: Outcome
     # Only the messages this run produced, without inherited history.
     messages: Annotated[tuple[ModelMessage, ...], Field(min_length=1)]
@@ -193,11 +206,11 @@ def _timestamps(message: ModelMessage | Mapping[str, Any]) -> list[datetime]:
 
 def _datetime(value: object) -> datetime | None:
     if isinstance(value, datetime):
-        return value
+        return as_utc(value)
     if not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value)
+        return as_utc(datetime.fromisoformat(value))
     except ValueError:
         return None
 
