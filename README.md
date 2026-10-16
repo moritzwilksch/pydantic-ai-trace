@@ -123,19 +123,23 @@ paitrace json trace.json \
 paitrace json trace.json \
   | jq '[.runs[].messages[].parts[] | select(.type == "tool_call" or .type == "tool_result" or .type == "retry")]'
 
-# Tool calls paired with their result or retry by call ID
+# Tool calls paired with their result or retry by call ID, within each run
 paitrace json trace.json | jq '
-  [.runs[].messages[].parts[]] as $parts
-  | [$parts[] | select(.type == "tool_result" or .type == "retry")] as $results
-  | [$parts[] | select(.type == "tool_call")
-      | . as $call
-      | {
-          id,
-          name,
-          args,
-          result: ($results | map(select(.id == $call.id)) | first)
-        }
-    ]
+  [.runs[]
+    | .id as $run
+    | [.messages[].parts[]] as $parts
+    | [$parts[] | select(.type == "tool_result" or .type == "retry")] as $results
+    | $parts[]
+    | select(.type == "tool_call")
+    | . as $call
+    | {
+        run: $run,
+        id,
+        name,
+        args,
+        result: ($results | map(select(.id == $call.id)) | first)
+      }
+  ]
 '
 
 # Aggregate LLM calls, tokens, and cost
