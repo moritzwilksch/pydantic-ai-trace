@@ -189,6 +189,10 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+function isNativeControl(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest("button, a[href]") !== null;
+}
+
 function focusTraceSearch(): boolean {
   const input = document.querySelector<HTMLInputElement>("[data-trace-search]");
   if (!input) return false;
@@ -214,6 +218,8 @@ export function useKeyboardNav(): { helpOpen: boolean; closeHelp: () => void } {
     let previousKey = "";
     function onKeyDown(event: KeyboardEvent) {
       if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) return;
+      // Enter activates a focused button or link natively, such as a child run card.
+      if (event.key === "Enter" && isNativeControl(event.target)) return;
       const inTree = (event.target as HTMLElement | null)?.closest?.(".tree-pane") != null;
       const key = event.key;
       const moveLeft = key === "h" || key === "ArrowLeft";

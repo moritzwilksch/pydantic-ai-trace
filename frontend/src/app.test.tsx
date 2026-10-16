@@ -172,13 +172,22 @@ describe("App in exported-trace mode", () => {
     expect(childCard.textContent).toContain("helper");
     expect(childCard.textContent).toContain("failed");
 
-    fireEvent.click(childCard);
+    // Enter on the focused card opens the child, as a click does.
+    childCard.focus();
+    const toolCall = childCard.closest("details")!;
+    const toolCallOpen = toolCall.open;
+    expect(fireEvent.keyDown(childCard, { key: "Enter" })).toBe(true); // not prevented
+    expect(toolCall.open).toBe(toolCallOpen);
+    fireEvent.click(childCard); // jsdom does not activate buttons from key events
     getByText("Run failed with TimeoutError: took too long");
 
     // The breadcrumb names the parent and leads back to it.
     const path = getByRole("navigation", { name: "Run path" });
     expect(within(path).getByText("helper").getAttribute("aria-current")).toBe("page");
-    fireEvent.click(within(path).getByRole("button", { name: "worker" }));
+    const back = within(path).getByRole("button", { name: "worker" });
+    back.focus();
+    expect(fireEvent.keyDown(back, { key: "Enter" })).toBe(true); // not prevented
+    fireEvent.click(back);
     expect(container.querySelector(".tool-group .child-run")).not.toBeNull();
   });
 
