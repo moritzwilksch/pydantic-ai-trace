@@ -1,5 +1,5 @@
 import { useMemo } from "preact/hooks";
-import { cacheHitRate, formatCost } from "../format";
+import { cacheHitRate, formatTotalsCost } from "../format";
 import { indexRun, type RunEntry, type TrajectoryIndex } from "../runIndex";
 import type { Totals } from "../types";
 import { ChildRunCard } from "./ChildRunCard";
@@ -81,6 +81,7 @@ export function TraceStatsBar({
     subtreeTotals !== undefined && subtreeTotals.llm_calls !== totals.llm_calls
       ? subtreeTotals
       : null;
+  const subtreeCost = withSubruns ? formatTotalsCost(withSubruns) : null;
   return (
     <div class="trace-stats">
       <span>
@@ -103,9 +104,9 @@ export function TraceStatsBar({
       {withSubruns ? (
         <span title="This run plus every run it started">
           with subruns: <b>{withSubruns.llm_calls}</b> calls
-          {withSubruns.cost_usd !== null ? (
+          {subtreeCost !== null ? (
             <>
-              , <b>{formatCost(withSubruns.cost_usd)}</b>
+              , <b>{subtreeCost}</b>
             </>
           ) : null}
         </span>
@@ -114,17 +115,11 @@ export function TraceStatsBar({
   );
 }
 
-/** A partial sum is labelled, so unknown model prices never read as free. */
 function CostSummary({ totals }: { totals: Totals }) {
-  if (totals.cost_usd === null) {
-    return totals.unpriced_calls > 0 ? (
-      <span title="No price known for these models">cost unknown</span>
-    ) : null;
-  }
-  return (
+  const cost = formatTotalsCost(totals);
+  return cost === null ? null : (
     <span>
-      <b>{formatCost(totals.cost_usd)}</b>
-      {totals.unpriced_calls > 0 ? ` (+${totals.unpriced_calls} unpriced)` : ""}
+      <b>{cost}</b>
     </span>
   );
 }

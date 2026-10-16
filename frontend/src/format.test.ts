@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cacheHitRate, compactJson, formatCost, parseJsonContainer } from "./format";
+import {
+  cacheHitRate,
+  compactJson,
+  formatCost,
+  formatTotalsCost,
+  parseJsonContainer,
+} from "./format";
 import { parseJson } from "./json";
 
 describe("parseJsonContainer", () => {
@@ -55,5 +61,22 @@ describe("formatCost", () => {
   it("shows four decimals of the exact decimal string", () => {
     expect(formatCost("0.0028125")).toBe("$0.0028");
     expect(formatCost("12")).toBe("$12.0000");
+  });
+});
+
+describe("formatTotalsCost", () => {
+  const totals = (cost_usd: string | null, unpriced_calls: number) => ({
+    llm_calls: 2,
+    tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+    cost_usd,
+    unpriced_calls,
+    duration_seconds: 0,
+  });
+
+  it("marks a partial cost and an unknown one", () => {
+    expect(formatTotalsCost(totals("0.01", 0))).toBe("$0.0100");
+    expect(formatTotalsCost(totals("0.01", 1))).toBe("$0.0100 (+1 unpriced)");
+    expect(formatTotalsCost(totals(null, 2))).toBe("cost unknown");
+    expect(formatTotalsCost(totals(null, 0))).toBeNull();
   });
 });

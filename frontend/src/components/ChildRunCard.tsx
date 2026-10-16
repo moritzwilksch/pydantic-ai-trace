@@ -1,5 +1,5 @@
 import { Bot } from "lucide-preact";
-import { formatCost } from "../format";
+import { formatTotalsCost } from "../format";
 import type { RunEntry } from "../runIndex";
 
 /** A run started from here, summarized; opening it shows its own messages. */
@@ -11,6 +11,7 @@ export function ChildRunCard({
   onOpen: (runId: string) => void;
 }) {
   const totals = entry.analysis.subtree_totals;
+  const cost = formatTotalsCost(totals);
   return (
     <button type="button" class="child-run" onClick={() => onOpen(entry.run.id)}>
       <Bot size={13} />
@@ -18,7 +19,7 @@ export function ChildRunCard({
       <OutcomeBadge status={entry.run.outcome.status} />
       <span class="child-run-stats">
         {totals.llm_calls} calls
-        {totals.cost_usd !== null ? ` · ${formatCost(totals.cost_usd)}` : ""}
+        {cost !== null ? ` · ${cost}` : ""}
       </span>
       <span class="preview-more">open</span>
     </button>

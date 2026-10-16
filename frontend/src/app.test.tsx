@@ -182,6 +182,42 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".tool-group .child-run")).not.toBeNull();
   });
 
+  it("marks a subtree cost as partial wherever it appears", () => {
+    const payload = payloadFromRuns([
+      {
+        id: "worker",
+        name: "worker",
+        messages: [
+          {
+            kind: "response",
+            parts: [{ part_kind: "tool-call", tool_name: "ask", args: "{}", tool_call_id: "c" }],
+          },
+        ],
+      },
+      {
+        id: "helper",
+        name: "helper",
+        parent: { run_id: "worker", tool_call_id: "c" },
+        messages: [{ kind: "response", parts: [{ part_kind: "text", content: "x" }] }],
+      },
+    ]);
+    // The worker is priced; its helper's model has no known price.
+    const [worker, helper] = payload.analysis.runs;
+    worker.totals = { ...worker.totals, cost_usd: "0.01" };
+    worker.subtree_totals = { ...worker.totals, llm_calls: 2, unpriced_calls: 1 };
+    helper.subtree_totals = { ...helper.totals, unpriced_calls: 1 };
+    embed(payload);
+
+    const { container, getByRole } = render(<App />);
+
+    const partial = "$0.0100 (+1 unpriced)";
+    expect(getByRole("button", { name: /^worker/ }).textContent).toContain(partial); // sidebar
+    expect(container.querySelector(".trace-stats")!.textContent).toContain(
+      `with subruns: 2 calls, ${partial}`,
+    );
+    expect(container.querySelector(".child-run")!.textContent).toContain("cost unknown");
+  });
+
   it("flags a run whose parent has not been recorded yet", () => {
     embed(
       payloadFromRuns([

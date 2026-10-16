@@ -1,5 +1,5 @@
 import { Ban, Bot, TriangleAlert, Unlink, Workflow } from "lucide-preact";
-import { formatCost } from "../format";
+import { formatTotalsCost } from "../format";
 import type { RunEntry, TrajectoryIndex } from "../runIndex";
 
 /**
@@ -44,7 +44,7 @@ function RunNode({
 }) {
   const { run, analysis } = entry;
   const children = trajectory.children(run.id);
-  const cost = analysis.subtree_totals.cost_usd;
+  const cost = formatTotalsCost(analysis.subtree_totals);
   const isSelected = run.id === selected;
   return (
     <div>
@@ -59,7 +59,7 @@ function RunNode({
           <RunIcon entry={entry} />
         </span>
         <span class="run-name">{run.name}</span>
-        {cost !== null ? <span class="count">{formatCost(cost)}</span> : null}
+        {cost !== null ? <span class="count">{cost}</span> : null}
       </button>
       {children.length > 0 ? (
         <div class="tree-children">

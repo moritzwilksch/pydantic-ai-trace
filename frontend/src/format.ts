@@ -2,6 +2,7 @@
 // shape already-computed values for the screen.
 
 import { jsonEntries, parseJson } from "./json";
+import type { Totals } from "./types";
 
 /** Parse text that consists entirely of a JSON object or array. */
 export function parseJsonContainer(content: string): Record<string, unknown> | unknown[] | null {
@@ -66,4 +67,14 @@ export function cacheHitRate(inputTokens: number, cacheReadTokens: number): numb
 /** A cost in USD from its exact decimal string, e.g. `$0.0028`. */
 export function formatCost(costUsd: string): string {
   return `$${Number(costUsd).toFixed(4)}`;
+}
+
+/**
+ * The cost of a total, marked partial when some responses had no known price, so
+ * unknown prices never read as free. Null when there is nothing to show.
+ */
+export function formatTotalsCost(totals: Totals): string | null {
+  if (totals.cost_usd === null) return totals.unpriced_calls > 0 ? "cost unknown" : null;
+  const cost = formatCost(totals.cost_usd);
+  return totals.unpriced_calls > 0 ? `${cost} (+${totals.unpriced_calls} unpriced)` : cost;
 }
