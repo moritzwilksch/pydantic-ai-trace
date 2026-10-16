@@ -677,3 +677,23 @@ class TestStatsCommand:
                 "stdin": "stdin",
             }[target]
         )
+
+    @pytest.mark.parametrize("as_json", [True, False])
+    def test_an_unreadable_file_is_reported_without_losing_other_rows(
+        self, fixtures_copy: Path, tmp_path: Path, capsys: pytest.CaptureFixture, as_json: bool
+    ):
+        root = tmp_path / "traces"
+        root.mkdir()
+        (root / "good.json").write_text((fixtures_copy / "full_trace.json").read_text())
+        (root / "bad.json").write_bytes(b"\xff")
+
+        assert cli.main(["stats", str(root), *(["--json"] if as_json else [])]) == 1
+
+        out = capsys.readouterr().out
+        if as_json:
+            documents = {json.loads(line)["name"]: json.loads(line) for line in out.splitlines()}
+            assert documents["good.json"]["stats"]["llm_calls"] == 3
+            assert documents["bad.json"]["error"].startswith("cannot read file: ")
+        else:
+            assert out.splitlines()[1].startswith("good.json")
+            assert "  bad.json: cannot read file: " in out

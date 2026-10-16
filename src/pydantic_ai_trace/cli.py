@@ -381,7 +381,12 @@ examples:
         for path in paths:
             for file, name in _stats_files(path, prefix=len(paths) > 1):
                 format = _require_trace_file(file)
-                rows.extend(source_rows(_read_text(file), format=format, name=name))
+                try:
+                    text = file.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    rows.append(InvalidTrace(name=name, error=f"cannot read file: {exc}"))
+                    continue
+                rows.extend(source_rows(text, format=format, name=name))
 
     sys.stdout.write(format_jsonl(rows) if args.json else format_table(rows))
     return 1 if any(isinstance(row, InvalidTrace) for row in rows) else 0
@@ -393,13 +398,6 @@ def _stats_files(path: Path, *, prefix: bool) -> list[tuple[Path, str]]:
         return [(path, path.as_posix())]
     base = path.parent if prefix else path
     return [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
-
-
-def _read_text(file: Path) -> str:
-    try:
-        return file.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise CliError(f"cannot read {file}: {exc}") from exc
 
 
 def _load_trace(
