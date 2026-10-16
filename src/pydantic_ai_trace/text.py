@@ -1,8 +1,7 @@
-"""Token-efficient plain-text rendering for pydantic-ai trace dumps.
+"""Token-efficient plain-text transcript of a trajectory.
 
-This module intentionally has no pydantic-ai dependency. Trace dumps are
-untrusted, versioned wire data, so the formatter mirrors the frontend's
-tolerant parsing and fallback behavior instead of validating a fixed schema.
+Messages are rendered from their canonical Pydantic AI JSON dump, the same shape the
+browser viewer reads, in the same message and part order.
 """
 
 from __future__ import annotations
@@ -10,36 +9,95 @@ from __future__ import annotations
 import json
 import math
 import re
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from .trajectory import CAPABILITY_LOAD_KIND, TOOL_SEARCH_KIND, ParsedTrace, parse_trace
+from pydantic_ai.messages import ModelMessagesTypeAdapter
+
+from .analysis import Analysis, RunAnalysis, Totals, parse_tool_args
+from .trajectory import Run, Trajectory
+
+CAPABILITY_LOAD_KIND = "capability-load"
+TOOL_SEARCH_KIND = "tool-search"
+COMPACTION_PLACEHOLDER = "[History compacted by the provider; no readable summary.]"
 
 
-def format_trace_json_as_text(trace_json: str, name: str) -> str:
-    """Parse and render one trace JSON payload."""
-    return format_trace_as_text(json.loads(trace_json), name)
+def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> str:
+    """Render every run in tree order.
+
+    A one-run trajectory has no run heading; its parent and an unsuccessful outcome
+    move into the trace details instead, so diagnostics are never dropped.
+    """
+    by_id = {run.run_id: run for run in analysis.runs}
+    ordered = [run for run, _ in trajectory.walk()]
+    details = [f"NAME: {_inline(name)}", _totals(analysis.totals)]
+    if len(ordered) == 1:
+        [run] = ordered
+        details.extend(_parent_lines(run, by_id[run.id]))
+        if run.outcome.status != "completed":
+            details.append(_outcome_line(run))
+    sections = [_section(_envelope("TRACE"), "\n".join(details))]
+    for run in ordered:
+        if len(ordered) > 1:
+            sections.append(
+                _section(_envelope(f"RUN: {_inline(run.name)}"), _run_details(run, by_id[run.id]))
+            )
+        sections.extend(_message_sections(run, by_id[run.id]))
+    return "\n\n".join(sections) + "\n"
 
 
-def format_trace_as_text(trace: object, name: str) -> str:
-    """Render one trace in the same message/part order as the browser viewer."""
-    parsed = parse_trace(trace)
-    messages = parsed.messages
-    sections = [_section(_envelope("TRACE"), _trace_details(parsed, name))]
+def _run_details(run: Run, analysis: RunAnalysis) -> str:
+    lines = [
+        f"ID: {run.id}",
+        *_parent_lines(run, analysis),
+        _outcome_line(run),
+        _totals(analysis.totals),
+    ]
+    return "\n".join(lines)
+
+
+def _parent_lines(run: Run, analysis: RunAnalysis) -> list[str]:
+    if run.parent is None:
+        return []
+    via = f" via tool call {run.parent.tool_call_id}" if run.parent.tool_call_id else ""
+    missing = " (not recorded)" if analysis.parent_missing else ""
+    return [f"PARENT: {run.parent.run_id}{missing}{via}"]
+
+
+def _outcome_line(run: Run) -> str:
+    outcome = run.outcome
+    if outcome.status == "failed":
+        return f"OUTCOME: failed · {_inline(outcome.error_type)}: {_inline(outcome.detail)}"
+    return f"OUTCOME: {outcome.status}"
+
+
+def _totals(totals: Totals) -> str:
+    tokens = totals.tokens
+    summary = [
+        f"LLM CALLS: {totals.llm_calls}",
+        f"TOKENS: {_token_usage(tokens.input, tokens.output, tokens.cache_read)}",
+    ]
+    if totals.cost_usd is not None:
+        unpriced = f" (+{totals.unpriced_calls} unpriced)" if totals.unpriced_calls else ""
+        summary.append(f"COST: {format_usd(totals.cost_usd)}{unpriced}")
+    summary.append(f"WALL TIME: {totals.duration_seconds:.1f}s")
+    return " | ".join(summary)
+
+
+def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
+    messages: list[dict[str, Any]] = ModelMessagesTypeAdapter.dump_python(
+        list(run.messages), mode="json"
+    )
+    costs = {response.message: response.cost_usd for response in analysis.responses}
+    sections: list[str] = []
     request_number = 0
     response_number = 0
-    last_instructions: object = None
-
-    for message in messages:
-        if message["kind"] == "unknown":
-            sections.append(_section(_envelope("UNKNOWN MESSAGE"), _json(message["raw"])))
-            continue
-
+    for index, (message, instructions) in enumerate(
+        zip(messages, changed_instructions(messages), strict=True)
+    ):
         parts: list[str] = []
-        instructions = message.get("instructions")
-        if message["kind"] == "request" and instructions and instructions != last_instructions:
+        if instructions is not None:
             parts.append(_part_section("INSTRUCTIONS", _js_string(instructions)))
-            last_instructions = instructions
         for part in message["parts"]:
             formatted = _format_part(part)
             if formatted:
@@ -47,45 +105,52 @@ def format_trace_as_text(trace: object, name: str) -> str:
 
         if message["kind"] == "response":
             response_number += 1
-            heading = _response_envelope(message, response_number)
+            heading = _response_envelope(message, response_number, costs.get(index))
         else:
             request_number += 1
             heading = _request_envelope(message.get("state"), request_number)
         sections.append(_section(heading, "\n\n".join(parts)))
+    return sections
 
-    return "\n\n".join(sections) + "\n"
 
-
-def _trace_details(trace: ParsedTrace, name: str) -> str:
-    stats = trace.stats
-    summary = [
-        f"LLM CALLS: {stats.llm_calls}",
-        f"TOKENS: {_token_usage(stats.input_tokens, stats.output_tokens, stats.cache_read_tokens)}",
-    ]
-    if stats.wall_time_seconds is not None:
-        summary.append(f"WALL TIME: {stats.wall_time_seconds:.1f}s")
-    return f"NAME: {_inline(name)}\n{' | '.join(summary)}"
+def changed_instructions(messages: list[dict[str, Any]]) -> list[object | None]:
+    """Each request's instructions when they differ from the last shown, else None."""
+    changed: list[object | None] = []
+    last: object = None
+    for message in messages:
+        instructions = message.get("instructions")
+        if message["kind"] == "request" and instructions and instructions != last:
+            last = instructions
+            changed.append(instructions)
+        else:
+            changed.append(None)
+    return changed
 
 
 def _request_envelope(state: object, number: int) -> str:
-    label = f"REQUEST {number} [INTERRUPTED]" if state == "interrupted" else f"REQUEST {number}"
-    return _envelope(label)
+    return _envelope(f"REQUEST {number}{_state_label(state)}")
 
 
-def _response_envelope(response: dict[str, Any], number: int) -> str:
-    details = [
-        f"RESPONSE {number} [INTERRUPTED]"
-        if response.get("state") == "interrupted"
-        else f"RESPONSE {number}"
-    ]
+def _response_envelope(response: dict[str, Any], number: int, cost_usd: Decimal | None) -> str:
+    details = [f"RESPONSE {number}{_state_label(response.get('state'))}"]
     if response.get("model_name"):
         details.append(_inline(response["model_name"]))
-    usage = response.get("usage")
-    if isinstance(usage, dict):
-        details.append(
-            _token_usage(usage["input_tokens"], usage["output_tokens"], usage["cache_read_tokens"])
-        )
+    usage = response["usage"]
+    details.append(
+        _token_usage(usage["input_tokens"], usage["output_tokens"], usage["cache_read_tokens"])
+    )
+    if cost_usd is not None:
+        details.append(format_usd(cost_usd))
     return _envelope(" · ".join(details))
+
+
+def _state_label(state: object) -> str:
+    return f" [{_inline(state).upper()}]" if state and state != "complete" else ""
+
+
+def format_usd(amount: Decimal) -> str:
+    """A cost rounded half-up to four decimals, e.g. `$0.0028`."""
+    return f"${amount.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)}"
 
 
 def _token_usage(input_tokens: int, output_tokens: int, cached_tokens: int) -> str:
@@ -112,10 +177,7 @@ def _format_part(part: dict[str, Any]) -> str:
     if kind == "compaction":
         content = part.get("content")
         return _part_section(
-            "COMPACTION",
-            _js_string(content)
-            if content
-            else "[History compacted by the provider; no readable summary.]",
+            "COMPACTION", _js_string(content) if content else COMPACTION_PLACEHOLDER
         )
     if kind == "file":
         return _part_section("FILE", _format_file(part.get("content")))
@@ -141,7 +203,7 @@ def _format_tool_call_args(part: dict[str, Any]) -> str:
     capability = _capability_id(part)
     if capability is not None:
         return f"CAPABILITY: {capability}"
-    return f"ARGUMENTS:\n{_format_value(part.get('parsed_args'))}"
+    return f"ARGUMENTS:\n{_format_value(parse_tool_args(part.get('args')))}"
 
 
 def _format_tool_return(part: dict[str, Any]) -> str:
@@ -156,7 +218,7 @@ def _format_tool_return(part: dict[str, Any]) -> str:
 
 
 def _format_tool_return_content(part: dict[str, Any]) -> str:
-    discovered = _discovered_tools(part)
+    discovered = discovered_tools(part)
     if discovered is not None:
         content = part["content"]
         message = content.get("message")
@@ -169,7 +231,7 @@ def _format_tool_return_content(part: dict[str, Any]) -> str:
 
 
 def _format_tool_availability_delta(part: dict[str, Any]) -> str:
-    added = _tools_added(part)
+    added = part["tools_added"]
     body = "\n".join(f"+{name}" for name in added) if added else _json(part)
     return _part_section("TOOL AVAILABILITY", body)
 
@@ -179,27 +241,18 @@ def _format_retry_prompt(part: dict[str, Any]) -> str:
     return _part_section(f"RETRY PROMPT{tool}", _format_value(part.get("content")))
 
 
-def _tools_added(part: dict[str, Any]) -> list[str]:
-    """`tools_added`, or the `added` alias older dumps used."""
-    raw = part.get("tools_added")
-    if not isinstance(raw, list):
-        raw = part.get("added")
-    if not isinstance(raw, list):
-        return []
-    return [name for name in raw if isinstance(name, str)]
-
-
 def _tool_search_queries(part: dict[str, Any]) -> list[str] | None:
     """Queries of a tool-search call, or None when the part is not one."""
     if part.get("tool_kind") != TOOL_SEARCH_KIND:
         return None
-    args = part.get("parsed_args")
-    if not isinstance(args, dict) or not isinstance(args.get("queries"), list):
+    args = parse_tool_args(part.get("args"))
+    queries = args.get("queries") if isinstance(args, dict) else None
+    if not isinstance(queries, list):
         return None
-    return [query for query in args["queries"] if isinstance(query, str)]
+    return [query for query in queries if isinstance(query, str)]
 
 
-def _discovered_tools(part: dict[str, Any]) -> list[str] | None:
+def discovered_tools(part: dict[str, Any]) -> list[str] | None:
     """Tool names a tool-search return revealed, or None when the part is not one."""
     if part.get("tool_kind") != TOOL_SEARCH_KIND:
         return None
@@ -216,8 +269,9 @@ def _discovered_tools(part: dict[str, Any]) -> list[str] | None:
 def _capability_id(part: dict[str, Any]) -> str | None:
     if part.get("tool_kind") != CAPABILITY_LOAD_KIND:
         return None
-    args = part.get("parsed_args")
-    return args["id"] if isinstance(args, dict) and isinstance(args.get("id"), str) else None
+    args = parse_tool_args(part.get("args"))
+    capability = args.get("id") if isinstance(args, dict) else None
+    return capability if isinstance(capability, str) else None
 
 
 def _capability_instructions(part: dict[str, Any]) -> str | None:
@@ -239,40 +293,35 @@ def _format_user_item(item: object) -> str:
         return item
     if not isinstance(item, dict):
         return _json(item)
-    if item.get("kind") == "text":
-        return item["text"] if isinstance(item.get("text"), str) else _json(item)
     if item.get("kind") == "text-content":
-        if isinstance(item.get("text"), str):
-            return item["text"]
-        if isinstance(item.get("content"), str):
-            return item["content"]
-        return _json(item)
+        return _js_string(item.get("content"))
     if item.get("kind") == "uploaded-file":
         return "[uploaded file]"
     if item.get("kind") == "cache-point":
         return "[cache point]"
-    if _is_media(item):
+    if is_media(item):
         return _format_media(item)
     return _json(item)
 
 
 def _format_file(content: object) -> str:
-    return _format_media(content) if _is_media(content) else _json(content)
+    return _format_media(content) if is_media(content) else _json(content)
 
 
 def _format_value(value: object) -> str:
     if isinstance(value, str):
         return value
-    if _is_media(value):
+    if is_media(value):
         return _format_media(value)
-    if isinstance(value, list) and any(_is_media(item) for item in value):
+    if isinstance(value, list) and any(is_media(item) for item in value):
         return "\n\n".join(
-            _format_media(item) if _is_media(item) else _format_value(item) for item in value
+            _format_media(item) if is_media(item) else _format_value(item) for item in value
         )
     return _json(value)
 
 
-def _is_media(value: object) -> bool:
+def is_media(value: object) -> bool:
+    """A dumped `BinaryContent` or `*Url` item."""
     if not isinstance(value, dict):
         return False
     kind = value.get("kind")
@@ -286,12 +335,12 @@ def _format_media(item: object) -> str:
     kind = _js_string(item.get("kind"))
     if kind == "binary":
         media_type = _js_string(item.get("media_type") or "application/octet-stream")
-        size = _base64_byte_length(_js_string(item.get("data")))
+        size = base64_byte_length(_js_string(item.get("data")))
         return f"[binary: {media_type}, {_format_bytes(size)}, payload omitted]"
     return f"[{kind.removesuffix('-url')}] {_js_string(item.get('url'))}"
 
 
-def _base64_byte_length(data: str) -> int:
+def base64_byte_length(data: str) -> int:
     normalized = re.sub(r"\s", "", data)
     padding = 2 if normalized.endswith("==") else 1 if normalized.endswith("=") else 0
     return max(0, math.floor(len(normalized) * 3 / 4) - padding)

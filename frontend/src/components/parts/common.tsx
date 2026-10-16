@@ -1,4 +1,4 @@
-import { FileText, Film, ImageOff, Paperclip, Volume2 } from "lucide-preact";
+import { FileText, Film, ImageIcon, ImageOff, Paperclip, Volume2 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import {
@@ -40,10 +40,24 @@ export function MediaContent({ item }: { item: Record<string, unknown> }) {
   }
   const url = item.url as string;
   if (kind === "image-url") {
-    return <MediaImage src={url} alt="image attachment" chipLabel={url} href={url} />;
+    // Loading a remote image would tell its server that someone opened this trace.
+    if (!url.startsWith("data:")) {
+      return <MediaChip icon={<ImageIcon size={13} />} label={url} href={linkableUrl(url)} />;
+    }
+    return <MediaImage src={url} alt="image attachment" chipLabel="image attachment" />;
   }
   const icon = URL_KIND_ICONS[kind] ?? <Paperclip size={13} />;
-  return <MediaChip icon={icon} label={url} href={url} />;
+  return <MediaChip icon={icon} label={url} href={linkableUrl(url)} />;
+}
+
+/** `url` when it is safe to link (http or https); trace URLs are untrusted, e.g. `javascript:`. */
+export function linkableUrl(url: string): string | undefined {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:" ? url : undefined;
+  } catch {
+    return undefined; // relative or malformed: nothing to link to
+  }
 }
 
 /** Pill-shaped chip for non-inline attachments; linked when `href` is given. */
@@ -79,17 +93,13 @@ export function MediaImage({
   src,
   alt,
   chipLabel,
-  href,
 }: {
   src: string;
   alt: string;
   chipLabel: string;
-  href?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
-    return <MediaChip icon={<ImageOff size={13} />} label={chipLabel} href={href} />;
-  }
+  if (failed) return <MediaChip icon={<ImageOff size={13} />} label={chipLabel} />;
   return (
     <div class="media-item">
       <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />

@@ -1,185 +1,29 @@
-// Hand-written types for the pydantic-ai ModelMessage wire format
-// (pydantic_ai_slim/pydantic_ai/messages.py). Everything is optional-friendly:
-// dumps from older/newer pydantic-ai versions must never crash the viewer.
+// The Python-to-viewer contract is generated from `pydantic_ai_trace.payload.TracePayload`
+// into ./generated/payload.ts. This module adds names the renderers share, plus the
+// hand-written shapes of the directory-browsing API.
 
-export interface Usage {
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_tokens: number;
-  cache_write_tokens: number;
-  details: Record<string, number>;
-}
+import type { ModelRequest, ModelResponse } from "./generated/payload";
 
-export interface SystemPromptPart {
-  part_kind: "system-prompt";
-  content: string;
-  timestamp?: string | null;
-}
+export type * from "./generated/payload";
 
-export type UserContentItem =
-  | string
-  | { kind: "text"; text: string; [key: string]: unknown }
-  | { kind: "text-content"; text?: string; content?: string; [key: string]: unknown }
-  | { kind: "image-url" | "audio-url" | "document-url" | "video-url"; url: string }
-  | { kind: "binary"; data: string; media_type: string }
-  | { kind: "uploaded-file"; [key: string]: unknown }
-  | { kind: "cache-point" }
-  | { kind?: string; [key: string]: unknown };
+export type Message = ModelRequest | ModelResponse;
+export type RequestPart = ModelRequest["parts"][number];
+export type ResponsePart = ModelResponse["parts"][number];
+export type Part = RequestPart | ResponsePart;
+export type UserContent = Extract<Part, { part_kind: "user-prompt" }>["content"];
+export type UserContentItem = Exclude<UserContent, string>[number];
 
-export interface UserPromptPart {
-  part_kind: "user-prompt";
-  content: string | UserContentItem[];
-  timestamp?: string | null;
-}
+/** Every part pydantic-ai dumps as `tool-call` or `builtin-tool-call`. */
+export type AnyToolCallPart = Extract<Part, { part_kind: "tool-call" | "builtin-tool-call" }>;
 
-export interface ToolReturnPart {
-  part_kind: "tool-return" | "builtin-tool-return";
-  tool_name: string;
-  content: unknown;
-  tool_call_id: string;
-  outcome?: "success" | "failed" | "denied" | null;
-  metadata?: unknown;
-  timestamp?: string | null;
-  tool_kind?: string;
-}
+/** Every part pydantic-ai dumps as `tool-return` or `builtin-tool-return`. */
+export type AnyToolReturnPart = Extract<Part, { part_kind: "tool-return" | "builtin-tool-return" }>;
 
-/**
- * Framework-emitted tool variants. pydantic-ai keeps their `part_kind` as a plain
- * tool call/return and discriminates on `tool_kind`, so they render as tool parts
- * with a structured `args`/`content` shape (`_tool_search.py`, `_deferred_capabilities.py`).
- */
+/** Framework-emitted tool variants, discriminated by `tool_kind`. */
 export const TOOL_SEARCH_KIND = "tool-search";
 export const CAPABILITY_LOAD_KIND = "capability-load";
 
-/** `ToolSearchCallPart.args` / `NativeToolSearchCallPart.args` once parsed. */
-export interface ToolSearchArgs {
-  queries: string[];
-}
-
-/** `ToolSearchReturnPart.content` / `NativeToolSearchReturnPart.content`. */
-export interface ToolSearchReturnContent {
-  discovered_tools: { name: string; [key: string]: unknown }[];
-  /** Model-facing note, set on the empty-results path. */
-  message?: string;
-}
-
-/** `LoadCapabilityReturnPart.content`. */
-export interface LoadCapabilityReturn {
-  instructions?: string;
-}
-
-export interface ErrorDetail {
-  type: string;
-  loc: (string | number)[];
-  msg: string;
-  input?: unknown;
-  ctx?: Record<string, unknown>;
-}
-
-export interface RetryPromptPart {
-  part_kind: "retry-prompt";
-  content: string | ErrorDetail[];
-  tool_name?: string | null;
-  tool_call_id?: string;
-  timestamp?: string | null;
-}
-
-export interface TextPart {
-  part_kind: "text";
-  content: string;
-  id?: string | null;
-}
-
-export interface ThinkingPart {
-  part_kind: "thinking";
-  content: string;
-  id?: string | null;
-  signature?: string | null;
-  provider_name?: string | null;
-}
-
-export interface ToolCallPart {
-  part_kind: "tool-call" | "builtin-tool-call";
-  tool_name: string;
-  /** Raw wire value is string | object | null; parse.ts adds `parsedArgs`. */
-  args: string | Record<string, unknown> | null;
-  parsedArgs?: unknown;
-  tool_call_id: string;
-  tool_kind?: string;
-}
-
-export interface CompactionPart {
-  part_kind: "compaction";
-  /** Summary of the compacted history; null when the provider keeps it opaque. */
-  content?: string | null;
-  id?: string | null;
-  provider_name?: string | null;
-}
-
-/** Records that this point in history revealed additional tools to the model. */
-export interface ToolAvailabilityDeltaPart {
-  part_kind: "tool-availability-delta";
-  tools_added?: string[];
-  /** Legacy alias kept as a pydantic validation alias in pydantic-ai. */
-  added?: string[];
-  tool_call_id?: string | null;
-}
-
-export interface FilePart {
-  part_kind: "file";
-  content: { data?: string; media_type?: string; [key: string]: unknown };
-  id?: string | null;
-}
-
-export interface UnknownPart {
-  part_kind: string;
-  [key: string]: unknown;
-}
-
-export type Part =
-  | SystemPromptPart
-  | UserPromptPart
-  | ToolReturnPart
-  | RetryPromptPart
-  | TextPart
-  | ThinkingPart
-  | ToolCallPart
-  | CompactionPart
-  | FilePart
-  | ToolAvailabilityDeltaPart
-  | UnknownPart;
-
-export interface ModelRequest {
-  kind: "request";
-  parts: Part[];
-  instructions?: string | null;
-  run_id?: string | null;
-  state?: "complete" | "interrupted";
-  [key: string]: unknown;
-}
-
-export interface ModelResponse {
-  kind: "response";
-  parts: Part[];
-  usage?: Usage;
-  model_name?: string | null;
-  timestamp?: string | null;
-  provider_name?: string | null;
-  provider_response_id?: string | null;
-  finish_reason?: "stop" | "length" | "content_filter" | "tool_call" | "error" | null;
-  run_id?: string | null;
-  state?: "complete" | "interrupted";
-  [key: string]: unknown;
-}
-
-export interface UnknownMessage {
-  kind: "unknown";
-  raw: unknown;
-}
-
-export type Message = ModelRequest | ModelResponse | UnknownMessage;
-
-// --- API payloads ---
+// --- directory-browsing API ---
 
 export interface TreeNode {
   name: string;
@@ -200,20 +44,4 @@ export interface Meta {
 export interface TraceSelection {
   path: string;
   line?: number;
-}
-
-export interface TracePayload {
-  source: string;
-  transcript: string;
-}
-
-export interface EmbeddedTrace {
-  name: string;
-  source: string;
-  transcript: string;
-}
-
-export interface EmbeddedTraceCollection {
-  title: string;
-  traces: EmbeddedTrace[];
 }

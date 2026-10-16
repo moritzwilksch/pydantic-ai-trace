@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+from traces import minimal_trace
 
 from pydantic_ai_trace import scan
 
@@ -49,6 +50,19 @@ class TestBuildTree:
         assert broken["error"] is True
         assert "not valid JSON" in broken["error_message"]
         assert find_node(tree, "full_trace.json")["error"] is False
+
+    def test_jsonl_with_an_invalid_first_trace_is_flagged(self, tmp_path: Path):
+        (tmp_path / "log.jsonl").write_text(f'[{{"kind": "telepathy"}}]\n{minimal_trace()}\n')
+        node = scan.build_tree(tmp_path / "log.jsonl")
+        assert (node["trace_count"], node["error"]) == (2, True)
+        assert node["error_message"].startswith("line 1: ")
+
+    def test_jsonl_lists_later_traces_without_validating_them(self, tmp_path: Path):
+        # Validating every trace of a large log on each listing would stall the sidebar;
+        # the server reports a later invalid trace when it is opened.
+        (tmp_path / "log.jsonl").write_text(f'{minimal_trace()}\n\n[{{"kind": "telepathy"}}]\n')
+        node = scan.build_tree(tmp_path / "log.jsonl")
+        assert (node["trace_count"], node["error"]) == (2, False)
 
     def test_single_file_root_yields_single_node(self, fixtures_copy: Path):
         tree = scan.build_tree(fixtures_copy / "full_trace.json")
@@ -102,6 +116,12 @@ class TestReadTrace:
             scan.read_trace(fixtures_copy, "runs/multi.jsonl", line=None)
         assert exc_info.value.status_code == 400
 
+    def test_jsonl_selection_stops_reading_at_the_requested_line(self, tmp_path: Path):
+        # Undecodable bytes far past line 1 prove the rest of the file is never read.
+        log = b"[]\n" + b"[1]\n" * 100_000 + b"\xff\n"
+        (tmp_path / "big.jsonl").write_bytes(log)
+        assert scan.read_trace(tmp_path, "big.jsonl", line=1) == "[]"
+
     def test_single_line_jsonl_defaults_to_its_only_trace(self, tmp_path: Path):
         (tmp_path / "one.jsonl").write_text('[{"kind": "request", "parts": []}]\n')
         assert "request" in scan.read_trace(tmp_path, "one.jsonl", line=None)
@@ -127,10 +147,10 @@ class TestReadTrace:
             scan.read_trace(fixtures_copy, "broken.json", line=None)
         assert exc_info.value.status_code == 400
 
-    def test_json_object_instead_of_array_is_400(self, tmp_path: Path):
-        (tmp_path / "obj.json").write_text('{"kind": "request"}')
+    def test_json_scalar_is_400(self, tmp_path: Path):
+        (tmp_path / "scalar.json").write_text('"request"')
         with pytest.raises(scan.TraceLookupError) as exc_info:
-            scan.read_trace(tmp_path, "obj.json", line=None)
+            scan.read_trace(tmp_path, "scalar.json", line=None)
         assert exc_info.value.status_code == 400
 
 
@@ -188,11 +208,15 @@ class TestInMemoryTraceData:
 
     def test_validates_every_jsonl_trace(self):
         with pytest.raises(scan.TraceLookupError, match="line 2"):
-            scan.validate_trace_data("[]\n{}\n", format="jsonl", name="stdin")
+            scan.validate_trace_data("[]\n1\n", format="jsonl", name="stdin")
 
     def test_iterates_valid_jsonl_without_buffering_blank_lines_as_traces(self):
         traces = list(scan.iter_jsonl_traces(["\n", "[]\n", "  \n", "[1]\n"], name="runs"))
-        assert traces == [(1, "[]\n"), (2, "[1]\n")]
+        assert traces == [(1, "[]"), (2, "[1]")]
+
+    def test_jsonl_line_keeps_an_unescaped_line_separator_in_a_string(self):
+        traces = list(scan.iter_jsonl_traces(['["a\u2028b"]\n[]\n'], name="runs"))
+        assert traces == [(1, '["a\u2028b"]'), (2, "[]")]
 
     def test_iterating_empty_jsonl_is_rejected(self):
         with pytest.raises(scan.TraceLookupError, match="contains no traces"):

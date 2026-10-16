@@ -1,5 +1,5 @@
 import { CircleHelp } from "lucide-preact";
-import { compactJson } from "../../parse";
+import { compactJson } from "../../format";
 import { Block } from "../Block";
 import { JsonTree } from "../JsonTree";
 

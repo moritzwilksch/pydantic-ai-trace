@@ -5,11 +5,11 @@ import { JsonTree } from "../JsonTree";
 
 /**
  * The set of tools the model can see changed here. pydantic-ai only records
- * additions (`tools_added`, aliased `added` in older dumps), so the part is a
- * marker: the names alone say what the following turns are allowed to call.
+ * additions, so the part is a marker: the names alone say what the following
+ * turns are allowed to call.
  */
 export function ToolAvailabilityDelta({ part }: { part: ToolAvailabilityDeltaPart }) {
-  const added = toolNames(part);
+  const added = part.tools_added;
   return (
     <Block
       label={
@@ -34,9 +34,4 @@ export function ToolAvailabilityDelta({ part }: { part: ToolAvailabilityDeltaPar
       )}
     </Block>
   );
-}
-
-function toolNames(part: ToolAvailabilityDeltaPart): string[] {
-  const raw = part.tools_added ?? part.added;
-  return Array.isArray(raw) ? raw.filter((name) => typeof name === "string") : [];
 }

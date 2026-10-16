@@ -1,8 +1,10 @@
 """Filesystem scanning: trace discovery, jsonl splitting, and path safety.
 
-Traces are never validated against the pydantic-ai schema here — a trace file's
-bytes are the payload and the frontend interprets them. "Parseable" only means
-the file contains JSON array(s) at the expected granularity.
+Reading and selecting only checks that each trace is a JSON array or object;
+`load.load_trajectory` owns validation. Tree nodes run that validation so the
+sidebar can explain why a trace cannot be opened. For a JSONL file they validate
+only the first trace, so a large log stays cheap to list; an error in a later
+trace is reported when that trace is opened.
 """
 
 from __future__ import annotations
@@ -13,6 +15,8 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from .load import TraceLoadError, load_trajectory
 
 TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
 
@@ -131,16 +135,15 @@ def read_trace(root: Path, relative_path: str, line: int | None) -> str:
         raise TraceLookupError(f"no such trace: {relative_path!r}", status_code=404)
 
     try:
-        text = path.read_text(encoding="utf-8")
+        if TRACE_SUFFIXES[path.suffix] == "json":
+            return select_trace(
+                path.read_text(encoding="utf-8"), format="json", name=relative_path, line=line
+            )
+        # Stream JSONL: an evaluation log can be far larger than the one trace asked for.
+        with path.open(encoding="utf-8") as lines:
+            return _select_jsonl(lines, name=relative_path, line=line)
     except (OSError, UnicodeDecodeError) as exc:
         raise TraceLookupError(f"cannot read {relative_path!r}: {exc}", status_code=400) from exc
-
-    return select_trace(
-        text,
-        format=TRACE_SUFFIXES[path.suffix],
-        name=relative_path,
-        line=line,
-    )
 
 
 def detect_trace_format(text: str) -> Literal["json", "jsonl"]:
@@ -160,22 +163,19 @@ def validate_trace_data(
 ) -> None:
     """Validate in-memory trace data without applying JSONL line selection."""
     if format == "json":
-        _ensure_json_array(text, name)
+        _ensure_json_container(text, name)
         return
 
-    for _ in iter_jsonl_traces(text.splitlines(), name=name):
+    for _ in iter_jsonl_traces([text], name=name):
         pass
 
 
-def iter_jsonl_traces(lines: Iterable[str], *, name: str) -> Iterator[tuple[int, str]]:
-    """Yield validated non-empty JSONL traces with one-based trace numbers."""
+def iter_jsonl_traces(chunks: Iterable[str], *, name: str) -> Iterator[tuple[int, str]]:
+    """Yield validated JSONL traces with one-based trace numbers."""
     trace_number = 0
-    for candidate in lines:
-        if not candidate.strip():
-            continue
-        trace_number += 1
+    for trace_number, candidate in enumerate(jsonl_lines(chunks), start=1):
         try:
-            _ensure_json_array(candidate, name)
+            _ensure_json_container(candidate, name)
         except TraceLookupError as exc:
             raise TraceLookupError(f"line {trace_number}: {exc}", status_code=400) from exc
         yield trace_number, candidate
@@ -192,45 +192,80 @@ def select_trace(
 ) -> str:
     """Select one trace from validated JSON or JSONL text."""
     if format == "json":
-        _ensure_json_array(text, name)
+        _ensure_json_container(text, name)
         return text
 
-    lines = _jsonl_lines(text)
-    if not lines:
+    return _select_jsonl([text], name=name, line=line)
+
+
+def _select_jsonl(chunks: Iterable[str], *, name: str, line: int | None) -> str:
+    """Select one JSONL trace, keeping only that trace in memory.
+
+    Stops at the requested line; without one, counts every trace to tell a
+    one-trace file from an ambiguous one.
+    """
+    count = 0
+    selected: str | None = None
+    for count, candidate in enumerate(jsonl_lines(chunks), start=1):
+        if count == (1 if line is None else line):
+            selected = candidate
+            if line is not None:
+                break
+    if count == 0:
         raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
-    index = 1 if line is None and len(lines) == 1 else line
-    if index is None or not 1 <= index <= len(lines):
+    if selected is None or (line is None and count > 1):
         raise TraceLookupError(
-            f"{name!r} has {len(lines)} traces; pass line 1..{len(lines)}",
+            f"{name!r} has {count} traces; pass line 1..{count}",
             status_code=400,
         )
-    selected = lines[index - 1]
-    _ensure_json_array(selected, name)
+    _ensure_json_container(selected, name)
     return selected
 
 
-def _ensure_json_array(text: str, relative_path: str) -> None:
+def _ensure_json_container(text: str, relative_path: str) -> None:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:
         raise TraceLookupError(f"{relative_path!r} is not valid JSON: {exc}", 400) from exc
-    if not isinstance(parsed, list):
-        raise TraceLookupError(f"{relative_path!r} is not a JSON array of messages", 400)
+    if not isinstance(parsed, list | dict):
+        raise TraceLookupError(
+            f"{relative_path!r} is not a JSON array of messages or a trajectory object", 400
+        )
 
 
-def _jsonl_lines(text: str) -> list[str]:
-    return [line for line in text.splitlines() if line.strip()]
+def iter_trace_files(directory: Path) -> Iterator[Path]:
+    """Trace files under `directory`, in the sidebar's order and with its exclusions."""
+    for entry in _visible_entries(directory):
+        if entry.is_dir():
+            yield from iter_trace_files(entry)
+        elif entry.suffix in TRACE_SUFFIXES:
+            yield entry
+
+
+def jsonl_lines(chunks: Iterable[str]) -> Iterator[str]:
+    """The non-empty lines of JSONL text or a streamed file, one trace each, unvalidated.
+
+    Splits at `\\n` only: `str.splitlines` also splits at U+2028, which a JSON string
+    may hold unescaped.
+    """
+    for chunk in chunks:
+        for line in chunk.split("\n"):
+            if line.strip():
+                yield line.removesuffix("\r")
+
+
+def _visible_entries(directory: Path) -> list[Path]:
+    """Directory entries without hidden files or symlinks: directories first, then by name."""
+    try:
+        entries = sorted(directory.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+    except OSError:
+        return []
+    return [entry for entry in entries if not entry.name.startswith(".") and not entry.is_symlink()]
 
 
 def _dir_node(root: Path, directory: Path, name: str) -> TreeNode:
     children: list[TreeNode] = []
-    try:
-        entries = sorted(directory.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
-    except OSError:
-        entries = []
-    for entry in entries:
-        if entry.name.startswith(".") or entry.is_symlink():
-            continue
+    for entry in _visible_entries(directory):
         if entry.is_dir():
             child = _dir_node(root, entry, name=entry.name)
             if child["children"]:
@@ -255,33 +290,31 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
         "error": False,
     }
     try:
-        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".json":
+            node["trace_count"] = 1
+            error = _trace_error(path.read_text(encoding="utf-8"), relative_path)
+        else:
+            node["trace_count"], error = _jsonl_summary(path, relative_path)
     except (OSError, UnicodeDecodeError) as exc:
         node["error"] = True
         node["error_message"] = f"cannot read file: {exc}"
         return node
-
-    if path.suffix == ".json":
-        node["trace_count"] = 1
-        error = _json_array_error(text, relative_path)
-    else:
-        lines = _jsonl_lines(text)
-        node["trace_count"] = len(lines)
-        if not lines:
-            error = "contains no traces"
-        else:
-            error = next(
-                (
-                    f"line {line_number}: {line_error}"
-                    for line_number, line in enumerate(lines, start=1)
-                    if (line_error := _json_array_error(line, relative_path)) is not None
-                ),
-                None,
-            )
     if error is not None:
         node["error"] = True
         node["error_message"] = error
     return node
+
+
+def _jsonl_summary(path: Path, relative_path: str) -> tuple[int, str | None]:
+    """Count a JSONL file's traces while streaming it, and validate only the first."""
+    count = 0
+    error: str | None = None
+    with path.open(encoding="utf-8") as stream:
+        for line in jsonl_lines(stream):
+            count += 1
+            if count == 1 and (first_error := _trace_error(line, relative_path)) is not None:
+                error = f"line 1: {first_error}"
+    return count, error if count else "contains no traces"
 
 
 def _sort_tree(node: TreeNode) -> None:
@@ -292,13 +325,9 @@ def _sort_tree(node: TreeNode) -> None:
             _sort_tree(child)
 
 
-def _is_json_array(text: str) -> bool:
-    return _json_array_error(text, "") is None
-
-
-def _json_array_error(text: str, relative_path: str) -> str | None:
+def _trace_error(text: str, relative_path: str) -> str | None:
     try:
-        _ensure_json_array(text, relative_path)
-    except TraceLookupError as exc:
+        load_trajectory(text, name=relative_path)
+    except TraceLoadError as exc:
         return str(exc)
     return None

@@ -20,7 +20,10 @@ classifiers = [
     "Topic :: Software Development :: Debuggers",
 ]
 dependencies = [
+    "pydantic>=2.12",
+    "pydantic-ai-slim>=2.26",
     "starlette>=0.40",
+    "uuid-utils>=0.9",
     "uvicorn>=0.30",
     "watchfiles>=0.24",
 ]

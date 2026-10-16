@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 
-import { render, waitFor } from "@testing-library/preact";
+import { act, fireEvent, render, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
-  embeddedTrace: () => null,
-  embeddedTraceCollection: () => null,
+  embeddedPayload: () => null,
   fetchMeta: vi.fn(() => Promise.resolve({ mode: "dir", root: "traces" })),
   fetchTree: vi.fn(() =>
     Promise.resolve({
@@ -20,9 +19,43 @@ vi.mock("./api", () => ({
 }));
 
 import { App } from "./app";
-import { fetchTrace } from "./api";
+import { fetchTrace, fetchTree, subscribeChanges } from "./api";
+import { payloadFromMessages } from "./testing/payload";
+import type { TracePayload, TreeNode } from "./types";
 
 const mockedFetchTrace = vi.mocked(fetchTrace);
+
+function textPayload(content: string): TracePayload {
+  return payloadFromMessages([{ kind: "response", parts: [{ part_kind: "text", content }] }]);
+}
+
+function treeWith(fileName: string): TreeNode {
+  return {
+    name: "traces",
+    path: ".",
+    type: "dir",
+    children: [
+      { name: "run.json", path: "run.json", type: "file", format: "json" },
+      { name: fileName, path: fileName, type: "file", format: "json" },
+    ],
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
+/** Captures the change listener the app subscribes. */
+function captureChanges(): (paths: string[]) => void {
+  let listener: ((paths: string[]) => void) | undefined;
+  vi.mocked(subscribeChanges).mockImplementationOnce((onChange) => {
+    listener = onChange;
+    return () => undefined;
+  });
+  return (paths) => listener!(paths);
+}
 
 beforeEach(() => {
   location.hash = "#/run.json";
@@ -34,11 +67,53 @@ afterEach(() => {
 });
 
 describe("App in server mode", () => {
-  it("explains that a successfully loaded empty trace has no messages", async () => {
-    mockedFetchTrace.mockResolvedValue({ source: "[]", transcript: "empty trace" });
-    const { getByText } = render(<App />);
+  it("renders the selected trace's payload", async () => {
+    mockedFetchTrace.mockResolvedValue(
+      payloadFromMessages([{ kind: "response", parts: [{ part_kind: "text", content: "hi" }] }]),
+    );
+    const { getAllByText } = render(<App />);
 
-    await waitFor(() => expect(getByText("This trace contains no messages.")).toBeTruthy());
+    await waitFor(() => expect(getAllByText("hi").length).toBeGreaterThan(0));
+  });
+
+  it("keeps the previous trace on screen while the next one loads", async () => {
+    const first = payloadFromMessages([
+      { kind: "response", parts: [{ part_kind: "text", content: "first" }] },
+    ]);
+    mockedFetchTrace.mockImplementation((selection) =>
+      selection.path === "run.json" ? Promise.resolve(first) : new Promise(() => undefined),
+    );
+    const { container, getAllByText, queryByText } = render(<App />);
+    await waitFor(() => expect(getAllByText("first").length).toBeGreaterThan(0));
+    const header = container.querySelector(".trace-header")!.innerHTML;
+
+    location.hash = "#/other.json";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() =>
+      expect(mockedFetchTrace).toHaveBeenCalledWith({ path: "other.json", line: undefined }),
+    );
+
+    expect(queryByText("Loading trace…")).toBeNull();
+    getAllByText("first");
+    expect(container.querySelector(".trace-header")!.innerHTML).toBe(header);
+  });
+
+  it("fetches a trace once per click in the tree", async () => {
+    vi.mocked(fetchTree).mockResolvedValueOnce(treeWith("other.json"));
+    mockedFetchTrace.mockResolvedValue(textPayload("hi"));
+    const { getByText } = render(<App />);
+    await waitFor(() => getByText("other.json"));
+
+    const hashChanged = new Promise((resolve) =>
+      window.addEventListener("hashchange", resolve, { once: true }),
+    );
+    fireEvent.click(getByText("other.json"));
+    await act(async () => {
+      await hashChanged;
+    });
+
+    const otherFetches = mockedFetchTrace.mock.calls.filter(([s]) => s.path === "other.json");
+    expect(otherFetches).toHaveLength(1);
   });
 
   it("shows loading while the selected trace is pending", async () => {
@@ -53,5 +128,41 @@ describe("App in server mode", () => {
     const { getByText } = render(<App />);
 
     await waitFor(() => expect(getByText("Error: run.json was removed")).toBeTruthy());
+  });
+
+  it("keeps the newest reload when an older one resolves last", async () => {
+    const change = captureChanges();
+    mockedFetchTrace.mockResolvedValueOnce(textPayload("initial"));
+    const { getAllByText, queryByText } = render(<App />);
+    await waitFor(() => expect(getAllByText("initial").length).toBeGreaterThan(0));
+
+    const older = deferred<TracePayload>();
+    const newer = deferred<TracePayload>();
+    mockedFetchTrace.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+    change(["run.json"]);
+    change(["run.json"]);
+    await act(async () => newer.resolve(textPayload("second save")));
+    await act(async () => older.resolve(textPayload("first save")));
+
+    expect(getAllByText("second save").length).toBeGreaterThan(0);
+    expect(queryByText("first save")).toBeNull();
+  });
+
+  it("keeps the newest tree when an older refresh resolves last", async () => {
+    const change = captureChanges();
+    mockedFetchTrace.mockResolvedValue(textPayload("hi"));
+    const { getAllByText, getByText, queryByText } = render(<App />);
+    await waitFor(() => expect(getAllByText("hi").length).toBeGreaterThan(0));
+
+    const older = deferred<TreeNode>();
+    const newer = deferred<TreeNode>();
+    vi.mocked(fetchTree).mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+    change(["other.json"]);
+    change(["other.json"]);
+    await act(async () => newer.resolve(treeWith("new.json")));
+    await act(async () => older.resolve(treeWith("old.json")));
+
+    expect(getByText("new.json")).toBeTruthy();
+    expect(queryByText("old.json")).toBeNull();
   });
 });

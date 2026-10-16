@@ -4,10 +4,23 @@
       {
         "content": [
           "Describe this image and the attached document.",
-          {"text": "Keep the description concise.", "kind": "text"},
-          {"url": "https://example.com/cat.png", "kind": "image-url"},
-          {"data": "aGVsbG8gd29ybGQ=", "media_type": "text/plain", "kind": "binary"},
-          {"url": "https://example.com/report.pdf", "kind": "document-url"}
+          {
+            "content": "Keep the description concise.",
+            "kind": "text-content"
+          },
+          {
+            "url": "https://example.com/cat.png",
+            "kind": "image-url"
+          },
+          {
+            "data": "aGVsbG8gd29ybGQ=",
+            "media_type": "text/plain",
+            "kind": "binary"
+          },
+          {
+            "url": "https://example.com/report.pdf",
+            "kind": "document-url"
+          }
         ],
         "timestamp": "2026-07-02T08:00:00Z",
         "part_kind": "user-prompt"
@@ -19,14 +32,23 @@
     "parts": [
       {
         "tool_name": "web_search",
-        "args": {"query": "cat picture description"},
+        "args": {
+          "query": "cat picture description"
+        },
         "tool_call_id": "builtin_1",
         "provider_name": "anthropic",
         "part_kind": "builtin-tool-call"
       },
       {
         "tool_name": "web_search",
-        "content": {"results": [{"title": "Cats", "url": "https://example.com"}]},
+        "content": {
+          "results": [
+            {
+              "title": "Cats",
+              "url": "https://example.com"
+            }
+          ]
+        },
         "tool_call_id": "builtin_1",
         "timestamp": "2026-07-02T08:00:03Z",
         "provider_name": "anthropic",
@@ -37,12 +59,19 @@
         "part_kind": "text"
       },
       {
-        "content": {"data": "iVBORw0KGgoAAAANSUhEUg==", "media_type": "image/png", "kind": "binary"},
+        "content": {
+          "data": "iVBORw0KGgoAAAANSUhEUg==",
+          "media_type": "image/png",
+          "kind": "binary"
+        },
         "id": "file_1",
         "part_kind": "file"
       }
     ],
-    "usage": {"input_tokens": 900, "output_tokens": 120},
+    "usage": {
+      "input_tokens": 900,
+      "output_tokens": 120
+    },
     "model_name": "claude-fable-5",
     "timestamp": "2026-07-02T08:00:05Z",
     "kind": "response",
@@ -54,7 +83,15 @@
       {
         "tool_name": "validate_input",
         "content": [
-          {"type": "missing", "loc": ["body", "name"], "msg": "Field required", "input": {}}
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "name"
+            ],
+            "msg": "Field required",
+            "input": {}
+          }
         ],
         "tool_call_id": "call_retry",
         "timestamp": "2026-07-02T08:00:06Z",

@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from traces import minimal_trace
 
 from pydantic_ai_trace import cli, scan
 
@@ -35,6 +36,18 @@ class TestServeCommand:
         cli.main([str(fixtures_copy), "--port", "9999", "--host", "0.0.0.0", "--no-open"])
         assert serve_captures_app["port"] == 9999
         assert serve_captures_app["host"] == "0.0.0.0"
+
+    @pytest.mark.parametrize(("host", "warned"), [("0.0.0.0", True), ("127.0.0.1", False)])
+    def test_warns_when_serving_beyond_loopback(
+        self,
+        fixtures_copy: Path,
+        serve_captures_app: dict,
+        capsys: pytest.CaptureFixture,
+        host: str,
+        warned: bool,
+    ):
+        cli.main([str(fixtures_copy), "--host", host, "--no-open"])
+        assert ("without authentication" in capsys.readouterr().err) is warned
 
     def test_missing_path_fails_with_message(self, capsys: pytest.CaptureFixture):
         assert cli.main(["/definitely/not/here"]) == 1
@@ -115,6 +128,24 @@ class TestServeCommand:
         assert "got directory" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("command", ["export", "text", "json"])
+@pytest.mark.parametrize("alias", ["dotdot", "symlink"])
+def test_output_naming_the_input_file_is_refused(
+    command: str, alias: str, fixtures_copy: Path, capsys: pytest.CaptureFixture
+):
+    source = fixtures_copy / "full_trace.json"
+    original = source.read_text(encoding="utf-8")
+    if alias == "dotdot":
+        output = fixtures_copy / "runs" / ".." / "full_trace.json"
+    else:
+        output = fixtures_copy / "link.json"
+        output.symlink_to(source)
+
+    assert cli.main([command, str(source), "-o", str(output)]) == 1
+    assert "--output must differ from the input" in capsys.readouterr().err
+    assert source.read_text(encoding="utf-8") == original
+
+
 class TestExportCommand:
     @pytest.fixture(autouse=True)
     def _stub_bundle(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -131,22 +162,21 @@ class TestExportCommand:
         code = cli.main(["export", str(fixtures_copy / "full_trace.json"), "-o", str(output)])
         assert code == 0
         document = output.read_text(encoding="utf-8")
-        assert "__TRACE_DATA__" in document
-        assert document.index("__TRACE_DATA__") < document.index("bundle();")
+        assert "__TRACE_PAYLOAD__" in document
+        assert document.index("__TRACE_PAYLOAD__") < document.index("bundle();")
 
     def test_default_output_is_input_with_html_suffix(self, fixtures_copy: Path):
         cli.main(["export", str(fixtures_copy / "full_trace.json")])
         assert (fixtures_copy / "full_trace.html").exists()
 
-    def test_exports_a_trace_the_embedding_api_would_reject(self, tmp_path: Path):
-        # `TraceView` rejects non-standard JSON constants; export stays as
-        # permissive as `scan` and renders whatever it loaded.
+    def test_invalid_trace_is_not_exported(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         source = tmp_path / "nan.json"
         source.write_text('[{"cost": NaN}]')
         output = tmp_path / "nan.html"
 
-        assert cli.main(["export", str(source), "-o", str(output)]) == 0
-        assert "__TRACE_DATA__" in output.read_text(encoding="utf-8")
+        assert cli.main(["export", str(source), "-o", str(output)]) == 1
+        assert "non-standard JSON constant" in capsys.readouterr().err
+        assert not output.exists()
 
     def test_missing_input_fails(self, capsys: pytest.CaptureFixture):
         assert cli.main(["export", "/nope.json"]) == 1
@@ -170,13 +200,12 @@ class TestExportCommand:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        monkeypatch.setattr(sys, "stdin", io.StringIO("[]"))
+        monkeypatch.setattr(sys, "stdin", io.StringIO(minimal_trace()))
         output = tmp_path / "stdin.html"
 
         assert cli.main(["export", "-o", str(output)]) == 0
         document = output.read_text(encoding="utf-8")
-        assert 'window.__TRACE_DATA__ = "[]"' in document
-        assert 'window.__TRACE_NAME__ = "stdin"' in document
+        assert 'window.__TRACE_PAYLOAD__ = "{\\"name\\":\\"stdin\\"' in document
 
     def test_exporting_stdin_requires_output(self, capsys: pytest.CaptureFixture):
         assert cli.main(["export"]) == 1
@@ -257,7 +286,7 @@ class TestJsonCommand:
         captured = capsys.readouterr()
         document = json.loads(captured.out)
         assert document["name"] == "full_trace.json"
-        assert [message["type"] for message in document["messages"]] == [
+        assert [message["type"] for message in document["runs"][0]["messages"]] == [
             "request",
             "response",
             "request",
@@ -279,17 +308,17 @@ class TestJsonCommand:
         assert cli.main(["json", "--line", "2"]) == 0
         document = json.loads(capsys.readouterr().out)
         assert document["name"] == "stdin"
-        assert document["messages"][0]["parts"][0]["content"] == "hello from line two"
+        assert document["runs"][0]["messages"][0]["parts"][0]["content"] == "hello from line two"
 
     def test_explicit_dash_reads_stdin(
         self,
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        monkeypatch.setattr(sys, "stdin", io.StringIO("[]"))
+        monkeypatch.setattr(sys, "stdin", io.StringIO(minimal_trace()))
 
         assert cli.main(["json", "-"]) == 0
-        assert json.loads(capsys.readouterr().out)["messages"] == []
+        assert json.loads(capsys.readouterr().out)["name"] == "stdin"
 
     def test_omitted_input_on_a_terminal_prints_usage(
         self,
@@ -332,16 +361,38 @@ class TestJsonCommand:
             "multi.jsonl · trace 1",
             "multi.jsonl · trace 2",
         ]
-        assert documents[0]["messages"][0]["parts"][0]["content"] == "hello from line one"
-        assert documents[1]["messages"][0]["parts"][0]["content"] == "hello from line two"
+        assert (
+            documents[0]["runs"][0]["messages"][0]["parts"][0]["content"] == "hello from line one"
+        )
+        assert (
+            documents[1]["runs"][0]["messages"][0]["parts"][0]["content"] == "hello from line two"
+        )
         assert captured.err == ""
+
+    def test_all_renders_trajectory_lines_alongside_message_lists(
+        self,
+        fixtures_copy: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        trajectory = json.dumps(json.loads((fixtures_copy / "trajectory.json").read_text()))
+        source = tmp_path / "mixed.jsonl"
+        source.write_text(f"{trajectory}\n{minimal_trace()}\n", encoding="utf-8")
+
+        assert cli.main(["json", str(source), "--all"]) == 0
+
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [[run["name"] for run in document["runs"]] for document in documents] == [
+            ["planner", "subagent", "worker", "summarizer"],
+            ["mixed.jsonl · trace 2"],
+        ]
 
     def test_all_streams_jsonl_from_stdin(
         self,
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        monkeypatch.setattr(sys, "stdin", io.StringIO("[]\n[]\n"))
+        monkeypatch.setattr(sys, "stdin", io.StringIO(f"{minimal_trace()}\n{minimal_trace()}\n"))
 
         assert cli.main(["json", "--all"]) == 0
         documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
@@ -410,12 +461,12 @@ class TestJsonCommand:
         capsys: pytest.CaptureFixture,
     ):
         source = tmp_path / "broken.jsonl"
-        source.write_text("[]\n{}\n", encoding="utf-8")
+        source.write_text(f"{minimal_trace()}\n{{}}\n", encoding="utf-8")
         output = tmp_path / "compact.jsonl"
         output.write_text("existing output\n", encoding="utf-8")
 
         assert cli.main(["json", str(source), "--all", "-o", str(output)]) == 1
-        assert "line 2" in capsys.readouterr().err
+        assert "broken.jsonl · trace 2: runs: Field required" in capsys.readouterr().err
         assert output.read_text(encoding="utf-8") == "existing output\n"
 
     def test_pretty_indents_single_trace_output(
@@ -455,8 +506,8 @@ class TestJsonCommand:
         second = tmp_path / "b" / "run.json"
         first.parent.mkdir()
         second.parent.mkdir()
-        first.write_text("[]", encoding="utf-8")
-        second.write_text("[]", encoding="utf-8")
+        first.write_text(minimal_trace(), encoding="utf-8")
+        second.write_text(minimal_trace(), encoding="utf-8")
 
         assert cli.main(["json", str(first), str(second)]) == 0
 
@@ -516,3 +567,158 @@ class TestJsonCommand:
 
         assert cli.main(["json", str(path), str(path)]) == 1
         assert "duplicate trace file" in capsys.readouterr().err
+
+
+class TestStatsCommand:
+    def test_summarizes_every_trace_under_a_directory_and_reports_invalid_ones(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        assert cli.main(["stats", str(fixtures_copy)]) == 1
+
+        lines = capsys.readouterr().out.splitlines()
+        assert lines[0].split() == ["trace", "runs", "calls", "in", "cached", "out", "cost", "wall"]
+        rows = {line.split()[0]: line.split() for line in lines[1:] if line and line[0] != " "}
+        assert rows["trajectory.json"][1:3] == ["4", "5"]
+        assert rows["full_trace.json"][-2:] == ["$0.0028", "6.0s"]
+        assert "runs/multi.jsonl" in rows  # each JSONL line is its own row
+        assert rows["total"][1] == "12"
+        assert "  broken.json: not valid JSON" in "\n".join(lines)
+
+    def test_json_prints_one_object_per_trace(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        source = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main(["stats", str(source), "--json"]) == 0
+
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [document["name"] for document in documents] == [
+            f"{source.as_posix()} · trace 1",
+            f"{source.as_posix()} · trace 2",
+        ]
+        assert [run["name"] for run in documents[0]["runs"]] == [f"{source.as_posix()} · trace 1"]
+        assert documents[0]["stats"]["llm_calls"] == 1
+
+    def test_lists_each_run_of_a_trajectory_with_its_own_stats(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        source = fixtures_copy / "trajectory.json"
+
+        assert cli.main(["stats", str(source)]) == 0
+        table = capsys.readouterr().out.splitlines()
+        assert cli.main(["stats", str(source), "--json"]) == 0
+        [document] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+
+        assert [line.split()[0:2] for line in table[2:6]] == [
+            ["planner", "1"],
+            ["worker", "2"],
+            ["subagent", "1"],
+            ["summarizer", "1"],
+        ]
+        assert table[4].startswith("    subagent")  # indented under its parent
+        runs = {run["name"]: run for run in document["runs"]}
+        assert list(runs) == ["planner", "worker", "subagent", "summarizer"]
+        assert runs["subagent"]["parent"] == "worker"
+        # A run's stats exclude its subagents, so per-run costs add up to the trace's.
+        assert runs["worker"]["stats"]["llm_calls"] == 2
+        assert sum(run["stats"]["cost_usd"] for run in runs.values()) == pytest.approx(
+            document["stats"]["cost_usd"]
+        )
+
+    def test_json_reports_an_invalid_trace_as_an_error_object(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        source = tmp_path / "bad.json"
+        source.write_text("[]")
+
+        assert cli.main(["stats", str(source), "--json"]) == 1
+
+        assert json.loads(capsys.readouterr().out) == {
+            "name": source.as_posix(),
+            "error": f"run {source.as_posix()!r} has no messages",
+        }
+
+    def test_reads_stdin(self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(sys, "stdin", io.StringIO(minimal_trace()))
+
+        assert cli.main(["stats"]) == 0
+
+        assert capsys.readouterr().out.splitlines()[1].startswith("stdin ")
+
+    def test_names_traces_by_directory_when_given_several_paths(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        assert (
+            cli.main(
+                [
+                    "stats",
+                    str(fixtures_copy / "runs"),
+                    str(fixtures_copy / "full_trace.json"),
+                    "--json",
+                ]
+            )
+            == 0
+        )
+
+        names = [json.loads(line)["name"] for line in capsys.readouterr().out.splitlines()]
+        assert names[0] == "runs/media_and_builtins.json"
+        assert names[-1] == (fixtures_copy / "full_trace.json").as_posix()
+
+    @pytest.mark.parametrize("target", ["file", "directory", "stdin"])
+    def test_an_empty_jsonl_source_is_reported_as_invalid(
+        self,
+        target: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        source = tmp_path / "empty.jsonl"
+        source.write_text("\n")
+        arguments = {"file": [str(source)], "directory": [str(tmp_path)], "stdin": []}[target]
+        monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+
+        assert cli.main(["stats", *arguments, "--json"]) == 1
+
+        [document] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert document["error"] == "contains no traces"
+        assert (
+            document["name"]
+            == {
+                "file": source.as_posix(),
+                "directory": "empty.jsonl",
+                "stdin": "stdin",
+            }[target]
+        )
+
+    @pytest.mark.parametrize("as_json", [True, False])
+    def test_an_unreadable_file_is_reported_without_losing_other_rows(
+        self, fixtures_copy: Path, tmp_path: Path, capsys: pytest.CaptureFixture, as_json: bool
+    ):
+        root = tmp_path / "traces"
+        root.mkdir()
+        (root / "good.json").write_text((fixtures_copy / "full_trace.json").read_text())
+        (root / "bad.json").write_bytes(b"\xff")
+
+        assert cli.main(["stats", str(root), *(["--json"] if as_json else [])]) == 1
+
+        out = capsys.readouterr().out
+        if as_json:
+            documents = {json.loads(line)["name"]: json.loads(line) for line in out.splitlines()}
+            assert documents["good.json"]["stats"]["llm_calls"] == 3
+            assert documents["bad.json"]["error"].startswith("cannot read file: ")
+        else:
+            assert out.splitlines()[1].startswith("good.json")
+            assert "  bad.json: cannot read file: " in out
+
+    def test_json_escapes_a_lone_surrogate_in_a_run_name(
+        self, fixtures_copy: Path, tmp_path: Path, capfdbinary: pytest.CaptureFixture
+    ):
+        trajectory = json.loads((fixtures_copy / "trajectory.json").read_text())
+        trajectory["runs"][0]["name"] = "\ud800"
+        source = tmp_path / "surrogate.json"
+        source.write_text(json.dumps(trajectory))  # ASCII, so the file itself is valid UTF-8
+
+        assert cli.main(["stats", str(source), "--json"]) == 0
+
+        [line] = capfdbinary.readouterr().out.decode("utf-8").splitlines()
+        assert json.loads(line)["runs"][0]["name"] == "\ud800"

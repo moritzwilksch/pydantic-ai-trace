@@ -1,7 +1,7 @@
 ========== TRACE ==========
 
 NAME: text_edge_cases.json
-LLM CALLS: 1 | TOKENS: 12 in (8 cached) → 3 out
+LLM CALLS: 1 | TOKENS: 12 in (8 cached) → 3 out | WALL TIME: 0.0s
 
 ========== REQUEST 1 [INTERRUPTED] ==========
 
@@ -15,8 +15,6 @@ café
 
 --- literal rule ---
 
-{"kind":"future-content","value":1,"1":"first","10":"tenth","2":"second"}
-
 [cache point]
 
 ========== RESPONSE 1 [INTERRUPTED] · edge-model · 12 in (8 cached) → 3 out ==========
@@ -26,14 +24,12 @@ café
 ARGUMENTS:
 not json {
 
---- TOOL RETURN: numbers [FAILED] ---
-
-{"1":"first","10":"tenth","2":"second","whole":1,"small":0.000001,"tiny":1e-7,"unicode":"café"}
-
 --- COMPACTION ---
 
 [History compacted by the provider; no readable summary.]
 
---- UNKNOWN PART: future-part ---
+========== REQUEST 2 ==========
 
-{"part_kind":"future-part","payload":{"value":1}}
+--- TOOL RETURN: numbers [FAILED] ---
+
+{"1":"first","10":"tenth","2":"second","whole":1,"small":0.000001,"tiny":1e-7,"unicode":"café"}

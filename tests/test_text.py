@@ -2,10 +2,26 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic_ai.messages import ModelMessagesTypeAdapter
 
-from pydantic_ai_trace.text import format_trace_as_text
+from pydantic_ai_trace.load import load_trajectory
+from pydantic_ai_trace.payload import build_payload
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def transcript(trace_json: str, name: str) -> str:
+    return build_payload(load_trajectory(trace_json, name=name), name=name).transcript
+
+
+def messages_json(messages: list[dict]) -> str:
+    """Validate hand-written messages so tests use only shapes Pydantic AI accepts."""
+    validated = ModelMessagesTypeAdapter.validate_python(messages)
+    return ModelMessagesTypeAdapter.dump_json(validated).decode()
+
+
+def request(*parts: dict, **fields: object) -> dict:
+    return {"kind": "request", "timestamp": "2026-01-01T09:00:00Z", "parts": list(parts), **fields}
 
 
 @pytest.mark.parametrize(
@@ -21,14 +37,12 @@ FIXTURES = Path(__file__).parent / "fixtures"
     ],
 )
 def test_formatter_matches_shared_golden(trace_path: Path, expected_path: Path):
-    trace = json.loads(trace_path.read_text(encoding="utf-8"))
-    assert format_trace_as_text(trace, trace_path.name) == expected_path.read_text(encoding="utf-8")
+    text = transcript(trace_path.read_text(encoding="utf-8"), trace_path.name)
+    assert text == expected_path.read_text(encoding="utf-8")
 
 
 def test_prompt_parts_keep_their_embedded_newlines_verbatim():
-    trace = json.loads((FIXTURES / "newlines.json").read_text(encoding="utf-8"))
-
-    text = format_trace_as_text(trace, "newlines.json")
+    text = transcript((FIXTURES / "newlines.json").read_text(encoding="utf-8"), "newlines.json")
 
     assert "First line.\nSecond line.\n\nA second paragraph." in text
     assert '```python\nprint("code one")\nprint("code two")\n```' in text
@@ -37,126 +51,97 @@ def test_prompt_parts_keep_their_embedded_newlines_verbatim():
     assert "tool output line one\ntool output line two\n\nthird" in text
 
 
-def test_non_array_input_formats_as_an_empty_trace():
-    assert format_trace_as_text({"kind": "request"}, "broken.json") == (
-        "========== TRACE ==========\n\nNAME: broken.json\nLLM CALLS: 0 | TOKENS: 0 in → 0 out\n"
+def test_repeated_instructions_are_only_printed_when_they_change():
+    trace = messages_json(
+        [
+            request(instructions="First."),
+            request(instructions="First."),
+            request(instructions=None),
+            request(instructions="Second."),
+            request(instructions="Second."),
+            request(instructions="First."),
+        ]
     )
 
-
-def test_repeated_instructions_are_only_printed_when_they_change():
-    trace = [
-        {"kind": "request", "instructions": "First.", "parts": []},
-        {"kind": "request", "instructions": "First.", "parts": []},
-        {"kind": "request", "instructions": None, "parts": []},
-        {"kind": "request", "instructions": "Second.", "parts": []},
-        {"kind": "request", "instructions": "Second.", "parts": []},
-        {"kind": "request", "instructions": "First.", "parts": []},
-    ]
-
-    text = format_trace_as_text(trace, "instructions.json")
+    text = transcript(trace, "instructions.json")
 
     assert text.count("--- INSTRUCTIONS ---") == 3
     assert text.count("First.") == 2
     assert text.count("Second.") == 1
 
 
-def test_unknown_message_and_part_use_raw_json_fallbacks():
-    trace = [
-        {"kind": "telepathy", "parts": [], "payload": "message"},
-        {"kind": "response", "parts": [{"future": True}]},
-    ]
-    text = format_trace_as_text(trace, "future.json")
-    assert (
-        "========== UNKNOWN MESSAGE ==========\n\n"
-        '{"kind":"telepathy","parts":[],"payload":"message"}' in text
-    )
-    assert '--- UNKNOWN PART: unknown ---\n\n{"part_kind":"unknown","raw":{"future":true}}' in text
-
-
-def test_integer_larger_than_javascript_number_range_matches_json_stringify():
-    trace = [{"kind": "response", "parts": [{"part_kind": "future", "value": 10**400}]}]
-
-    text = format_trace_as_text(trace, "huge.json")
-
-    assert '--- UNKNOWN PART: future ---\n\n{"part_kind":"future","value":null}' in text
-
-
-def test_json_keys_keep_source_order_in_text_output():
-    trace = [
-        {
-            "kind": "response",
-            "parts": [
-                {
-                    "part_kind": "future",
-                    "value": json.loads('{"10":"ten","2":"two","name":"value"}'),
-                }
-            ],
-        }
-    ]
-
-    text = format_trace_as_text(trace, "ordered.json")
-
-    assert '"value":{"10":"ten","2":"two","name":"value"}' in text
-
-
-def test_tool_availability_delta_without_names_keeps_the_raw_part():
-    trace = [{"kind": "request", "parts": [{"part_kind": "tool-availability-delta"}]}]
-
-    text = format_trace_as_text(trace, "delta.json")
-
-    assert '--- TOOL AVAILABILITY ---\n\n{"part_kind":"tool-availability-delta"}' in text
-
-
-def test_tool_availability_delta_accepts_the_legacy_added_alias():
-    trace = [
-        {
-            "kind": "request",
-            "parts": [{"part_kind": "tool-availability-delta", "added": ["a", "b"]}],
-        }
-    ]
-
-    assert "--- TOOL AVAILABILITY ---\n\n+a\n+b" in format_trace_as_text(trace, "delta.json")
-
-
 def test_a_user_tool_sharing_a_framework_tool_name_is_not_reinterpreted():
     """pydantic-ai discriminates on `tool_kind`, never on `tool_name`; so does the formatter."""
-    trace = [
-        {
-            "kind": "response",
-            "parts": [
-                {
-                    "part_kind": "tool-call",
-                    "tool_name": "search_tools",
-                    "args": '{"queries": "not the framework shape"}',
-                    "tool_call_id": "c1",
-                }
-            ],
-        }
-    ]
+    trace = messages_json(
+        [
+            {
+                "kind": "response",
+                "timestamp": "2026-01-01T09:00:00Z",
+                "parts": [
+                    {
+                        "part_kind": "tool-call",
+                        "tool_name": "search_tools",
+                        "args": '{"queries": "not the framework shape"}',
+                        "tool_call_id": "c1",
+                    }
+                ],
+            }
+        ]
+    )
 
-    text = format_trace_as_text(trace, "lookalike.json")
+    text = transcript(trace, "lookalike.json")
 
     assert "QUERIES:" not in text
     assert 'ARGUMENTS:\n{"queries":"not the framework shape"}' in text
 
 
-def test_malformed_tool_search_payloads_fall_back_to_raw_rendering():
-    trace = [
-        {
-            "kind": "request",
-            "parts": [
-                {
-                    "part_kind": "tool-return",
-                    "tool_name": "search_tools",
-                    "tool_kind": "tool-search",
-                    "tool_call_id": "c1",
-                    "content": {"discovered_tools": "not a list"},
-                }
-            ],
-        }
+def test_a_trajectory_renders_each_run_in_tree_order():
+    text = transcript((FIXTURES / "trajectory.json").read_text(encoding="utf-8"), "workflow")
+
+    headings = [line for line in text.splitlines() if line.startswith("========== RUN:")]
+    assert headings == [
+        "========== RUN: planner ==========",
+        "========== RUN: worker ==========",
+        "========== RUN: subagent ==========",
+        "========== RUN: summarizer ==========",
     ]
+    assert "PARENT: worker via tool call call_1" in text
+    assert "OUTCOME: completed" in text
 
-    text = format_trace_as_text(trace, "malformed.json")
 
-    assert "DISCOVERED TOOLS:" not in text
-    assert '{"discovered_tools":"not a list"}' in text
+def test_a_message_list_has_no_run_headings():
+    text = transcript((FIXTURES / "full_trace.json").read_text(encoding="utf-8"), "t")
+
+    assert "RUN:" not in text
+
+
+@pytest.mark.parametrize(
+    ("fields", "expected"),
+    [
+        (
+            {"outcome": {"status": "failed", "error_type": "TimeoutError", "detail": "slow"}},
+            "OUTCOME: failed · TimeoutError: slow",
+        ),
+        ({"outcome": {"status": "cancelled"}}, "OUTCOME: cancelled"),
+        (
+            {"parent": {"run_id": "later", "tool_call_id": "call_1"}},
+            "PARENT: later (not recorded) via tool call call_1",
+        ),
+    ],
+)
+def test_a_single_run_keeps_its_outcome_and_parent(fields: dict, expected: str):
+    run = {
+        "id": "only",
+        "name": "only",
+        "parent": None,
+        "started_at": "2026-01-01T09:00:00Z",
+        "ended_at": "2026-01-01T09:00:01Z",
+        "outcome": {"status": "completed"},
+        "messages": json.loads(messages_json([request()])),
+        **fields,
+    }
+
+    text = transcript(json.dumps({"runs": [run]}), "t")
+
+    assert "RUN:" not in text
+    assert expected in text.split("========== REQUEST 1")[0]

@@ -1,60 +1,23 @@
 // Data access: REST endpoints, SSE change feed, and the exported-HTML
-// fallback where the trace is embedded as window.__TRACE_DATA__.
+// fallback where the payload is embedded as window.__TRACE_PAYLOAD__.
 
-import type {
-  EmbeddedTraceCollection,
-  Meta,
-  TracePayload,
-  TraceSelection,
-  TreeNode,
-} from "./types";
+import { parseJson } from "./json";
+import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
 declare global {
   interface Window {
-    __TRACE_DATA__?: unknown;
-    __TRACE_NAME__?: string;
-    __TRACE_TEXT__?: string;
-    __TRACE_COLLECTION__?: unknown;
+    __TRACE_PAYLOAD__?: string;
   }
 }
 
-export function embeddedTraceCollection(): EmbeddedTraceCollection | null {
-  if (window.__TRACE_COLLECTION__ === undefined) return null;
-  let value = window.__TRACE_COLLECTION__;
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      return null;
-    }
-  }
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as Partial<EmbeddedTraceCollection>;
-  if (!Array.isArray(candidate.traces) || candidate.traces.length === 0) return null;
-  if (
-    !candidate.traces.every(
-      (trace) =>
-        trace &&
-        typeof trace.name === "string" &&
-        typeof trace.source === "string" &&
-        typeof trace.transcript === "string",
-    )
-  ) {
+/** The payload `paitrace export` embedded in this document, if any. */
+export function embeddedPayload(): TracePayload | null {
+  if (window.__TRACE_PAYLOAD__ === undefined) return null;
+  try {
+    return parseJson(window.__TRACE_PAYLOAD__) as TracePayload;
+  } catch {
     return null;
   }
-  return {
-    title: typeof candidate.title === "string" ? candidate.title : "traces",
-    traces: candidate.traces,
-  };
-}
-
-export function embeddedTrace(): { name: string; data: unknown; transcript: string } | null {
-  if (window.__TRACE_DATA__ === undefined) return null;
-  return {
-    name: window.__TRACE_NAME__ ?? "trace",
-    data: window.__TRACE_DATA__,
-    transcript: window.__TRACE_TEXT__ ?? "",
-  };
 }
 
 export async function fetchMeta(): Promise<Meta> {
@@ -68,16 +31,22 @@ export async function fetchTree(): Promise<TreeNode> {
 export async function fetchTrace(selection: TraceSelection): Promise<TracePayload> {
   const params = new URLSearchParams({ path: selection.path });
   if (selection.line !== undefined) params.set("line", String(selection.line));
-  return getJson(`/api/trace?${params}`);
+  const url = `/api/trace?${params}`;
+  const response = await fetch(url);
+  if (!response.ok) await throwFetchError(url, response);
+  // Trace values keep their source key order, which JSON.parse would not.
+  return parseJson(await response.text()) as TracePayload;
 }
 
 async function getJson(url: string): Promise<any> {
   const response = await fetch(url);
-  if (!response.ok) {
-    const detail = await response.json().catch(() => null);
-    throw new Error(detail?.error ?? `${url} failed with ${response.status}`);
-  }
+  if (!response.ok) await throwFetchError(url, response);
   return response.json();
+}
+
+async function throwFetchError(url: string, response: Response): Promise<never> {
+  const detail = await response.json().catch(() => null);
+  throw new Error(detail?.error ?? `${url} failed with ${response.status}`);
 }
 
 /** Subscribe to file-change events; returns an unsubscribe function. */

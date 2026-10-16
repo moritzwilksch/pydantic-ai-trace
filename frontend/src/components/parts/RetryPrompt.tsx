@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-preact";
-import { compactJson } from "../../parse";
-import type { ErrorDetail, RetryPromptPart } from "../../types";
+import { compactJson } from "../../format";
+import type { RetryPromptPart } from "../../types";
 import { Block } from "../Block";
 import { ValueView } from "./common";
 
@@ -23,37 +23,24 @@ export function RetryPrompt({ part }: { part: RetryPromptPart }) {
 
 export function RetryContent({ content }: { content: RetryPromptPart["content"] }) {
   if (typeof content === "string") return <ValueView value={content} />;
-  if (Array.isArray(content) && content.every(isErrorDetail)) {
-    return (
-      <table class="error-table">
-        <thead>
-          <tr>
-            <th>loc</th>
-            <th>type</th>
-            <th>message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {content.map((detail, i) => (
-            <tr key={i}>
-              <td>{detail.loc.join(".")}</td>
-              <td>{detail.type}</td>
-              <td>{detail.msg}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-  return <ValueView value={content} />;
-}
-
-function isErrorDetail(value: unknown): value is ErrorDetail {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "msg" in value &&
-    "loc" in value &&
-    Array.isArray((value as ErrorDetail).loc)
+    <table class="error-table">
+      <thead>
+        <tr>
+          <th>loc</th>
+          <th>type</th>
+          <th>message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {content.map((detail, i) => (
+          <tr key={i}>
+            <td>{detail.loc.join(".")}</td>
+            <td>{detail.type}</td>
+            <td>{detail.msg}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

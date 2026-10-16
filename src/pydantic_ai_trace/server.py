@@ -16,7 +16,8 @@ from starlette.routing import Route
 
 from . import scan
 from ._html import packaged_index_html
-from .text import format_trace_json_as_text
+from .load import TraceLoadError, load_trajectory
+from .payload import TracePayload, build_payload
 
 WATCH_DEBOUNCE_MS = 200
 type ServerSource = Path | scan.TraceCollection
@@ -24,19 +25,6 @@ type ServerSource = Path | scan.TraceCollection
 
 class ServerStartError(Exception):
     pass
-
-
-class _TraceJSONResponse(JSONResponse):
-    """JSON response that safely escapes untrusted trace text."""
-
-    def render(self, content: Any) -> bytes:
-        return json.dumps(
-            content,
-            ensure_ascii=True,
-            allow_nan=False,
-            indent=None,
-            separators=(",", ":"),
-        ).encode("utf-8")
 
 
 def serve(
@@ -125,13 +113,11 @@ def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) ->
         except scan.TraceLookupError as exc:
             return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
         name = f"{relative_path} · trace {line}" if line is not None else relative_path
-        transcript = await asyncio.to_thread(format_trace_json_as_text, text, name)
-        return _TraceJSONResponse(
-            {
-                "source": text,
-                "transcript": transcript,
-            }
-        )
+        try:
+            payload = await asyncio.to_thread(_build_payload, text, name)
+        except TraceLoadError as exc:
+            return JSONResponse({"error": f"{name}: {exc}"}, status_code=400)
+        return Response(payload.to_json(), media_type="application/json")
 
     async def events(_: Request) -> Response:
         if collection is not None:
@@ -227,6 +213,10 @@ async def _collection_change_events(
             if paths:
                 payload = json.dumps({"type": "changed", "paths": paths})
                 yield f"data: {payload}\n\n"
+
+
+def _build_payload(text: str, name: str) -> TracePayload:
+    return build_payload(load_trajectory(text, name=name), name=name)
 
 
 def _load_index_html() -> str:

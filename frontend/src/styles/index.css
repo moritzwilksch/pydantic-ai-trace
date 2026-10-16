@@ -195,6 +195,10 @@ body {
   color: var(--text-dim);
 }
 
+.tree-node.tree-more {
+  color: var(--text-dim);
+}
+
 .tree-children {
   margin-left: 14px;
   border-left: 1px solid var(--border);
@@ -216,11 +220,15 @@ body {
   min-width: 0;
 }
 
+/* Fixed height, and the title absorbs width changes, so loading or switching traces
+   never moves the header or its controls. */
 .trace-header {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 18px;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0 18px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-pane);
   position: sticky;
@@ -229,6 +237,8 @@ body {
 }
 
 .trace-title {
+  flex: 1 0 160px;
+  min-width: 0;
   font-weight: 600;
   font-size: 13px;
   overflow: hidden;
@@ -236,10 +246,17 @@ body {
   white-space: nowrap;
 }
 
+/* When space runs out, whole stats drop out before the title or the controls move:
+   items that do not fit wrap onto a second line, which the fixed height hides. */
 .trace-stats {
   display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  height: 18px;
+  line-height: 18px;
+  overflow: hidden;
   gap: 12px;
-  margin-left: auto;
   font-size: 12px;
   color: var(--text-dim);
   white-space: nowrap;
@@ -374,6 +391,106 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 18px;
+}
+
+/* A trajectory's runs, nested under their file in the sidebar. */
+/* A selected run is a position within the selected file: instead of the file's
+   full highlight, it gets accent text and an accent segment on the tree's guide
+   line (`.tree-children` draws the guide 5px to the row's left). */
+.run-node {
+  position: relative;
+  overflow: visible;
+}
+
+.run-node.selected {
+  background: none;
+}
+
+.run-node.selected:hover {
+  background: var(--bg-hover);
+}
+
+.run-node.selected::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 1px;
+  background: var(--accent);
+}
+
+.run-node .run-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.run-node.failed .icon {
+  color: var(--danger);
+}
+
+.run-node.cancelled .icon {
+  color: var(--text-dim);
+}
+
+/* `file › parent › run` in the trace header. */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.breadcrumb-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+}
+
+.breadcrumb-step [aria-current] {
+  color: var(--text);
+}
+
+.breadcrumb-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.breadcrumb-link:hover {
+  color: var(--accent);
+}
+
+/* A run started by a tool call or nested in this run; opens that run. */
+.child-run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 900px;
+  margin: 6px auto 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.child-run:hover {
+  background: var(--bg-hover);
+}
+
+.child-run-stats {
+  margin-left: auto;
+  color: var(--text-dim);
 }
 
 .trace-body .empty {
@@ -601,8 +718,9 @@ summary svg,
   overflow-y: auto;
 }
 
-.block-body > .clamp {
-  max-height: none; /* the block body already scrolls */
+/* The block body already scrolls; a nested clamp would add a second scrollbar. */
+.block-body .clamp {
+  max-height: none;
 }
 
 .interrupted-message {
@@ -712,6 +830,19 @@ details.collapsible > summary {
 }
 
 /* ---- json tree ---- */
+
+.json-more {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.json-more:hover {
+  color: var(--text);
+}
 
 .json-tree {
   font-family: var(--font-mono);

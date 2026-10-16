@@ -1,138 +1,153 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import {
-  embeddedTrace,
-  embeddedTraceCollection,
-  fetchMeta,
-  fetchTrace,
-  fetchTree,
-  subscribeChanges,
-} from "./api";
-import { parseTrace } from "./parse";
+import type { ComponentChildren } from "preact";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import { embeddedPayload, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
+import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
 import { defaultSelection } from "./selection";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
+import { RunBreadcrumb } from "./components/RunBreadcrumb";
+import { RunTree } from "./components/RunTree";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceSearch } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
-import type {
-  EmbeddedTraceCollection,
-  Meta,
-  TracePayload,
-  TraceSelection,
-  TreeNode,
-} from "./types";
+import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
+/** A loaded trace, with the selection it was loaded for. */
+interface ShownTrace {
+  status: "ready";
+  selection: TraceSelection;
+  data: TracePayload;
+}
+
+/** While the next trace loads, the previous one stays on screen, so nothing jumps. */
 type TraceState =
   | { status: "unselected" }
-  | { status: "loading" }
-  | { status: "ready"; data: TracePayload }
+  | { status: "loading"; previous: ShownTrace | null }
+  | ShownTrace
   | { status: "error"; message: string };
 
 export function App() {
-  const collection = useMemo(embeddedTraceCollection, []);
-  const embedded = useMemo(embeddedTrace, []);
+  const embedded = useMemo(embeddedPayload, []);
   const { helpOpen, closeHelp } = useKeyboardNav();
   return (
     <>
-      {collection ? (
-        <ExportedCollectionApp collection={collection} />
-      ) : embedded ? (
-        <ExportedTraceApp
-          name={embedded.name}
-          data={embedded.data}
-          transcript={embedded.transcript}
-        />
-      ) : (
-        <ServerApp />
-      )}
+      {embedded ? <ExportedApp payload={embedded} /> : <ServerApp />}
       {helpOpen ? <KeyboardHelp onClose={closeHelp} /> : null}
     </>
   );
 }
 
-/** Exported single-file HTML: no server, trace injected as __TRACE_DATA__. */
-function ExportedTraceApp({
-  name,
-  data,
-  transcript,
-}: {
-  name: string;
-  data: unknown;
-  transcript: string;
-}) {
+/** Exported HTML: one embedded payload, with a runs sidebar for a trajectory. */
+function ExportedApp({ payload }: { payload: TracePayload }) {
+  const runs = useRuns(payload, payload.name);
   return (
     <div class="layout">
-      <ExportedTracePane name={name} data={data} transcript={transcript} />
+      {runs?.multiRun ? (
+        <nav class="tree-pane">
+          <div class="tree-header" title={payload.name}>
+            {payload.name}
+          </div>
+          <div class="tree-body">
+            <div class="tree-children">
+              <RunTreeFor runs={runs} />
+            </div>
+          </div>
+        </nav>
+      ) : null}
+      <TracePane title={payload.name} payload={payload} runs={runs} />
     </div>
   );
 }
 
-function ExportedCollectionApp({ collection }: { collection: EmbeddedTraceCollection }) {
-  const [selection, setSelection] = useState<TraceSelection>({
-    path: collection.traces[0].name,
-  });
-  // Trace names are the identity here: Python guarantees them non-empty and
-  // unique, and the tree pane filters and labels nodes by `path`.
-  const tree = useMemo<TreeNode>(
-    () => ({
-      name: collection.title,
-      path: ".",
-      type: "dir",
-      children: collection.traces.map((trace) => ({
-        name: trace.name,
-        path: trace.name,
-        type: "file",
-        format: "json",
-        trace_count: 1,
-        error: false,
-      })),
-    }),
-    [collection],
-  );
-  const selected =
-    collection.traces.find((trace) => trace.name === selection.path) ?? collection.traces[0];
+interface Runs {
+  trajectory: TrajectoryIndex;
+  selected: RunEntry;
+  select: (runId: string) => void;
+  multiRun: boolean;
+}
+
+/**
+ * The payload's runs and the selected one. The selection survives live reloads
+ * while the run still exists and resets when `traceKey` names another trace.
+ */
+function useRuns(payload: TracePayload | null, traceKey: string): Runs | null {
+  const [choice, setChoice] = useState<{ traceKey: string; runId: string } | null>(null);
+  const trajectory = useMemo(() => (payload ? indexTrajectory(payload) : null), [payload]);
+  if (trajectory === null) return null;
+  const chosen = choice?.traceKey === traceKey ? trajectory.entries.get(choice.runId) : undefined;
+  return {
+    trajectory,
+    selected: chosen ?? trajectory.roots[0],
+    select: (runId) => setChoice({ traceKey, runId }),
+    multiRun: trajectory.entries.size > 1,
+  };
+}
+
+function RunTreeFor({ runs }: { runs: Runs }) {
   return (
-    <div class="layout">
-      <TreePane
-        root={tree}
-        rootLabel={collection.title}
-        selection={selection}
-        onSelect={setSelection}
-      />
-      <ExportedTracePane
-        key={selected.name}
-        name={selected.name}
-        data={selected.source}
-        transcript={selected.transcript}
-      />
-    </div>
+    <RunTree trajectory={runs.trajectory} selected={runs.selected.run.id} onSelect={runs.select} />
   );
 }
 
-function ExportedTracePane({
-  name,
-  data,
-  transcript,
+/**
+ * One trace: its header and the selected run. `placeholder` replaces the body
+ * while no payload is loaded.
+ */
+function TracePane({
+  title,
+  payload,
+  runs,
+  placeholder,
+  banner,
 }: {
-  name: string;
-  data: unknown;
-  transcript: string;
+  title: string;
+  payload: TracePayload | null;
+  runs: Runs | null;
+  placeholder?: ComponentChildren;
+  banner?: ComponentChildren;
 }) {
-  const messages = useMemo(() => parseTrace(data), [data]);
   const traceRootRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const runId = runs?.selected.run.id;
+  // Another run opens at its top; a live reload of the same run keeps its position.
+  useLayoutEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [runId]);
   return (
     <main class="main-pane">
       <header class="trace-header">
-        <span class="trace-title">{name}</span>
-        <TraceStatsBar messages={messages} />
-        {messages.length > 0 ? <TraceSearch rootRef={traceRootRef} /> : null}
-        <CopyTraceButton text={transcript} />
+        <RunBreadcrumb
+          title={title}
+          trajectory={runs?.trajectory ?? null}
+          selected={runs?.selected ?? null}
+          onSelect={(runId) => runs?.select(runId)}
+        />
+        {payload && runs ? (
+          <>
+            <TraceStatsBar
+              totals={runs.selected.analysis.totals}
+              subtreeTotals={runs.selected.analysis.subtree_totals}
+            />
+            <TraceSearch key={`${title}/${runs.selected.run.id}`} rootRef={traceRootRef} />
+            <CopyTraceButton key={title} text={payload.transcript} />
+          </>
+        ) : null}
         <ThemeToggle />
       </header>
-      <div class="trace-body">
+      <div class="trace-body" ref={bodyRef}>
         <div ref={traceRootRef}>
-          <TraceView messages={messages} />
+          {banner}
+          {runs ? (
+            <TraceView
+              key={runs.selected.run.id}
+              entry={runs.selected}
+              trajectory={runs.trajectory}
+              onOpenRun={runs.select}
+            />
+          ) : (
+            placeholder
+          )}
         </div>
       </div>
     </main>
@@ -145,15 +160,38 @@ function ServerApp() {
   const [selection, setSelection] = useState<TraceSelection | null>(readHash);
   const [trace, setTrace] = useState<TraceState>({ status: "unselected" });
   const [appError, setAppError] = useState<string | null>(null);
-  const traceRootRef = useRef<HTMLDivElement>(null);
+  const beginTreeRequest = useRequestOrder();
+  const beginTraceRequest = useRequestOrder();
+
+  // A save can trigger several change events, and their responses can arrive out
+  // of order. Only the latest request may update the tree or the trace.
+  function loadTree(onError: (error: unknown) => void) {
+    const isLatest = beginTreeRequest();
+    fetchTree()
+      .then((next) => {
+        if (isLatest()) setTree(next);
+      })
+      .catch((e) => {
+        if (isLatest()) onError(e);
+      });
+  }
+
+  function loadTrace(target: TraceSelection) {
+    const isLatest = beginTraceRequest();
+    fetchTrace(target)
+      .then((data) => {
+        if (isLatest()) setTrace({ status: "ready", selection: target, data });
+      })
+      .catch((e) => {
+        if (isLatest()) setTrace({ status: "error", message: String(e) });
+      });
+  }
 
   useEffect(() => {
     fetchMeta()
       .then(setMeta)
       .catch((e) => setAppError(String(e)));
-    fetchTree()
-      .then(setTree)
-      .catch((e) => setAppError(String(e)));
+    loadTree((e) => setAppError(String(e)));
   }, []);
 
   // Single-file mode: auto-open the one trace.
@@ -166,21 +204,12 @@ function ServerApp() {
 
   useEffect(() => {
     if (selection === null) {
+      beginTraceRequest(); // discard a pending load
       setTrace({ status: "unselected" });
       return;
     }
-    let stale = false;
-    setTrace({ status: "loading" });
-    fetchTrace(selection)
-      .then((data) => {
-        if (!stale) setTrace({ status: "ready", data });
-      })
-      .catch((e) => {
-        if (!stale) setTrace({ status: "error", message: String(e) });
-      });
-    return () => {
-      stale = true;
-    };
+    setTrace((current) => ({ status: "loading", previous: shownTrace(current) }));
+    loadTrace(selection);
   }, [selection]);
 
   // Live updates: refresh the tree on any change, re-fetch the open trace if it changed.
@@ -188,27 +217,18 @@ function ServerApp() {
   selectionRef.current = selection;
   useEffect(() => {
     return subscribeChanges((paths) => {
-      fetchTree()
-        .then(setTree)
-        .catch(() => undefined);
+      loadTree(() => undefined);
       const current = selectionRef.current;
-      if (current && paths.includes(current.path)) {
-        fetchTrace(current)
-          // Guard against the refetch resolving after the user moved on.
-          .then((data) => {
-            if (selectionRef.current === current) setTrace({ status: "ready", data });
-          })
-          .catch((e) => {
-            if (selectionRef.current === current) {
-              setTrace({ status: "error", message: String(e) });
-            }
-          });
-      }
+      if (current && paths.includes(current.path)) loadTrace(current);
     });
   }, []);
 
   useEffect(() => {
-    const onHashChange = () => setSelection(readHash());
+    // select() already set this selection; replacing it with an equal object would refetch.
+    const onHashChange = () => {
+      const next = readHash();
+      setSelection((current) => (sameSelection(current, next) ? current : next));
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
@@ -219,16 +239,25 @@ function ServerApp() {
     setSelection(next);
   }
 
-  const messages = useMemo(
-    () => (trace.status === "ready" ? parseTrace(trace.data.source) : []),
-    [trace],
-  );
-  // File mode hides the tree — unless the file needs it (multi-trace or broken).
+  const shown = shownTrace(trace);
+  const shownSelection = shown?.selection ?? selection;
+  const title = shownSelection ? selectionTitle(shownSelection) : (meta?.root ?? "");
+  const payload = shown?.data ?? null;
+  const runs = useRuns(payload, title);
+  // Runs nest under the trace they belong to, not under a newer selection still loading.
+  const runsUnderSelection =
+    runs?.multiRun &&
+    shown &&
+    selection &&
+    selectionTitle(shown.selection) === selectionTitle(selection)
+      ? runs
+      : null;
+  // File mode hides the tree — unless the file needs it (multi-trace, broken, or several runs).
   const showTree =
-    meta === null || meta.mode === "dir" || (tree !== null && defaultSelection(tree) === null);
-  const title = selection
-    ? `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`
-    : (meta?.root ?? "");
+    meta === null ||
+    meta.mode === "dir" ||
+    (tree !== null && defaultSelection(tree) === null) ||
+    Boolean(runs?.multiRun);
 
   return (
     <div class="layout">
@@ -238,41 +267,44 @@ function ServerApp() {
           rootLabel={meta?.root ?? ""}
           selection={selection}
           onSelect={select}
+          selectedChildren={runsUnderSelection ? <RunTreeFor runs={runsUnderSelection} /> : null}
         />
       ) : null}
-      <main class="main-pane">
-        <header class="trace-header">
-          <span class="trace-title">{title}</span>
-          {selection && messages.length > 0 ? <TraceStatsBar messages={messages} /> : null}
-          {selection && messages.length > 0 ? (
-            <TraceSearch key={title} rootRef={traceRootRef} />
-          ) : null}
-          {selection && messages.length > 0 ? (
-            <CopyTraceButton
-              key={title}
-              text={trace.status === "ready" ? trace.data.transcript : ""}
-            />
-          ) : null}
-          <ThemeToggle />
-        </header>
-        <div class="trace-body">
-          <div ref={traceRootRef}>
-            {appError ? <div class="banner-error">{appError}</div> : null}
-            <TraceContent trace={trace} messages={messages} />
-          </div>
-        </div>
-      </main>
+      <TracePane
+        key={title}
+        title={title}
+        payload={payload}
+        runs={runs}
+        banner={appError ? <div class="banner-error">{appError}</div> : null}
+        placeholder={<TraceStatus trace={trace} />}
+      />
     </div>
   );
 }
 
-function TraceContent({
-  trace,
-  messages,
-}: {
-  trace: TraceState;
-  messages: ReturnType<typeof parseTrace>;
-}) {
+/**
+ * Orders requests of one kind. `begin()` starts a request and returns `isLatest`,
+ * which turns false once a later request begins.
+ */
+function useRequestOrder(): () => () => boolean {
+  const latest = useRef(0);
+  return () => {
+    const request = ++latest.current;
+    return () => latest.current === request;
+  };
+}
+
+function shownTrace(trace: TraceState): ShownTrace | null {
+  if (trace.status === "ready") return trace;
+  if (trace.status === "loading") return trace.previous;
+  return null;
+}
+
+function selectionTitle(selection: TraceSelection): string {
+  return `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`;
+}
+
+function TraceStatus({ trace }: { trace: TraceState }) {
   switch (trace.status) {
     case "unselected":
       return <div class="empty">Select a trace from the tree to inspect it.</div>;
@@ -281,12 +313,12 @@ function TraceContent({
     case "error":
       return <div class="banner-error">{trace.message}</div>;
     case "ready":
-      return messages.length === 0 ? (
-        <div class="empty">This trace contains no messages.</div>
-      ) : (
-        <TraceView messages={messages} />
-      );
+      return null;
   }
+}
+
+function sameSelection(a: TraceSelection | null, b: TraceSelection | null): boolean {
+  return a === b || (a !== null && b !== null && a.path === b.path && a.line === b.line);
 }
 
 function readHash(): TraceSelection | null {

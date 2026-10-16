@@ -1,24 +1,39 @@
-import { Wrench } from "lucide-preact";
-import { compactJson } from "../../parse";
-import type { ToolResult } from "../../pairing";
+import { SquarePlay, Wrench } from "lucide-preact";
+import { compactJson } from "../../format";
+import type { RunEntry } from "../../runIndex";
 import {
   CAPABILITY_LOAD_KIND,
   TOOL_SEARCH_KIND,
+  type AnyToolCallPart,
+  type AnyToolReturnPart,
   type LoadCapabilityReturn,
-  type ToolCallPart,
-  type ToolReturnPart,
-  type ToolSearchArgs,
+  type Part,
   type ToolSearchReturnContent,
 } from "../../types";
 import { Block } from "../Block";
+import { ChildRunCard } from "../ChildRunCard";
 import { ToolReturnValue, ValueView } from "./common";
 
 /**
- * A tool call annotated with the status of its paired return/retry. The result
- * itself remains in its original message so the trace mirrors the source JSON.
+ * A tool call annotated with the status of its paired return/retry, and the runs
+ * it started. The result itself remains in its original message so the trace
+ * mirrors the source JSON.
  */
-export function ToolCallGroup({ part, result }: { part: ToolCallPart; result: ToolResult | null }) {
-  const argsPreview = callPreview(part);
+export function ToolCallGroup({
+  part,
+  args,
+  result,
+  childRuns,
+  onOpenRun,
+}: {
+  part: AnyToolCallPart;
+  /** The call's arguments, parsed from a JSON string where possible. */
+  args: unknown;
+  result: Part | null;
+  childRuns: RunEntry[];
+  onOpenRun: (runId: string) => void;
+}) {
+  const argsPreview = callPreview(part, args);
   const hasTruncatedPreview = argsPreview.length > 96 || argsPreview.endsWith("…");
   return (
     <details class="content-block tone-tool tool-group">
@@ -46,8 +61,16 @@ export function ToolCallGroup({ part, result }: { part: ToolCallPart; result: To
       </summary>
       <div class="tool-group-section">
         <div class="part-label">arguments</div>
-        <ToolCallArgs part={part} />
+        <ToolCallArgs part={part} args={args} />
       </div>
+      {childRuns.length > 0 ? (
+        <div class="tool-group-section">
+          <div class="part-label">started</div>
+          {childRuns.map((child) => (
+            <ChildRunCard key={child.run.id} entry={child} onOpen={onOpenRun} />
+          ))}
+        </div>
+      ) : null}
     </details>
   );
 }
@@ -57,14 +80,14 @@ export function ToolReturn({
   part,
   hasMatchingCall,
 }: {
-  part: ToolReturnPart;
+  part: AnyToolReturnPart;
   hasMatchingCall: boolean;
 }) {
   return (
     <Block
       label={
         <>
-          <Wrench size={13} /> Tool return
+          <SquarePlay size={13} /> Tool return
         </>
       }
       tone="tool"
@@ -89,8 +112,8 @@ export function ToolReturn({
  * shape does not match — including a user tool that shares the name — falls
  * through to the generic rendering.
  */
-function ToolCallArgs({ part }: { part: ToolCallPart }) {
-  const queries = searchQueries(part);
+function ToolCallArgs({ part, args }: { part: AnyToolCallPart; args: unknown }) {
+  const queries = searchQueries(part, args);
   if (queries !== null) {
     return (
       <div class="tool-chips">
@@ -102,12 +125,12 @@ function ToolCallArgs({ part }: { part: ToolCallPart }) {
       </div>
     );
   }
-  const capability = capabilityId(part);
+  const capability = capabilityId(part, args);
   if (capability !== null) return <span class="tool-chip">{capability}</span>;
-  return <ValueView value={part.parsedArgs ?? null} />;
+  return <ValueView value={args} />;
 }
 
-function ToolReturnContent({ part }: { part: ToolReturnPart }) {
+function ToolReturnContent({ part }: { part: AnyToolReturnPart }) {
   const search = toolSearchContent(part);
   if (search !== null) {
     const discovered = discoveredTools(search);
@@ -131,15 +154,15 @@ function ToolReturnContent({ part }: { part: ToolReturnPart }) {
   return <ToolReturnValue content={part.content} />;
 }
 
-function callPreview(part: ToolCallPart): string {
-  const queries = searchQueries(part);
+function callPreview(part: AnyToolCallPart, args: unknown): string {
+  const queries = searchQueries(part, args);
   if (queries !== null) return queries.join(", ");
-  const capability = capabilityId(part);
+  const capability = capabilityId(part, args);
   if (capability !== null) return capability;
-  return part.parsedArgs != null ? compactJson(part.parsedArgs) : "";
+  return args != null ? compactJson(args) : "";
 }
 
-function returnPreview(part: ToolReturnPart): string {
+function returnPreview(part: AnyToolReturnPart): string {
   const search = toolSearchContent(part);
   if (search !== null) {
     const discovered = discoveredTools(search);
@@ -151,15 +174,15 @@ function returnPreview(part: ToolReturnPart): string {
 }
 
 /** Search queries of a tool-search call, or null when this is not one. */
-function searchQueries(part: ToolCallPart): string[] | null {
-  if (part.tool_kind !== TOOL_SEARCH_KIND || !isRecord(part.parsedArgs)) return null;
-  const queries = (part.parsedArgs as unknown as ToolSearchArgs).queries;
+function searchQueries(part: AnyToolCallPart, args: unknown): string[] | null {
+  if (part.tool_kind !== TOOL_SEARCH_KIND || !isRecord(args)) return null;
+  const queries = args.queries;
   if (!Array.isArray(queries)) return null;
   return queries.filter((query) => typeof query === "string");
 }
 
 /** The typed payload of a tool-search return, or null when the part is not one. */
-function toolSearchContent(part: ToolReturnPart): ToolSearchReturnContent | null {
+function toolSearchContent(part: AnyToolReturnPart): ToolSearchReturnContent | null {
   if (part.tool_kind !== TOOL_SEARCH_KIND || !isRecord(part.content)) return null;
   const content = part.content as unknown as ToolSearchReturnContent;
   return Array.isArray(content.discovered_tools) ? content : null;
@@ -172,15 +195,15 @@ function discoveredTools(content: ToolSearchReturnContent): string[] {
     .filter((name): name is string => typeof name === "string");
 }
 
-function capabilityId(part: ToolCallPart): string | null {
-  if (part.tool_kind !== CAPABILITY_LOAD_KIND || !isRecord(part.parsedArgs)) return null;
-  const id = part.parsedArgs.id;
+function capabilityId(part: AnyToolCallPart, args: unknown): string | null {
+  if (part.tool_kind !== CAPABILITY_LOAD_KIND || !isRecord(args)) return null;
+  const id = args.id;
   return typeof id === "string" ? id : null;
 }
 
-function capabilityInstructions(part: ToolReturnPart): string | null {
+function capabilityInstructions(part: AnyToolReturnPart): string | null {
   if (part.tool_kind !== CAPABILITY_LOAD_KIND || !isRecord(part.content)) return null;
-  const instructions = (part.content as LoadCapabilityReturn).instructions;
+  const instructions = (part.content as unknown as LoadCapabilityReturn).instructions;
   return typeof instructions === "string" ? instructions : null;
 }
 
@@ -189,10 +212,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Only problems are badged — success is the unremarkable default. */
-function ResultBadge({ result }: { result: ToolResult | null }) {
+function ResultBadge({ result }: { result: Part | null }) {
   if (result === null) return <span class="badge warn">no return recorded</span>;
-  if (result.kind === "retry") return <span class="badge error">retry</span>;
-  const outcome = (result.part as ToolReturnPart).outcome;
+  if (result.part_kind === "retry-prompt") return <span class="badge error">retry</span>;
+  const outcome = "outcome" in result ? result.outcome : undefined;
   if (outcome === "failed" || outcome === "denied") {
     return <span class="badge error">{outcome}</span>;
   }

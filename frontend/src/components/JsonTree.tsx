@@ -1,12 +1,15 @@
 import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 import { jsonEntries } from "../json";
 
 const LARGE_STRING_BYTES = 10_000;
+/** Entries an array or object shows before a "show more" button; keeps huge tool results cheap. */
+export const JSON_PAGE_SIZE = 100;
 
 /**
- * Plain, fully-expanded JSON rendering — no per-node show/hide toggles. The
- * surrounding block already collapses and height-clamps, so once a block is
- * open its data is simply all there.
+ * Plain, expanded JSON rendering — no per-node show/hide toggles. The
+ * surrounding block already collapses and height-clamps; only containers
+ * with more than JSON_PAGE_SIZE entries hold back the rest behind a button.
  */
 export function JsonTree({ value }: { value: unknown }) {
   return (
@@ -48,11 +51,26 @@ function JsonNode({ value, label }: { value: unknown; label?: string }) {
     <div>
       {prefix ? <div>{prefix}</div> : null}
       <div class={label !== undefined ? "json-children" : undefined}>
-        {entries.map(([key, child]) => (
-          <JsonNode key={key} label={key} value={child} />
-        ))}
+        <JsonEntries entries={entries} />
       </div>
     </div>
+  );
+}
+
+function JsonEntries({ entries }: { entries: readonly (readonly [string, unknown])[] }) {
+  const [shown, setShown] = useState(JSON_PAGE_SIZE);
+  const hidden = entries.length - shown;
+  return (
+    <>
+      {entries.slice(0, shown).map(([key, child]) => (
+        <JsonNode key={key} label={key} value={child} />
+      ))}
+      {hidden > 0 ? (
+        <button type="button" class="json-more" onClick={() => setShown(entries.length)}>
+          show {hidden} more
+        </button>
+      ) : null}
+    </>
   );
 }
 
