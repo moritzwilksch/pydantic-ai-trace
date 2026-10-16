@@ -246,11 +246,15 @@ body {
   white-space: nowrap;
 }
 
-/* When space runs out, the stats clip before the title or the controls move. */
+/* When space runs out, whole stats drop out before the title or the controls move:
+   items that do not fit wrap onto a second line, which the fixed height hides. */
 .trace-stats {
   display: flex;
   flex: 0 1 auto;
+  flex-wrap: wrap;
   min-width: 0;
+  height: 18px;
+  line-height: 18px;
   overflow: hidden;
   gap: 12px;
   font-size: 12px;
