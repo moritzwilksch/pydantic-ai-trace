@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-import re
 from typing import Any
 
 from pydantic_ai.messages import ModelMessagesTypeAdapter
@@ -11,7 +9,13 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter
 from ._json import dumps_readable
 from .analysis import Totals, parse_tool_args
 from .payload import TracePayload
-from .text import TOOL_SEARCH_KIND
+from .text import (
+    COMPACTION_PLACEHOLDER,
+    base64_byte_length,
+    changed_instructions,
+    discovered_tools,
+    is_media,
+)
 from .trajectory import Run
 
 
@@ -43,19 +47,10 @@ def _compact_run(run: Run, totals: Totals) -> dict[str, object]:
     messages: list[dict[str, Any]] = ModelMessagesTypeAdapter.dump_python(
         list(run.messages), mode="json"
     )
-    compact_messages: list[dict[str, object]] = []
-    last_instructions: object = None
-    for message in messages:
-        instructions = message.get("instructions")
-        changed_instructions = (
-            instructions
-            if message["kind"] == "request" and instructions and instructions != last_instructions
-            else None
-        )
-        if changed_instructions is not None:
-            last_instructions = instructions
-        compact_messages.append(_compact_message(message, instructions=changed_instructions))
-    compact["messages"] = compact_messages
+    compact["messages"] = [
+        _compact_message(message, instructions=instructions)
+        for message, instructions in zip(messages, changed_instructions(messages), strict=True)
+    ]
     return compact
 
 
@@ -149,15 +144,11 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
         return compact
 
     if kind == "compaction":
-        return {
-            "type": "compaction",
-            "content": part.get("content")
-            or "[History compacted by the provider; no readable summary.]",
-        }
+        return {"type": "compaction", "content": part.get("content") or COMPACTION_PLACEHOLDER}
 
     if kind == "file":
         content = part.get("content")
-        if _is_media(content):
+        if is_media(content):
             return _compact_media(content)
         return {"type": "file", "content": content}
 
@@ -168,18 +159,10 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
 def _compact_tool_return_content(part: dict[str, Any]) -> object:
     """A tool-search return is a list of names wrapped in per-match objects; unwrap it."""
     content = part.get("content")
-    if part.get("tool_kind") != TOOL_SEARCH_KIND or not isinstance(content, dict):
+    discovered = discovered_tools(part)
+    if discovered is None:
         return _compact_value(content)
-    matches = content.get("discovered_tools")
-    if not isinstance(matches, list):
-        return _compact_value(content)
-    compact: dict[str, object] = {
-        "discovered_tools": [
-            match["name"]
-            for match in matches
-            if isinstance(match, dict) and isinstance(match.get("name"), str)
-        ]
-    }
+    compact: dict[str, object] = {"discovered_tools": discovered}
     _copy_nonempty(content, compact, "message", "message")
     return compact
 
@@ -235,28 +218,19 @@ def _compact_user_item(item: object) -> object:
         return {"type": "uploaded_file"}
     if kind == "cache-point":
         return {"type": "cache_point"}
-    if _is_media(item):
+    if is_media(item):
         return _compact_media(item)
     return item
 
 
 def _compact_value(value: object) -> object:
-    if _is_media(value):
+    if is_media(value):
         return _compact_media(value)
     if isinstance(value, list):
         return [_compact_value(item) for item in value]
     if isinstance(value, dict):
         return {key: _compact_value(child) for key, child in value.items()}
     return value
-
-
-def _is_media(value: object) -> bool:
-    if not isinstance(value, dict):
-        return False
-    kind = value.get("kind")
-    if kind == "binary":
-        return isinstance(value.get("data"), str)
-    return isinstance(kind, str) and kind.endswith("-url") and isinstance(value.get("url"), str)
 
 
 def _compact_media(value: object) -> dict[str, object]:
@@ -266,14 +240,8 @@ def _compact_media(value: object) -> dict[str, object]:
         return {
             "type": "file",
             "media_type": value.get("media_type") or "application/octet-stream",
-            "bytes": _base64_byte_length(str(value.get("data", ""))),
+            "bytes": base64_byte_length(str(value.get("data", ""))),
             "payload_omitted": True,
         }
     assert isinstance(kind, str)
     return {"type": kind.removesuffix("-url"), "url": value["url"]}
-
-
-def _base64_byte_length(data: str) -> int:
-    normalized = re.sub(r"\s", "", data)
-    padding = 2 if normalized.endswith("==") else 1 if normalized.endswith("=") else 0
-    return max(0, math.floor(len(normalized) * 3 / 4) - padding)

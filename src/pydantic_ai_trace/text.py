@@ -19,6 +19,7 @@ from .trajectory import Run, Trajectory
 
 CAPABILITY_LOAD_KIND = "capability-load"
 TOOL_SEARCH_KIND = "tool-search"
+COMPACTION_PLACEHOLDER = "[History compacted by the provider; no readable summary.]"
 
 
 def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> str:
@@ -91,13 +92,12 @@ def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
     sections: list[str] = []
     request_number = 0
     response_number = 0
-    last_instructions: object = None
-    for index, message in enumerate(messages):
+    for index, (message, instructions) in enumerate(
+        zip(messages, changed_instructions(messages), strict=True)
+    ):
         parts: list[str] = []
-        instructions = message.get("instructions")
-        if message["kind"] == "request" and instructions and instructions != last_instructions:
+        if instructions is not None:
             parts.append(_part_section("INSTRUCTIONS", _js_string(instructions)))
-            last_instructions = instructions
         for part in message["parts"]:
             formatted = _format_part(part)
             if formatted:
@@ -111,6 +111,20 @@ def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
             heading = _request_envelope(message.get("state"), request_number)
         sections.append(_section(heading, "\n\n".join(parts)))
     return sections
+
+
+def changed_instructions(messages: list[dict[str, Any]]) -> list[object | None]:
+    """Each request's instructions when they differ from the last shown, else None."""
+    changed: list[object | None] = []
+    last: object = None
+    for message in messages:
+        instructions = message.get("instructions")
+        if message["kind"] == "request" and instructions and instructions != last:
+            last = instructions
+            changed.append(instructions)
+        else:
+            changed.append(None)
+    return changed
 
 
 def _request_envelope(state: object, number: int) -> str:
@@ -163,10 +177,7 @@ def _format_part(part: dict[str, Any]) -> str:
     if kind == "compaction":
         content = part.get("content")
         return _part_section(
-            "COMPACTION",
-            _js_string(content)
-            if content
-            else "[History compacted by the provider; no readable summary.]",
+            "COMPACTION", _js_string(content) if content else COMPACTION_PLACEHOLDER
         )
     if kind == "file":
         return _part_section("FILE", _format_file(part.get("content")))
@@ -207,7 +218,7 @@ def _format_tool_return(part: dict[str, Any]) -> str:
 
 
 def _format_tool_return_content(part: dict[str, Any]) -> str:
-    discovered = _discovered_tools(part)
+    discovered = discovered_tools(part)
     if discovered is not None:
         content = part["content"]
         message = content.get("message")
@@ -241,7 +252,7 @@ def _tool_search_queries(part: dict[str, Any]) -> list[str] | None:
     return [query for query in queries if isinstance(query, str)]
 
 
-def _discovered_tools(part: dict[str, Any]) -> list[str] | None:
+def discovered_tools(part: dict[str, Any]) -> list[str] | None:
     """Tool names a tool-search return revealed, or None when the part is not one."""
     if part.get("tool_kind") != TOOL_SEARCH_KIND:
         return None
@@ -288,28 +299,29 @@ def _format_user_item(item: object) -> str:
         return "[uploaded file]"
     if item.get("kind") == "cache-point":
         return "[cache point]"
-    if _is_media(item):
+    if is_media(item):
         return _format_media(item)
     return _json(item)
 
 
 def _format_file(content: object) -> str:
-    return _format_media(content) if _is_media(content) else _json(content)
+    return _format_media(content) if is_media(content) else _json(content)
 
 
 def _format_value(value: object) -> str:
     if isinstance(value, str):
         return value
-    if _is_media(value):
+    if is_media(value):
         return _format_media(value)
-    if isinstance(value, list) and any(_is_media(item) for item in value):
+    if isinstance(value, list) and any(is_media(item) for item in value):
         return "\n\n".join(
-            _format_media(item) if _is_media(item) else _format_value(item) for item in value
+            _format_media(item) if is_media(item) else _format_value(item) for item in value
         )
     return _json(value)
 
 
-def _is_media(value: object) -> bool:
+def is_media(value: object) -> bool:
+    """A dumped `BinaryContent` or `*Url` item."""
     if not isinstance(value, dict):
         return False
     kind = value.get("kind")
@@ -323,12 +335,12 @@ def _format_media(item: object) -> str:
     kind = _js_string(item.get("kind"))
     if kind == "binary":
         media_type = _js_string(item.get("media_type") or "application/octet-stream")
-        size = _base64_byte_length(_js_string(item.get("data")))
+        size = base64_byte_length(_js_string(item.get("data")))
         return f"[binary: {media_type}, {_format_bytes(size)}, payload omitted]"
     return f"[{kind.removesuffix('-url')}] {_js_string(item.get('url'))}"
 
 
-def _base64_byte_length(data: str) -> int:
+def base64_byte_length(data: str) -> int:
     normalized = re.sub(r"\s", "", data)
     padding = 2 if normalized.endswith("==") else 1 if normalized.endswith("=") else 0
     return max(0, math.floor(len(normalized) * 3 / 4) - padding)
