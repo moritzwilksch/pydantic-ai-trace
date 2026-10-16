@@ -1,229 +1,170 @@
-import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from pydantic_ai_trace.trajectory import compact_trajectory, parse_trace
+import pytest
+from pydantic import ValidationError
+from pydantic_ai.messages import (
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    UserPromptPart,
+)
+
+from pydantic_ai_trace import Completed, Failed, Parent, Run, RunId, ToolCallId, Trajectory
 
 FIXTURES = Path(__file__).parent / "fixtures"
+START = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
 
 
-def test_compact_trajectory_preserves_order_and_useful_fields():
-    raw = json.loads((FIXTURES / "full_trace.json").read_text(encoding="utf-8"))
-
-    document = compact_trajectory(parse_trace(raw), name="full_trace.json")
-
-    assert document["name"] == "full_trace.json"
-    assert document["stats"] == {
-        "llm_calls": 3,
-        "tokens": {"input": 930, "output": 165, "cache_write": 100},
-        "wall_time_seconds": 6.0,
-    }
-    messages = document["messages"]
-    assert isinstance(messages, list)
-    assert [message["type"] for message in messages] == [
-        "request",
-        "response",
-        "request",
-        "response",
-        "request",
-        "response",
-    ]
-    first_response = messages[1]
-    assert first_response["model"] == "gpt-5"
-    assert first_response["provider"] == "openai"
-    assert first_response["finish_reason"] == "tool_call"
-    assert first_response["usage"] == {
-        "input": 220,
-        "output": 55,
-        "cache_write": 100,
-        "details": {"reasoning_tokens": 24},
-    }
-    assert first_response["parts"][1] == {
-        "type": "tool_call",
-        "name": "lookup_population",
-        "id": "call_berlin",
-        "args": {"city": "Berlin"},
-    }
-    assert messages[2]["parts"][0] == {
-        "type": "tool_result",
-        "name": "lookup_population",
-        "id": "call_berlin",
-        "result": {"city": "Berlin", "population": 3877100},
-    }
+def at(seconds: int) -> datetime:
+    return START + timedelta(seconds=seconds)
 
 
-def test_repeated_instructions_are_only_included_when_they_change():
-    trace = [
-        {"kind": "request", "instructions": "First.", "parts": []},
-        {"kind": "request", "instructions": "First.", "parts": []},
-        {"kind": "request", "instructions": None, "parts": []},
-        {"kind": "request", "instructions": "Second.", "parts": []},
-    ]
-
-    messages = compact_trajectory(parse_trace(trace), name="trace.json")["messages"]
-
-    assert isinstance(messages, list)
-    assert [message.get("instructions") for message in messages] == [
-        "First.",
-        None,
-        None,
-        "Second.",
+def exchange(start: int, end: int, *, call_id: str | None = None) -> list:
+    response = (
+        [ToolCallPart(tool_name="ask", args={}, tool_call_id=call_id)]
+        if call_id
+        else [TextPart(content="ok")]
+    )
+    return [
+        ModelRequest(parts=[UserPromptPart(content="hi", timestamp=at(start))]),
+        ModelResponse(parts=response, timestamp=at(end)),
     ]
 
 
-def test_unknown_variants_and_invalid_tool_args_remain_inspectable():
-    trace = [
-        {"kind": "telepathy", "parts": [], "payload": "message"},
-        {
-            "kind": "response",
-            "parts": [
-                {
-                    "part_kind": "tool-call",
-                    "tool_name": "broken",
-                    "tool_call_id": "call-1",
-                    "args": "not json {",
-                },
-                {"part_kind": "future-part", "payload": {"value": 1}},
-                {"future": True},
-            ],
-        },
-    ]
-
-    messages = compact_trajectory(parse_trace(trace), name="future.json")["messages"]
-
-    assert isinstance(messages, list)
-    assert messages[0] == {"type": "unknown", "data": trace[0]}
-    assert messages[1]["parts"] == [
-        {
-            "type": "tool_call",
-            "name": "broken",
-            "id": "call-1",
-            "args": "not json {",
-        },
-        {"type": "unknown", "original_type": "future-part", "data": {"payload": {"value": 1}}},
-        {"type": "unknown", "original_type": "unknown", "data": {"future": True}},
-    ]
-
-
-def test_binary_payloads_are_replaced_with_metadata():
-    trace = [
-        {
-            "kind": "request",
-            "parts": [
-                {
-                    "part_kind": "user-prompt",
-                    "content": [
-                        "Read this.",
-                        {"kind": "binary", "media_type": "text/plain", "data": "aGVsbG8="},
-                        {"kind": "image-url", "url": "https://example.test/image.png"},
-                    ],
-                }
-            ],
-        },
-        {
-            "kind": "request",
-            "parts": [
-                {
-                    "part_kind": "tool-return",
-                    "tool_name": "read",
-                    "tool_call_id": "call-1",
-                    "content": {
-                        "nested": {
-                            "kind": "binary",
-                            "media_type": "text/plain",
-                            "data": "aGVsbG8=",
-                        }
-                    },
-                }
-            ],
-        },
-    ]
-
-    messages = compact_trajectory(parse_trace(trace), name="media.json")["messages"]
-
-    assert isinstance(messages, list)
-    assert messages[0]["parts"][0]["content"] == [
-        "Read this.",
-        {"type": "file", "media_type": "text/plain", "bytes": 5, "payload_omitted": True},
-        {"type": "image", "url": "https://example.test/image.png"},
-    ]
-    assert messages[1]["parts"][0]["result"] == {
-        "nested": {
-            "type": "file",
-            "media_type": "text/plain",
-            "bytes": 5,
-            "payload_omitted": True,
-        }
+def run(name: str, **fields: object) -> Run:
+    defaults: dict[str, object] = {
+        "id": RunId(name),
+        "name": name,
+        "parent": None,
+        "started_at": at(0),
+        "ended_at": at(1),
+        "outcome": Completed(),
+        "messages": tuple(exchange(0, 1)),
     }
+    return Run.model_validate({**defaults, **fields})
 
 
-def test_tool_search_and_capability_parts_compact_to_their_payloads():
-    raw = json.loads((FIXTURES / "runs" / "tool_search.json").read_text(encoding="utf-8"))
+class TestRunFromMessages:
+    def test_takes_its_time_span_from_message_timestamps(self):
+        built = Run.from_messages(exchange(2, 7), name="step")
 
-    messages = compact_trajectory(parse_trace(raw), name="tool_search.json")["messages"]
+        assert (built.started_at, built.ended_at) == (at(2), at(7))
+        assert built.outcome == Completed()
+        assert built.parent is None
 
-    assert isinstance(messages, list)
-    assert messages[1]["parts"][1] == {
-        "type": "tool_call",
-        "name": "search_tools",
-        "args": {"queries": ["refund invoice", "billing charge lookup"]},
-        "id": "search_1",
-        "tool_kind": "tool-search",
-    }
-    # Per-match objects are unwrapped to the names they carry.
-    assert messages[2]["parts"][0] == {
-        "type": "tool_result",
-        "name": "search_tools",
-        "result": {"discovered_tools": ["refund_invoice", "get_invoice", "list_charges"]},
-        "id": "search_1",
-        "outcome": "success",
-        "tool_kind": "tool-search",
-    }
-    assert messages[2]["parts"][1] == {
-        "type": "tools_available",
-        "tools_added": ["refund_invoice", "get_invoice", "list_charges"],
-        "id": "search_1",
-    }
-    assert messages[3]["parts"][0]["args"] == {"id": "billing"}
-    assert messages[4]["parts"][0]["result"]["instructions"].startswith("**Billing capability**")
-    empty_search = messages[5]["parts"][1]
-    assert empty_search["builtin"] is True
-    assert empty_search["result"] == {
-        "discovered_tools": [],
-        "message": "No matching tools found. The tools you need may not be available.",
-    }
+    def test_accepts_a_json_dump_and_ignores_timestamps_validation_would_invent(self):
+        dump = [
+            {"kind": "request", "parts": [{"part_kind": "user-prompt", "content": "hi"}]},
+            {
+                "kind": "response",
+                "timestamp": at(3).isoformat(),
+                "parts": [{"part_kind": "text", "content": "ok"}],
+            },
+        ]
+
+        built = Run.from_messages(dump, name="step")
+
+        assert (built.started_at, built.ended_at) == (at(3), at(3))
+        assert isinstance(built.messages[1], ModelResponse)
+
+    def test_without_timestamps_is_rejected(self):
+        dump = [{"kind": "request", "parts": [{"part_kind": "user-prompt", "content": "hi"}]}]
+
+        with pytest.raises(ValueError, match="no message timestamps"):
+            Run.from_messages(dump, name="step")
+
+    def test_links_to_a_parent_and_its_tool_call(self):
+        parent = Run.from_messages(exchange(0, 1, call_id="call_1"), name="parent")
+
+        child = Run.from_messages(
+            exchange(1, 2), name="child", parent=parent, tool_call_id="call_1"
+        )
+
+        assert child.parent == Parent(run_id=parent.id, tool_call_id=ToolCallId("call_1"))
+
+    def test_tool_call_without_parent_is_rejected(self):
+        with pytest.raises(ValueError, match="requires a parent"):
+            Run.from_messages(exchange(0, 1), name="child", tool_call_id="call_1")
+
+    def test_child_of_returns_a_linked_copy(self):
+        parent = run("parent")
+        child = run("child")
+
+        linked = child.child_of(parent)
+
+        assert linked.parent == Parent(run_id=RunId("parent"))
+        assert child.parent is None
+
+    def test_run_ids_default_to_unique_uuid7(self):
+        first = Run.from_messages(exchange(0, 1), name="a")
+        second = Run.from_messages(exchange(0, 1), name="a")
+
+        assert first.id != second.id
+        assert first.id[14] == "7"  # UUID version nibble
 
 
-def test_tool_availability_delta_accepts_the_legacy_added_alias():
-    trace = [
-        {
-            "kind": "request",
-            "parts": [{"part_kind": "tool-availability-delta", "added": ["a", "b"]}],
-        }
-    ]
+class TestTrajectory:
+    def test_round_trips_through_json(self):
+        text = (FIXTURES / "trajectory.json").read_text()
 
-    messages = compact_trajectory(parse_trace(trace), name="delta.json")["messages"]
+        trajectory = Trajectory.model_validate_json(text)
 
-    assert isinstance(messages, list)
-    assert messages[0]["parts"] == [{"type": "tools_available", "tools_added": ["a", "b"]}]
+        assert Trajectory.model_validate_json(trajectory.model_dump_json()) == trajectory
 
+    def test_roots_and_children_are_sorted_by_start(self):
+        trajectory = Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
 
-def test_a_tool_return_only_unwraps_matches_when_its_tool_kind_says_so():
-    """Discrimination follows `tool_kind`, so a user tool of the same name is left alone."""
-    trace = [
-        {
-            "kind": "request",
-            "parts": [
-                {
-                    "part_kind": "tool-return",
-                    "tool_name": "search_tools",
-                    "tool_call_id": "c1",
-                    "content": {"discovered_tools": [{"name": "a", "score": 1}]},
-                }
-            ],
-        }
-    ]
+        assert [run.name for run in trajectory.roots()] == ["planner", "worker", "summarizer"]
+        assert [run.name for run in trajectory.children(RunId("worker"))] == ["subagent"]
 
-    messages = compact_trajectory(parse_trace(trace), name="lookalike.json")["messages"]
+    def test_from_named_messages_builds_one_root_per_name(self):
+        trajectory = Trajectory.from_named_messages(
+            {"second": exchange(5, 6), "first": exchange(0, 1)}
+        )
 
-    assert isinstance(messages, list)
-    assert messages[0]["parts"][0]["result"] == {"discovered_tools": [{"name": "a", "score": 1}]}
+        assert [run.name for run in trajectory.runs] == ["first", "second"]  # end order
+        assert all(run.parent is None for run in trajectory.runs)
+
+    def test_from_named_messages_accepts_json_dumps(self):
+        dump = ModelMessagesTypeAdapter.dump_python(exchange(0, 1), mode="json")
+
+        trajectory = Trajectory.from_named_messages({"step": dump})
+
+        assert trajectory.runs[0].name == "step"
+
+    def test_duplicate_run_ids_are_rejected(self):
+        with pytest.raises(ValidationError, match="duplicate run id 'a'"):
+            Trajectory(runs=(run("a"), run("a")))
+
+    def test_tool_call_missing_from_the_parent_is_rejected(self):
+        child = run("child", parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("x")))
+
+        with pytest.raises(ValidationError, match="does not contain"):
+            Trajectory(runs=(child, run("parent")))
+
+    def test_a_cycle_is_rejected(self):
+        a = run("a", parent=Parent(run_id=RunId("b")))
+        b = run("b", parent=Parent(run_id=RunId("a")))
+
+        with pytest.raises(ValidationError, match="its own ancestor"):
+            Trajectory(runs=(a, b))
+
+    def test_a_child_recorded_before_its_parent_is_a_root(self):
+        """Runs are recorded when they end, so a live file can lack the parent."""
+        child = run("child", parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("x")))
+
+        trajectory = Trajectory(runs=(child,))
+
+        assert trajectory.roots() == [child]
+
+    def test_outcomes_are_discriminated_by_status(self):
+        failed = run("a", outcome={"status": "failed", "error_type": "E", "detail": "boom"})
+
+        assert failed.outcome == Failed(error_type="E", detail="boom")
+
+    def test_unknown_fields_are_rejected(self):
+        with pytest.raises(ValidationError, match="Extra inputs"):
+            Trajectory.model_validate({"runs": [], "version": 2})

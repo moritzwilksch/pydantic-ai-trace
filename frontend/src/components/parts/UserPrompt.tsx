@@ -1,5 +1,5 @@
 import { Bookmark, Paperclip, User } from "lucide-preact";
-import { compactJson } from "../../parse";
+import { compactJson } from "../../format";
 import type { UserContentItem, UserPromptPart } from "../../types";
 import { Block } from "../Block";
 import { JsonTree } from "../JsonTree";
@@ -40,15 +40,9 @@ function userContentPreview(items: UserContentItem[]): string {
   return compactJson(items);
 }
 
-function userContentText(item: UserContentItem): string | null {
+function userContentText(item: UserContentItem | string): string | null {
   if (typeof item === "string") return item;
-  if (item.kind === "text") return typeof item.text === "string" ? item.text : null;
-  if (item.kind === "text-content") {
-    if (typeof item.text === "string") return item.text;
-    if (typeof item.content === "string") return item.content;
-    return null;
-  }
-  return null;
+  return item.kind === "text-content" ? item.content : null;
 }
 
 function ContentItem({ item }: { item: UserContentItem }) {
@@ -62,10 +56,9 @@ function ContentItem({ item }: { item: UserContentItem }) {
   // All multi-modal kinds (binary and `*-url`, including url kinds pydantic-ai
   // adds later) share the media renderer and degrade to chips gracefully.
   if (isMediaItem(item)) {
-    return <MediaContent item={item as Record<string, unknown>} />;
+    return <MediaContent item={item as unknown as Record<string, unknown>} />;
   }
   switch (item.kind) {
-    case "text":
     case "text-content":
       return (
         <div class="media-item">

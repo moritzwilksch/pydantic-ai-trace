@@ -1,27 +1,16 @@
+import type { ComponentChildren } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import {
-  embeddedTrace,
-  embeddedTraceCollection,
-  fetchMeta,
-  fetchTrace,
-  fetchTree,
-  subscribeChanges,
-} from "./api";
-import { parseTrace } from "./parse";
+import { embeddedPayload, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
+import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
 import { defaultSelection } from "./selection";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
+import { RunTree } from "./components/RunTree";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceSearch } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
-import type {
-  EmbeddedTraceCollection,
-  Meta,
-  TracePayload,
-  TraceSelection,
-  TreeNode,
-} from "./types";
+import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
 type TraceState =
   | { status: "unselected" }
@@ -30,19 +19,14 @@ type TraceState =
   | { status: "error"; message: string };
 
 export function App() {
-  const collection = useMemo(embeddedTraceCollection, []);
-  const embedded = useMemo(embeddedTrace, []);
+  const embedded = useMemo(embeddedPayload, []);
   const { helpOpen, closeHelp } = useKeyboardNav();
   return (
     <>
-      {collection ? (
-        <ExportedCollectionApp collection={collection} />
-      ) : embedded ? (
-        <ExportedTraceApp
-          name={embedded.name}
-          data={embedded.data}
-          transcript={embedded.transcript}
-        />
+      {embedded ? (
+        <div class="layout">
+          <TracePane title={embedded.name} payload={embedded} />
+        </div>
       ) : (
         <ServerApp />
       )}
@@ -51,92 +35,75 @@ export function App() {
   );
 }
 
-/** Exported single-file HTML: no server, trace injected as __TRACE_DATA__. */
-function ExportedTraceApp({
-  name,
-  data,
-  transcript,
+/**
+ * One trace: its header, the run tree when there are several runs, and the
+ * selected run. `placeholder` replaces the body while no payload is loaded.
+ */
+function TracePane({
+  title,
+  payload,
+  placeholder,
+  banner,
 }: {
-  name: string;
-  data: unknown;
-  transcript: string;
+  title: string;
+  payload: TracePayload | null;
+  placeholder?: ComponentChildren;
+  banner?: ComponentChildren;
 }) {
-  return (
-    <div class="layout">
-      <ExportedTracePane name={name} data={data} transcript={transcript} />
-    </div>
-  );
-}
-
-function ExportedCollectionApp({ collection }: { collection: EmbeddedTraceCollection }) {
-  const [selection, setSelection] = useState<TraceSelection>({
-    path: collection.traces[0].name,
-  });
-  // Trace names are the identity here: Python guarantees them non-empty and
-  // unique, and the tree pane filters and labels nodes by `path`.
-  const tree = useMemo<TreeNode>(
-    () => ({
-      name: collection.title,
-      path: ".",
-      type: "dir",
-      children: collection.traces.map((trace) => ({
-        name: trace.name,
-        path: trace.name,
-        type: "file",
-        format: "json",
-        trace_count: 1,
-        error: false,
-      })),
-    }),
-    [collection],
-  );
-  const selected =
-    collection.traces.find((trace) => trace.name === selection.path) ?? collection.traces[0];
-  return (
-    <div class="layout">
-      <TreePane
-        root={tree}
-        rootLabel={collection.title}
-        selection={selection}
-        onSelect={setSelection}
-      />
-      <ExportedTracePane
-        key={selected.name}
-        name={selected.name}
-        data={selected.source}
-        transcript={selected.transcript}
-      />
-    </div>
-  );
-}
-
-function ExportedTracePane({
-  name,
-  data,
-  transcript,
-}: {
-  name: string;
-  data: unknown;
-  transcript: string;
-}) {
-  const messages = useMemo(() => parseTrace(data), [data]);
   const traceRootRef = useRef<HTMLDivElement>(null);
+  const trajectory = useMemo(() => (payload ? indexTrajectory(payload) : null), [payload]);
+  const [selectedRun, selectRun] = useRunSelection(trajectory);
+  const multiRun = trajectory !== null && trajectory.entries.size > 1;
   return (
     <main class="main-pane">
       <header class="trace-header">
-        <span class="trace-title">{name}</span>
-        <TraceStatsBar messages={messages} />
-        {messages.length > 0 ? <TraceSearch rootRef={traceRootRef} /> : null}
-        <CopyTraceButton text={transcript} />
+        <span class="trace-title">
+          {title}
+          {multiRun && selectedRun ? ` · ${selectedRun.run.name}` : ""}
+        </span>
+        {payload && selectedRun ? (
+          <>
+            <TraceStatsBar
+              totals={selectedRun.analysis.totals}
+              subtreeTotals={selectedRun.analysis.subtree_totals}
+            />
+            <TraceSearch key={`${title}/${selectedRun.run.id}`} rootRef={traceRootRef} />
+            <CopyTraceButton key={title} text={payload.transcript} />
+          </>
+        ) : null}
         <ThemeToggle />
       </header>
-      <div class="trace-body">
-        <div ref={traceRootRef}>
-          <TraceView messages={messages} />
+      <div class={`trace-body${multiRun ? " with-runs" : ""}`}>
+        {multiRun && selectedRun ? (
+          <RunTree trajectory={trajectory} selected={selectedRun.run.id} onSelect={selectRun} />
+        ) : null}
+        <div ref={traceRootRef} class="trace-content">
+          {banner}
+          {trajectory && selectedRun ? (
+            <TraceView
+              key={selectedRun.run.id}
+              entry={selectedRun}
+              trajectory={trajectory}
+              onOpenRun={selectRun}
+            />
+          ) : (
+            placeholder
+          )}
         </div>
       </div>
     </main>
   );
+}
+
+/** The selected run, kept across live reloads while it still exists; else the first root. */
+function useRunSelection(
+  trajectory: TrajectoryIndex | null,
+): [RunEntry | null, (runId: string) => void] {
+  const [runId, setRunId] = useState<string | null>(null);
+  if (trajectory === null) return [null, setRunId];
+  const selected =
+    (runId !== null ? trajectory.entries.get(runId) : undefined) ?? trajectory.roots[0];
+  return [selected ?? null, setRunId];
 }
 
 function ServerApp() {
@@ -145,7 +112,6 @@ function ServerApp() {
   const [selection, setSelection] = useState<TraceSelection | null>(readHash);
   const [trace, setTrace] = useState<TraceState>({ status: "unselected" });
   const [appError, setAppError] = useState<string | null>(null);
-  const traceRootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchMeta()
@@ -219,10 +185,6 @@ function ServerApp() {
     setSelection(next);
   }
 
-  const messages = useMemo(
-    () => (trace.status === "ready" ? parseTrace(trace.data.source) : []),
-    [trace],
-  );
   // File mode hides the tree — unless the file needs it (multi-trace or broken).
   const showTree =
     meta === null || meta.mode === "dir" || (tree !== null && defaultSelection(tree) === null);
@@ -240,39 +202,18 @@ function ServerApp() {
           onSelect={select}
         />
       ) : null}
-      <main class="main-pane">
-        <header class="trace-header">
-          <span class="trace-title">{title}</span>
-          {selection && messages.length > 0 ? <TraceStatsBar messages={messages} /> : null}
-          {selection && messages.length > 0 ? (
-            <TraceSearch key={title} rootRef={traceRootRef} />
-          ) : null}
-          {selection && messages.length > 0 ? (
-            <CopyTraceButton
-              key={title}
-              text={trace.status === "ready" ? trace.data.transcript : ""}
-            />
-          ) : null}
-          <ThemeToggle />
-        </header>
-        <div class="trace-body">
-          <div ref={traceRootRef}>
-            {appError ? <div class="banner-error">{appError}</div> : null}
-            <TraceContent trace={trace} messages={messages} />
-          </div>
-        </div>
-      </main>
+      <TracePane
+        key={title}
+        title={title}
+        payload={trace.status === "ready" ? trace.data : null}
+        banner={appError ? <div class="banner-error">{appError}</div> : null}
+        placeholder={<TraceStatus trace={trace} />}
+      />
     </div>
   );
 }
 
-function TraceContent({
-  trace,
-  messages,
-}: {
-  trace: TraceState;
-  messages: ReturnType<typeof parseTrace>;
-}) {
+function TraceStatus({ trace }: { trace: TraceState }) {
   switch (trace.status) {
     case "unselected":
       return <div class="empty">Select a trace from the tree to inspect it.</div>;
@@ -281,11 +222,7 @@ function TraceContent({
     case "error":
       return <div class="banner-error">{trace.message}</div>;
     case "ready":
-      return messages.length === 0 ? (
-        <div class="empty">This trace contains no messages.</div>
-      ) : (
-        <TraceView messages={messages} />
-      );
+      return null;
   }
 }
 

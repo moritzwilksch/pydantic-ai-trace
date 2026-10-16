@@ -1,7 +1,7 @@
 ========== TRACE ==========
 
 NAME: full_trace.json
-LLM CALLS: 3 | TOKENS: 930 in → 165 out | WALL TIME: 6.0s
+LLM CALLS: 3 | TOKENS: 930 in → 165 out | COST: $0.0028 | WALL TIME: 6.0s
 
 ========== REQUEST 1 ==========
 
@@ -17,7 +17,7 @@ What is the population of Berlin? Compare it to Hamburg in a **markdown table**.
 print("also render code")
 ```
 
-========== RESPONSE 1 · gpt-5 · 220 in → 55 out ==========
+========== RESPONSE 1 · gpt-5 · 220 in → 55 out · $0.0008 ==========
 
 --- THINKING ---
 
@@ -43,7 +43,7 @@ ARGUMENTS:
 
 unknown city spelling
 
-========== RESPONSE 2 · gpt-5 · 310 in → 20 out ==========
+========== RESPONSE 2 · gpt-5 · 310 in → 20 out · $0.0006 ==========
 
 --- TOOL CALL: lookup_population ---
 
@@ -56,7 +56,7 @@ ARGUMENTS:
 
 {"city":"Hamburg","population":1945532}
 
-========== RESPONSE 3 · gpt-5 · 400 in → 90 out ==========
+========== RESPONSE 3 · gpt-5 · 400 in → 90 out · $0.0014 ==========
 
 --- TEXT ---
 
@@ -68,7 +68,3 @@ Here is the comparison:
 | Hamburg | 1,945,532 |
 
 Berlin is roughly **twice** the size of Hamburg.
-
---- UNKNOWN PART: hologram-projection ---
-
-{"part_kind":"hologram-projection","payload":{"note":"unknown part kind for forward-compat testing"}}

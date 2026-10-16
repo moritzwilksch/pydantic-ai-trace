@@ -1,8 +1,8 @@
 """Filesystem scanning: trace discovery, jsonl splitting, and path safety.
 
-Traces are never validated against the pydantic-ai schema here — a trace file's
-bytes are the payload and the frontend interprets them. "Parseable" only means
-the file contains JSON array(s) at the expected granularity.
+Reading and selecting only checks that each trace is a JSON array or object;
+`load.load_trajectory` owns validation. Tree nodes run that validation so the
+sidebar can explain why a trace cannot be opened.
 """
 
 from __future__ import annotations
@@ -13,6 +13,8 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from .load import TraceLoadError, load_trajectory
 
 TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
 
@@ -160,7 +162,7 @@ def validate_trace_data(
 ) -> None:
     """Validate in-memory trace data without applying JSONL line selection."""
     if format == "json":
-        _ensure_json_array(text, name)
+        _ensure_json_container(text, name)
         return
 
     for _ in iter_jsonl_traces(text.splitlines(), name=name):
@@ -175,7 +177,7 @@ def iter_jsonl_traces(lines: Iterable[str], *, name: str) -> Iterator[tuple[int,
             continue
         trace_number += 1
         try:
-            _ensure_json_array(candidate, name)
+            _ensure_json_container(candidate, name)
         except TraceLookupError as exc:
             raise TraceLookupError(f"line {trace_number}: {exc}", status_code=400) from exc
         yield trace_number, candidate
@@ -192,7 +194,7 @@ def select_trace(
 ) -> str:
     """Select one trace from validated JSON or JSONL text."""
     if format == "json":
-        _ensure_json_array(text, name)
+        _ensure_json_container(text, name)
         return text
 
     lines = _jsonl_lines(text)
@@ -205,17 +207,19 @@ def select_trace(
             status_code=400,
         )
     selected = lines[index - 1]
-    _ensure_json_array(selected, name)
+    _ensure_json_container(selected, name)
     return selected
 
 
-def _ensure_json_array(text: str, relative_path: str) -> None:
+def _ensure_json_container(text: str, relative_path: str) -> None:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:
         raise TraceLookupError(f"{relative_path!r} is not valid JSON: {exc}", 400) from exc
-    if not isinstance(parsed, list):
-        raise TraceLookupError(f"{relative_path!r} is not a JSON array of messages", 400)
+    if not isinstance(parsed, list | dict):
+        raise TraceLookupError(
+            f"{relative_path!r} is not a JSON array of messages or a trajectory object", 400
+        )
 
 
 def _jsonl_lines(text: str) -> list[str]:
@@ -263,7 +267,7 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
 
     if path.suffix == ".json":
         node["trace_count"] = 1
-        error = _json_array_error(text, relative_path)
+        error = _trace_error(text, relative_path)
     else:
         lines = _jsonl_lines(text)
         node["trace_count"] = len(lines)
@@ -274,7 +278,7 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
                 (
                     f"line {line_number}: {line_error}"
                     for line_number, line in enumerate(lines, start=1)
-                    if (line_error := _json_array_error(line, relative_path)) is not None
+                    if (line_error := _trace_error(line, relative_path)) is not None
                 ),
                 None,
             )
@@ -292,13 +296,9 @@ def _sort_tree(node: TreeNode) -> None:
             _sort_tree(child)
 
 
-def _is_json_array(text: str) -> bool:
-    return _json_array_error(text, "") is None
-
-
-def _json_array_error(text: str, relative_path: str) -> str | None:
+def _trace_error(text: str, relative_path: str) -> str | None:
     try:
-        _ensure_json_array(text, relative_path)
-    except TraceLookupError as exc:
+        load_trajectory(text, name=relative_path)
+    except TraceLoadError as exc:
         return str(exc)
     return None

@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-preact";
-import { compactJson } from "../../parse";
-import type { ErrorDetail, RetryPromptPart } from "../../types";
+import { compactJson } from "../../format";
+import type { ErrorDetails as ErrorDetail, RetryPromptPart } from "../../types";
 import { Block } from "../Block";
 import { ValueView } from "./common";
 

@@ -19,8 +19,12 @@ jobs:
         run: pixi run lint
       - name: Typecheck
         run: pixi run typecheck
+      - name: Generated frontend types are current
+        run: pixi run check-types
       - name: Test
         run: pixi run test
+      - name: Test lowest supported dependency versions
+        run: pixi run test-lowest
       - name: Build PyPI package (frontend + sdist + wheel)
         run: pixi run build
       - name: Verify frontend assets are packaged
@@ -33,4 +37,4 @@ jobs:
           /tmp/smoke/bin/pip install --quiet dist/*.whl
           /tmp/smoke/bin/paitrace --version
           /tmp/smoke/bin/paitrace export tests/fixtures/full_trace.json -o /tmp/smoke/out.html
-          grep -q __TRACE_DATA__ /tmp/smoke/out.html
+          grep -q __TRACE_PAYLOAD__ /tmp/smoke/out.html

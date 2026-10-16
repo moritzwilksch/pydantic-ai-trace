@@ -1,7 +1,7 @@
 ========== TRACE ==========
 
 NAME: tool_search.json
-LLM CALLS: 5 | TOKENS: 8310 in (6100 cached) → 370 out | WALL TIME: 10.0s
+LLM CALLS: 5 | TOKENS: 8310 in (6100 cached) → 370 out | COST: $0.0495 | WALL TIME: 10.0s
 
 ========== REQUEST 1 ==========
 
@@ -17,7 +17,7 @@ You are an operations assistant. The full tool catalogue is too large to load up
 
 Refund invoice INV-4471 and tell me what the customer was charged.
 
-========== RESPONSE 1 · claude-fable-5 · 1240 in → 88 out ==========
+========== RESPONSE 1 · claude-fable-5 · 1240 in → 88 out · $0.0196 ==========
 
 --- THINKING ---
 
@@ -41,7 +41,7 @@ DISCOVERED TOOLS: refund_invoice, get_invoice, list_charges
 +get_invoice
 +list_charges
 
-========== RESPONSE 2 · claude-fable-5 · 1510 in (1100 cached) → 24 out ==========
+========== RESPONSE 2 · claude-fable-5 · 1510 in (1100 cached) → 24 out · $0.0064 ==========
 
 --- TOOL CALL: load_capability [CAPABILITY-LOAD] ---
 
@@ -60,7 +60,7 @@ CAPABILITY: billing
 
 +void_invoice
 
-========== RESPONSE 3 · claude-fable-5 · 1720 in (1500 cached) → 140 out ==========
+========== RESPONSE 3 · claude-fable-5 · 1720 in (1500 cached) → 140 out · $0.0107 ==========
 
 --- BUILTIN TOOL CALL: tool_search [TOOL-SEARCH] ---
 
@@ -84,7 +84,7 @@ ARGUMENTS:
 
 {"invoice_id":"INV-4471","customer":"Client A","amount_cents":24900,"currency":"EUR","status":"paid"}
 
-========== RESPONSE 4 · claude-fable-5 · 1880 in (1700 cached) → 46 out ==========
+========== RESPONSE 4 · claude-fable-5 · 1880 in (1700 cached) → 46 out · $0.0058 ==========
 
 --- TOOL CALL: refund_invoice ---
 
@@ -97,7 +97,7 @@ ARGUMENTS:
 
 {"refund_id":"RF-9021","amount_cents":24900,"state":"pending"}
 
-========== RESPONSE 5 · claude-fable-5 · 1960 in (1800 cached) → 72 out ==========
+========== RESPONSE 5 · claude-fable-5 · 1960 in (1800 cached) → 72 out · $0.0070 ==========
 
 --- TEXT ---
 

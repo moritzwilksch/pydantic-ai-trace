@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from traces import minimal_trace
 
 from pydantic_ai_trace import cli, scan
 
@@ -131,22 +132,21 @@ class TestExportCommand:
         code = cli.main(["export", str(fixtures_copy / "full_trace.json"), "-o", str(output)])
         assert code == 0
         document = output.read_text(encoding="utf-8")
-        assert "__TRACE_DATA__" in document
-        assert document.index("__TRACE_DATA__") < document.index("bundle();")
+        assert "__TRACE_PAYLOAD__" in document
+        assert document.index("__TRACE_PAYLOAD__") < document.index("bundle();")
 
     def test_default_output_is_input_with_html_suffix(self, fixtures_copy: Path):
         cli.main(["export", str(fixtures_copy / "full_trace.json")])
         assert (fixtures_copy / "full_trace.html").exists()
 
-    def test_exports_a_trace_the_embedding_api_would_reject(self, tmp_path: Path):
-        # `TraceView` rejects non-standard JSON constants; export stays as
-        # permissive as `scan` and renders whatever it loaded.
+    def test_invalid_trace_is_not_exported(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         source = tmp_path / "nan.json"
         source.write_text('[{"cost": NaN}]')
         output = tmp_path / "nan.html"
 
-        assert cli.main(["export", str(source), "-o", str(output)]) == 0
-        assert "__TRACE_DATA__" in output.read_text(encoding="utf-8")
+        assert cli.main(["export", str(source), "-o", str(output)]) == 1
+        assert "non-standard JSON constant" in capsys.readouterr().err
+        assert not output.exists()
 
     def test_missing_input_fails(self, capsys: pytest.CaptureFixture):
         assert cli.main(["export", "/nope.json"]) == 1
@@ -170,13 +170,12 @@ class TestExportCommand:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        monkeypatch.setattr(sys, "stdin", io.StringIO("[]"))
+        monkeypatch.setattr(sys, "stdin", io.StringIO(minimal_trace()))
         output = tmp_path / "stdin.html"
 
         assert cli.main(["export", "-o", str(output)]) == 0
         document = output.read_text(encoding="utf-8")
-        assert 'window.__TRACE_DATA__ = "[]"' in document
-        assert 'window.__TRACE_NAME__ = "stdin"' in document
+        assert 'window.__TRACE_PAYLOAD__ = "{\\"name\\":\\"stdin\\"' in document
 
     def test_exporting_stdin_requires_output(self, capsys: pytest.CaptureFixture):
         assert cli.main(["export"]) == 1
@@ -257,7 +256,7 @@ class TestJsonCommand:
         captured = capsys.readouterr()
         document = json.loads(captured.out)
         assert document["name"] == "full_trace.json"
-        assert [message["type"] for message in document["messages"]] == [
+        assert [message["type"] for message in document["runs"][0]["messages"]] == [
             "request",
             "response",
             "request",
@@ -279,17 +278,17 @@ class TestJsonCommand:
         assert cli.main(["json", "--line", "2"]) == 0
         document = json.loads(capsys.readouterr().out)
         assert document["name"] == "stdin"
-        assert document["messages"][0]["parts"][0]["content"] == "hello from line two"
+        assert document["runs"][0]["messages"][0]["parts"][0]["content"] == "hello from line two"
 
     def test_explicit_dash_reads_stdin(
         self,
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        monkeypatch.setattr(sys, "stdin", io.StringIO("[]"))
+        monkeypatch.setattr(sys, "stdin", io.StringIO(minimal_trace()))
 
         assert cli.main(["json", "-"]) == 0
-        assert json.loads(capsys.readouterr().out)["messages"] == []
+        assert json.loads(capsys.readouterr().out)["name"] == "stdin"
 
     def test_omitted_input_on_a_terminal_prints_usage(
         self,
@@ -332,8 +331,12 @@ class TestJsonCommand:
             "multi.jsonl · trace 1",
             "multi.jsonl · trace 2",
         ]
-        assert documents[0]["messages"][0]["parts"][0]["content"] == "hello from line one"
-        assert documents[1]["messages"][0]["parts"][0]["content"] == "hello from line two"
+        assert (
+            documents[0]["runs"][0]["messages"][0]["parts"][0]["content"] == "hello from line one"
+        )
+        assert (
+            documents[1]["runs"][0]["messages"][0]["parts"][0]["content"] == "hello from line two"
+        )
         assert captured.err == ""
 
     def test_all_streams_jsonl_from_stdin(
@@ -341,7 +344,7 @@ class TestJsonCommand:
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        monkeypatch.setattr(sys, "stdin", io.StringIO("[]\n[]\n"))
+        monkeypatch.setattr(sys, "stdin", io.StringIO(f"{minimal_trace()}\n{minimal_trace()}\n"))
 
         assert cli.main(["json", "--all"]) == 0
         documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
@@ -410,12 +413,12 @@ class TestJsonCommand:
         capsys: pytest.CaptureFixture,
     ):
         source = tmp_path / "broken.jsonl"
-        source.write_text("[]\n{}\n", encoding="utf-8")
+        source.write_text(f"{minimal_trace()}\n{{}}\n", encoding="utf-8")
         output = tmp_path / "compact.jsonl"
         output.write_text("existing output\n", encoding="utf-8")
 
         assert cli.main(["json", str(source), "--all", "-o", str(output)]) == 1
-        assert "line 2" in capsys.readouterr().err
+        assert "broken.jsonl · trace 2: runs: Field required" in capsys.readouterr().err
         assert output.read_text(encoding="utf-8") == "existing output\n"
 
     def test_pretty_indents_single_trace_output(
@@ -455,8 +458,8 @@ class TestJsonCommand:
         second = tmp_path / "b" / "run.json"
         first.parent.mkdir()
         second.parent.mkdir()
-        first.write_text("[]", encoding="utf-8")
-        second.write_text("[]", encoding="utf-8")
+        first.write_text(minimal_trace(), encoding="utf-8")
+        second.write_text(minimal_trace(), encoding="utf-8")
 
         assert cli.main(["json", str(first), str(second)]) == 0
 

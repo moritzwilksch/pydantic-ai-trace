@@ -32,7 +32,9 @@
       },
       {
         "tool_name": "lookup_population",
-        "args": {"city": "Hamburg"},
+        "args": {
+          "city": "Hamburg"
+        },
         "tool_call_id": "call_hamburg",
         "part_kind": "tool-call"
       }
@@ -42,7 +44,9 @@
       "cache_write_tokens": 100,
       "cache_read_tokens": 0,
       "output_tokens": 55,
-      "details": {"reasoning_tokens": 24}
+      "details": {
+        "reasoning_tokens": 24
+      }
     },
     "model_name": "gpt-5",
     "timestamp": "2026-07-01T09:00:02.000000Z",
@@ -55,7 +59,10 @@
     "parts": [
       {
         "tool_name": "lookup_population",
-        "content": {"city": "Berlin", "population": 3877100},
+        "content": {
+          "city": "Berlin",
+          "population": 3877100
+        },
         "tool_call_id": "call_berlin",
         "timestamp": "2026-07-01T09:00:02.500000Z",
         "part_kind": "tool-return"
@@ -75,7 +82,9 @@
     "parts": [
       {
         "tool_name": "lookup_population",
-        "args": {"city": "Hamburg, Germany"},
+        "args": {
+          "city": "Hamburg, Germany"
+        },
         "tool_call_id": "call_hamburg_2",
         "part_kind": "tool-call"
       }
@@ -94,7 +103,10 @@
     "parts": [
       {
         "tool_name": "lookup_population",
-        "content": {"city": "Hamburg", "population": 1945532},
+        "content": {
+          "city": "Hamburg",
+          "population": 1945532
+        },
         "tool_call_id": "call_hamburg_2",
         "timestamp": "2026-07-01T09:00:04.300000Z",
         "part_kind": "tool-return"
@@ -108,10 +120,6 @@
       {
         "content": "Here is the comparison:\n\n| City | Population |\n|---|---|\n| Berlin | 3,877,100 |\n| Hamburg | 1,945,532 |\n\nBerlin is roughly **twice** the size of Hamburg.",
         "part_kind": "text"
-      },
-      {
-        "part_kind": "hologram-projection",
-        "payload": {"note": "unknown part kind for forward-compat testing"}
       }
     ],
     "usage": {

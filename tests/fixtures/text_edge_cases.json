@@ -7,9 +7,13 @@
       {
         "part_kind": "user-prompt",
         "content": [
-          {"kind": "text-content", "content": "café\n\n--- literal rule ---"},
-          {"kind": "future-content", "value": 1.0, "1": "first", "10": "tenth", "2": "second"},
-          {"kind": "cache-point"}
+          {
+            "kind": "text-content",
+            "content": "café\n\n--- literal rule ---"
+          },
+          {
+            "kind": "cache-point"
+          }
         ]
       }
     ]
@@ -18,7 +22,11 @@
     "kind": "response",
     "state": "interrupted",
     "model_name": "edge-model",
-    "usage": {"input_tokens": 12, "cache_read_tokens": 8, "output_tokens": 3},
+    "usage": {
+      "input_tokens": 12,
+      "cache_read_tokens": 8,
+      "output_tokens": 3
+    },
     "parts": [
       {
         "part_kind": "tool-call",
@@ -26,6 +34,21 @@
         "args": "not json {",
         "tool_call_id": "omit"
       },
+      {
+        "part_kind": "thinking",
+        "content": "",
+        "signature": "omit"
+      },
+      {
+        "part_kind": "compaction",
+        "content": null
+      }
+    ],
+    "timestamp": "2026-07-01T09:00:00Z"
+  },
+  {
+    "kind": "request",
+    "parts": [
       {
         "part_kind": "tool-return",
         "tool_name": "numbers",
@@ -36,14 +59,11 @@
           "2": "second",
           "whole": 1.0,
           "small": 0.000001,
-          "tiny": 0.0000001,
+          "tiny": 1E-7,
           "unicode": "café"
         },
         "tool_call_id": "omit"
-      },
-      {"part_kind": "thinking", "content": "", "signature": "omit"},
-      {"part_kind": "compaction", "content": null},
-      {"part_kind": "future-part", "payload": {"value": 1.0}}
+      }
     ]
   }
 ]

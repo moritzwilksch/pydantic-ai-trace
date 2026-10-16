@@ -1,6 +1,6 @@
 # pydantic-ai-trace
 
-Use `pydantic-ai-trace` when you need to inspect an agent run from a JSON dump. Give it a [pydantic-ai](https://ai.pydantic.dev) `list[ModelMessage]` dump and it opens the run in a browser view.
+Use `pydantic-ai-trace` when you need to inspect an agent run from a JSON dump. Give it a [pydantic-ai](https://ai.pydantic.dev) `list[ModelMessage]` dump, or a trajectory of several runs, and it opens them in a browser view.
 
 It is a lightweight local tool. Point it at a trace or a directory of traces and it reads the files from disk, reloads them when they change, and exports individual traces as self-contained HTML files. Your traces stay on disk, with no hosted service or account.
 
@@ -9,10 +9,11 @@ It is a lightweight local tool. Point it at a trace or a directory of traces and
 
 ## What you can inspect
 
-- The full request and response sequence, including prompts, text, thinking, tool calls, tool results, and unknown parts
+- The full request and response sequence, including prompts, text, thinking, tool calls, tool results, and every other Pydantic AI part
 - Tool search and capability loading rendered by what they carry: the queries asked, the tools discovered, and the tools each step made available
 - Tool calls paired with their results, including results in later messages
-- Model, provider, timing, and token usage
+- Model, provider, timing, token usage, and cost (from [genai-prices](https://github.com/pydantic/genai-prices))
+- Trajectories: workflow steps and subagents as a tree of runs, each subagent linked from the tool call that started it, with costs summed up the tree
 - A searchable directory tree for `.json` and `.jsonl` traces
 - Collapsible large values, rendered Markdown, and keyboard navigation
 - In-trace search with `/`, match highlighting, and automatic expansion of collapsed results
@@ -53,7 +54,7 @@ pixi run paitrace text trace.json
 pixi run paitrace json trace.json
 
 # Read a trace from stdin; `-` can also be used explicitly
-curl https://example.test/my-traj.json | pixi run paitrace json | jq '.messages[]'
+curl https://example.test/my-traj.json | pixi run paitrace json | jq '.runs[].messages[]'
 curl https://example.test/my-traj.json | pixi run paitrace text
 
 # Select a trace from JSONL, or write the text to a file
@@ -85,11 +86,13 @@ curl https://example.test/my-traj.json | pixi run paitrace --no-open
 another command. Repeated request instructions are omitted until they change. Multi-trace JSONL
 files require `--line`, just as HTML export does.
 
-`paitrace json` emits a token-efficient trajectory document. It preserves request and response
-order, native tool arguments and results, tool-call IDs, model and token metadata, and unknown
-variants. It omits display headings, repeated instructions, provider response identifiers, and
-binary payloads. It retains the provider name. Tool calls and results remain separate events
-linked by `id`.
+`paitrace json` emits a token-efficient trajectory document: `name`, aggregate `stats`, and
+`runs` in recorded order. Each run carries its `id`, `name`, `parent`, `outcome`, timing, own
+`stats`, and `messages`. A message list is one run. Messages preserve request and response order,
+native tool arguments and results, tool-call IDs, and model and token metadata. They omit display
+headings, repeated instructions, provider response identifiers, and binary payloads. Tool calls
+and results remain separate events linked by `id`. `cost_usd` is present when genai-prices knows
+the model; `unpriced_calls` counts the responses it could not price.
 
 Pass `--all` to convert every trace in a JSONL file or stream. The output remains JSONL, with one
 compact trajectory per line. `--all` cannot be combined with `--line` or `--pretty`. Pass
@@ -105,15 +108,15 @@ source for changes. `text` and `export` remain single-input commands.
 ```bash
 # Extract the final assistant text
 pixi run paitrace json trace.json \
-  | jq -r '[.messages[].parts[] | select(.type == "text") | .content] | last'
+  | jq -r '[.runs[].messages[].parts[] | select(.type == "text") | .content] | last'
 
 # Extract tool calls, results, and retries in chronological order
 pixi run paitrace json trace.json \
-  | jq '[.messages[].parts[] | select(.type == "tool_call" or .type == "tool_result" or .type == "retry")]'
+  | jq '[.runs[].messages[].parts[] | select(.type == "tool_call" or .type == "tool_result" or .type == "retry")]'
 
 # Pair tool calls with their result or retry by call ID
 pixi run paitrace json trace.json | jq '
-  [.messages[].parts[]] as $parts
+  [.runs[].messages[].parts[]] as $parts
   | [$parts[] | select(.type == "tool_result" or .type == "retry")] as $results
   | [$parts[] | select(.type == "tool_call")
       | . as $call
@@ -139,44 +142,50 @@ use `--line` to select from multi-trace JSONL. HTML export from stdin requires `
 
 The viewer binds to `127.0.0.1:1205` and opens your browser. Pass `--port`, `--host`, or `--no-open` to change that behavior.
 
+## Trajectories
+
+A trajectory is a tree of runs. Top-level runs are workflow steps; a run with a parent is a
+subagent, usually started by one of its parent's tool calls. Build one from your own data and
+write it as JSON for `paitrace`, or render it directly:
+
+```python
+from pathlib import Path
+
+from pydantic_ai_trace import Run, Trajectory
+
+# One top-level run per workflow step, from message lists or their JSON dumps.
+steps = Trajectory.from_named_messages({"planner": planner_messages, "worker": worker_messages})
+worker = next(run for run in steps.runs if run.name == "worker")
+
+# A subagent, started by the worker's tool call `call_1`.
+subagent = Run.from_messages(subagent_messages, name="researcher").child_of(
+    worker, tool_call_id="call_1"
+)
+
+trajectory = Trajectory(runs=(*steps.runs, subagent))
+Path("case-42.json").write_text(trajectory.model_dump_json())
+```
+
+`Run.from_messages` takes a run's start and end from its message timestamps and records it as
+completed. Construct `Run` directly to set `started_at`, `ended_at`, or an `outcome` of
+`Completed(output=...)`, `Failed(error_type=..., detail=...)`, or `Cancelled()`. A run holds only
+the messages it produced, without inherited history; use `result.new_messages()`.
+
+`Trajectory` validates that run IDs are unique, that a `tool_call_id` exists in its parent run,
+and that no run is its own ancestor. A run whose parent is not in the trajectory is shown as a
+top-level run marked "parent not recorded", so a file written while a workflow runs stays
+viewable.
+
 ## Embed from Python
 
-`TraceView` turns Pydantic AI messages into the same self-contained HTML document produced by
-`paitrace export`. It does not start a server or write a temporary trace file.
+`render_html` turns a trajectory into the same self-contained HTML document produced by
+`paitrace export`. It does not start a server or write a temporary file.
 
 ```python
-from pydantic_ai_trace import TraceView
+from pydantic_ai_trace import Trajectory, render_html
 
-view = TraceView.from_messages(messages, title="Candidate response")
-html = view.html()
+html = render_html(Trajectory.from_messages(messages), name="Candidate response")
 ```
-
-Use `from_json` when the trace is already serialized:
-
-```python
-view = TraceView.from_json(trace_json, title="Candidate response")
-```
-
-Compose several validated traces into one document with an in-memory sidebar:
-
-```python
-from pydantic_ai_trace import TraceCollectionView, TraceView
-
-view = TraceCollectionView(
-    [
-        TraceView.from_json(original_json, title="Original"),
-        TraceView.from_json(candidate_json, title="Candidate"),
-        TraceView.from_messages(retry_messages, title="Retry"),
-    ],
-    title="Case 42",
-)
-html = view.html()
-```
-
-The sequence order becomes the sidebar order. Trace titles must be non-empty and unique.
-
-Pydantic AI remains an optional dependency. `from_messages` uses the installed
-`ModelMessagesTypeAdapter`; `from_json` works without Pydantic AI installed.
 
 ### Streamlit
 
@@ -185,10 +194,10 @@ Streamlit renders custom HTML inside an iframe:
 ```python
 import streamlit.components.v1 as components
 
-from pydantic_ai_trace import TraceView
+from pydantic_ai_trace import Trajectory, render_html
 
-view = TraceView.from_messages(messages, title="Candidate response")
-components.html(view.html(), height=900, scrolling=True)
+html = render_html(Trajectory.from_messages(messages), name="Candidate response")
+components.html(html, height=900, scrolling=True)
 ```
 
 ### Python HTTP servers
@@ -199,13 +208,13 @@ For example, with Starlette:
 ```python
 from starlette.responses import HTMLResponse
 
-from pydantic_ai_trace import TraceView
+from pydantic_ai_trace import Trajectory, render_html
 
 
 async def trace_view(request):
     messages = load_messages(request.path_params["run_id"])
-    view = TraceView.from_messages(messages, title=f"Run {request.path_params['run_id']}")
-    return HTMLResponse(view.html())
+    trajectory = Trajectory.from_messages(messages)
+    return HTMLResponse(render_html(trajectory, name=f"Run {request.path_params['run_id']}"))
 ```
 
 ```html
@@ -222,12 +231,18 @@ Security Policy must allow the document or serve it under a suitable policy.
 
 ## Trace files
 
-The viewer reads the JSON emitted by `ModelMessagesTypeAdapter.dump_json(messages)`:
+The viewer reads two JSON shapes:
 
-- `.json`: one bare JSON array of `ModelMessage` objects
-- `.jsonl`: one such array per line
+- A message list: the JSON emitted by `ModelMessagesTypeAdapter.dump_json(messages)`. It is shown
+  as one run.
+- A trajectory: the JSON emitted by `Trajectory.model_dump_json()`.
 
-When you open a directory, each line in a multi-trace `.jsonl` file is available as a separate trace.
+`.json` files hold one of these. `.jsonl` files hold one per line; when you open a directory,
+each line is available as a separate trace.
+
+Traces are validated with the installed Pydantic AI. A trace that does not validate is listed
+with its first validation error instead of being rendered. A dump from a newer Pydantic AI may
+need a newer install.
 
 ## Development
 
@@ -240,6 +255,8 @@ pixi run dev-web               # Vite with HMR, proxying /api
 
 ```bash
 pixi run test        # pytest and vitest
+pixi run test-lowest # pytest against the lowest supported dependency versions
+pixi run gen-types   # regenerate frontend/src/generated/payload.ts from the Python models
 pixi run lint        # ruff, prettier, and eslint
 pixi run typecheck   # pyright and TypeScript
 pixi run build       # bundled frontend plus sdist and wheel

@@ -60,31 +60,54 @@ class TestTree:
 
 
 class TestTrace:
-    def test_serves_file_bytes_verbatim(self, fixtures_copy: Path):
+    def test_serves_a_message_list_as_a_one_run_payload(self, fixtures_copy: Path):
         response = client_for(fixtures_copy).get("/api/trace", params={"path": "full_trace.json"})
         assert response.status_code == 200
         payload = response.json()
-        assert payload["source"] == (fixtures_copy / "full_trace.json").read_text()
+        assert payload["name"] == "full_trace.json"
+        [run] = payload["trajectory"]["runs"]
+        assert run["id"] == "run"
+        assert len(run["messages"]) == 6
+        assert payload["analysis"]["totals"]["llm_calls"] == 3
         assert payload["transcript"] == (fixtures_copy / "full_trace.txt").read_text()
+
+    def test_serves_a_trajectory(self, fixtures_copy: Path):
+        response = client_for(fixtures_copy).get("/api/trace", params={"path": "trajectory.json"})
+        payload = response.json()
+        assert [run["name"] for run in payload["trajectory"]["runs"]] == [
+            "planner",
+            "subagent",
+            "worker",
+            "summarizer",
+        ]
+
+    def test_invalid_trace_is_400_with_the_validation_error(self, tmp_path: Path):
+        (tmp_path / "bad.json").write_text('[{"kind": "telepathy", "parts": []}]')
+
+        response = client_for(tmp_path).get("/api/trace", params={"path": "bad.json"})
+
+        assert response.status_code == 400
+        assert response.json()["error"].startswith("bad.json: 0: Input tag 'telepathy'")
 
     def test_serves_selected_jsonl_line(self, fixtures_copy: Path):
         response = client_for(fixtures_copy).get(
             "/api/trace", params={"path": "runs/multi.jsonl", "line": 2}
         )
         payload = response.json()
-        assert "trace two" in payload["source"]
-        assert isinstance(json.loads(payload["source"]), list)
+        assert payload["name"] == "runs/multi.jsonl · trace 2"
         assert "NAME: runs/multi.jsonl · trace 2" in payload["transcript"]
 
     def test_escapes_lone_surrogates_in_transcript(self, tmp_path: Path):
-        trace = r'[{"kind":"request","parts":[{"part_kind":"user-prompt","content":"\ud800"}]}]'
+        trace = (
+            r'[{"kind":"request","parts":[{"part_kind":"user-prompt","content":"\ud800",'
+            r'"timestamp":"2026-01-01T00:00:00Z"}]}]'
+        )
         (tmp_path / "surrogate.json").write_text(trace, encoding="utf-8")
 
         response = client_for(tmp_path).get("/api/trace", params={"path": "surrogate.json"})
 
         assert response.status_code == 200
         assert b"\\ud800" in response.content
-        assert response.json()["source"] == trace
         assert "\ud800" in response.json()["transcript"]
 
     def test_file_mode_serves_the_root_file(self, fixtures_copy: Path):

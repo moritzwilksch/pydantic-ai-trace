@@ -1,7 +1,7 @@
 ========== TRACE ==========
 
 NAME: media_and_builtins.json
-LLM CALLS: 1 | TOKENS: 900 in → 120 out | WALL TIME: 6.0s
+LLM CALLS: 1 | TOKENS: 900 in → 120 out | COST: $0.0150 | WALL TIME: 6.0s
 
 ========== REQUEST 1 ==========
 
@@ -17,7 +17,7 @@ Keep the description concise.
 
 [document] https://example.com/report.pdf
 
-========== RESPONSE 1 · claude-fable-5 · 900 in → 120 out ==========
+========== RESPONSE 1 · claude-fable-5 · 900 in → 120 out · $0.0150 ==========
 
 --- BUILTIN TOOL CALL: web_search ---
 

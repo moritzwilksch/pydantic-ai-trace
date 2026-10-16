@@ -5,7 +5,7 @@ import { JsonTree } from "../JsonTree";
 import { isMediaItem, MediaContent } from "./common";
 
 export function FilePart({ part }: { part: FilePartType }) {
-  const content = part.content ?? {};
+  const content = part.content as unknown as Record<string, unknown>;
   const mediaType = typeof content.media_type === "string" ? content.media_type : "";
   return (
     <Block

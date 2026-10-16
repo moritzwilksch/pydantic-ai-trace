@@ -1,24 +1,8 @@
-import { cacheHitRate } from "../parse";
-import type { Pairing } from "../pairing";
 import { ScrollText } from "lucide-preact";
-import type {
-  CompactionPart as CompactionPartType,
-  FilePart as FilePartType,
-  Message,
-  ModelResponse,
-  Part,
-  RetryPromptPart,
-  SystemPromptPart,
-  TextPart as TextPartType,
-  ThinkingPart as ThinkingPartType,
-  ToolAvailabilityDeltaPart as ToolAvailabilityDeltaPartType,
-  ToolCallPart,
-  ToolReturnPart,
-  Usage,
-  UserPromptPart,
-} from "../types";
+import { cacheHitRate, formatCost } from "../format";
+import type { RunEntry, RunIndex, TrajectoryIndex } from "../runIndex";
+import type { Message, ModelResponse, Part, RequestUsage } from "../types";
 import { Block } from "./Block";
-import { JsonTree } from "./JsonTree";
 import { ValueView } from "./parts/common";
 import { CompactionPart } from "./parts/CompactionPart";
 import { FallbackPart } from "./parts/FallbackPart";
@@ -39,39 +23,31 @@ import { UserPrompt } from "./parts/UserPrompt";
  */
 export function MessageCard({
   message,
-  pairing,
+  messageIndex,
+  run,
+  trajectory,
+  onOpenRun,
   showInstructions,
-  traceStartMs,
+  runStartMs,
 }: {
   message: Message;
-  pairing: Pairing;
+  messageIndex: number;
+  run: RunIndex;
+  trajectory: TrajectoryIndex;
+  onOpenRun: (runId: string) => void;
   showInstructions: boolean;
-  traceStartMs: number | null;
+  runStartMs: number | null;
 }) {
-  if (message.kind === "unknown") {
-    return (
-      <div class="card" data-card>
-        <div class="card-kind">unknown message</div>
-        <div class="card-body">
-          <div class="part" data-nav>
-            <JsonTree value={message.raw} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const visibleParts = message.parts.filter((part) => !isInvisible(part));
+  const visibleParts = message.parts
+    .map((part, partIndex) => ({ part: part as Part, partIndex }))
+    .filter(({ part }) => !isInvisible(part));
 
   return (
     <div class="card" data-card>
       <div class={`card-kind kind-${message.kind}`}>
         {message.kind === "request" ? "Request" : "Response"}
-        {message.state === "interrupted" ? <span class="badge warn">interrupted</span> : null}
-        <Timestamp
-          value={typeof message.timestamp === "string" ? message.timestamp : null}
-          traceStartMs={traceStartMs}
-        />
+        {message.state !== "complete" ? <span class="badge warn">{message.state}</span> : null}
+        <Timestamp value={message.timestamp ?? null} runStartMs={runStartMs} />
       </div>
       <div class="card-body">
         {message.state === "interrupted" ? <InterruptedMessage kind={message.kind} /> : null}
@@ -90,13 +66,22 @@ export function MessageCard({
             </Block>
           </div>
         ) : null}
-        {visibleParts.map((part, i) => (
-          <div class="part" data-nav key={i}>
-            <PartView part={part} pairing={pairing} />
+        {visibleParts.map(({ part, partIndex }) => (
+          <div class="part" data-nav key={partIndex}>
+            <PartView
+              part={part}
+              messageIndex={messageIndex}
+              partIndex={partIndex}
+              run={run}
+              trajectory={trajectory}
+              onOpenRun={onOpenRun}
+            />
           </div>
         ))}
       </div>
-      {message.kind === "response" ? <ResponseFooter response={message} /> : null}
+      {message.kind === "response" ? (
+        <ResponseFooter response={message} costUsd={run.responseCost(messageIndex)} />
+      ) : null}
     </div>
   );
 }
@@ -115,60 +100,86 @@ function InterruptedMessage({ kind }: { kind: "request" | "response" }) {
  * targets: signature-only thinking is the one part kind we deliberately hide.
  */
 function isInvisible(part: Part): boolean {
-  return part.part_kind === "thinking" && !(part as ThinkingPartType).content;
+  return part.part_kind === "thinking" && !part.content;
 }
 
-function PartView({ part, pairing }: { part: Part; pairing: Pairing }) {
-  // Casts are safe: part_kind is the wire discriminator, and every renderer
-  // tolerates missing fields (dumps from other pydantic-ai versions).
+function PartView({
+  part,
+  messageIndex,
+  partIndex,
+  run,
+  trajectory,
+  onOpenRun,
+}: {
+  part: Part;
+  messageIndex: number;
+  partIndex: number;
+  run: RunIndex;
+  trajectory: TrajectoryIndex;
+  onOpenRun: (runId: string) => void;
+}) {
   switch (part.part_kind) {
     case "system-prompt":
-      return <SystemPrompt part={part as SystemPromptPart} />;
+      return <SystemPrompt part={part} />;
     case "user-prompt":
-      return <UserPrompt part={part as UserPromptPart} />;
+      return <UserPrompt part={part} />;
     case "text":
-      return <TextPart part={part as TextPartType} />;
+      return <TextPart part={part} />;
     case "thinking":
-      return <ThinkingPart part={part as ThinkingPartType} />;
+      return <ThinkingPart part={part} />;
     case "tool-call":
     case "builtin-tool-call": {
-      const result = pairing.resultsByCall.get(part) ?? null;
-      return <ToolCallGroup part={part as ToolCallPart} result={result} />;
+      const info = run.toolCall(messageIndex, partIndex);
+      const childRuns = (info?.child_run_ids ?? [])
+        .map((id) => trajectory.entries.get(id))
+        .filter((child): child is RunEntry => child !== undefined);
+      return (
+        <ToolCallGroup
+          part={part}
+          args={info?.args ?? null}
+          result={info?.result ? (run.part(info.result) ?? null) : null}
+          childRuns={childRuns}
+          onOpenRun={onOpenRun}
+        />
+      );
     }
     case "retry-prompt":
-      return <RetryPrompt part={part as RetryPromptPart} />;
+      return <RetryPrompt part={part} />;
     case "tool-return":
     case "builtin-tool-return":
       return (
-        <ToolReturn
-          part={part as ToolReturnPart}
-          hasMatchingCall={pairing.matchedResults.has(part)}
-        />
+        <ToolReturn part={part} hasMatchingCall={run.isMatchedResult(messageIndex, partIndex)} />
       );
     case "compaction":
-      return <CompactionPart part={part as CompactionPartType} />;
+      return <CompactionPart part={part} />;
     case "file":
-      return <FilePart part={part as FilePartType} />;
+      return <FilePart part={part} />;
     case "tool-availability-delta":
-      return <ToolAvailabilityDelta part={part as ToolAvailabilityDeltaPartType} />;
+      return <ToolAvailabilityDelta part={part} />;
     default:
-      return <FallbackPart part={part as Record<string, unknown>} />;
+      return <FallbackPart part={part as unknown as Record<string, unknown>} />;
   }
 }
 
-function ResponseFooter({ response }: { response: ModelResponse }) {
-  const usage = response.usage;
+function ResponseFooter({
+  response,
+  costUsd,
+}: {
+  response: ModelResponse;
+  costUsd: string | null;
+}) {
   return (
     <div class="card-footer">
       {response.model_name ? <span>{response.model_name}</span> : null}
       {response.provider_name ? <span>{response.provider_name}</span> : null}
       {response.finish_reason ? <span>finish: {response.finish_reason}</span> : null}
-      {usage ? <UsageSummary usage={usage} /> : null}
+      <UsageSummary usage={response.usage} />
+      {costUsd !== null ? <span>{formatCost(costUsd)}</span> : null}
     </div>
   );
 }
 
-function UsageSummary({ usage }: { usage: Usage }) {
+function UsageSummary({ usage }: { usage: RequestUsage }) {
   const hitRate = cacheHitRate(usage.input_tokens, usage.cache_read_tokens);
   const cached =
     hitRate !== null
@@ -181,11 +192,11 @@ function UsageSummary({ usage }: { usage: Usage }) {
   );
 }
 
-function Timestamp({ value, traceStartMs }: { value: string | null; traceStartMs: number | null }) {
+function Timestamp({ value, runStartMs }: { value: string | null; runStartMs: number | null }) {
   if (value === null) return null;
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return null;
-  const offset = traceStartMs !== null ? ` (+${((parsed - traceStartMs) / 1000).toFixed(1)}s)` : "";
+  const offset = runStartMs !== null ? ` (+${((parsed - runStartMs) / 1000).toFixed(1)}s)` : "";
   return (
     <span class="when" title={value}>
       {new Date(parsed).toLocaleTimeString()}

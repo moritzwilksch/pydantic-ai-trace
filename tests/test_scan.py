@@ -127,10 +127,10 @@ class TestReadTrace:
             scan.read_trace(fixtures_copy, "broken.json", line=None)
         assert exc_info.value.status_code == 400
 
-    def test_json_object_instead_of_array_is_400(self, tmp_path: Path):
-        (tmp_path / "obj.json").write_text('{"kind": "request"}')
+    def test_json_scalar_is_400(self, tmp_path: Path):
+        (tmp_path / "scalar.json").write_text('"request"')
         with pytest.raises(scan.TraceLookupError) as exc_info:
-            scan.read_trace(tmp_path, "obj.json", line=None)
+            scan.read_trace(tmp_path, "scalar.json", line=None)
         assert exc_info.value.status_code == 400
 
 
@@ -188,7 +188,7 @@ class TestInMemoryTraceData:
 
     def test_validates_every_jsonl_trace(self):
         with pytest.raises(scan.TraceLookupError, match="line 2"):
-            scan.validate_trace_data("[]\n{}\n", format="jsonl", name="stdin")
+            scan.validate_trace_data("[]\n1\n", format="jsonl", name="stdin")
 
     def test_iterates_valid_jsonl_without_buffering_blank_lines_as_traces(self):
         traces = list(scan.iter_jsonl_traces(["\n", "[]\n", "  \n", "[1]\n"], name="runs"))

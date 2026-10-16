@@ -376,6 +376,58 @@ body {
   padding: 18px;
 }
 
+/* A trajectory with several runs: the run tree beside the selected run. */
+.trace-body.with-runs {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.trace-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.run-tree {
+  position: sticky;
+  top: 0;
+  width: 220px;
+  flex-shrink: 0;
+}
+
+.run-tree .run-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A run started by a tool call or nested in this run; opens that run. */
+.child-run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 900px;
+  margin: 6px auto 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.child-run:hover {
+  background: var(--bg-hover);
+}
+
+.child-run-stats {
+  margin-left: auto;
+  color: var(--text-dim);
+}
+
 .trace-body .empty {
   color: var(--text-dim);
   text-align: center;

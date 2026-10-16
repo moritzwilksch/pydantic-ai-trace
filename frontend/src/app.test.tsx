@@ -5,6 +5,7 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
+import { embed, embedMessages, payloadFromRuns } from "./testing/payload";
 
 const FULL_TRACE = [
   {
@@ -96,9 +97,9 @@ const FULL_TRACE = [
         provider_name: "anthropic",
       },
       { part_kind: "text", content: "All done, see `code`." },
-      { part_kind: "some-future-part", payload: 42 },
+      { part_kind: "speech", speaker: "assistant", transcript: "hello", audio: null },
     ],
-    usage: { request_tokens: 20, response_tokens: 8 },
+    usage: { input_tokens: 20, output_tokens: 8 },
     model_name: "test-model",
     timestamp: "2026-07-01T09:00:05Z",
     finish_reason: "stop",
@@ -107,78 +108,115 @@ const FULL_TRACE = [
 
 afterEach(() => {
   cleanup();
-  delete window.__TRACE_DATA__;
-  delete window.__TRACE_NAME__;
-  delete window.__TRACE_TEXT__;
-  delete window.__TRACE_COLLECTION__;
+  delete window.__TRACE_PAYLOAD__;
 });
 
 describe("App in exported-trace mode", () => {
-  it("switches between named traces in an embedded collection", () => {
-    window.__TRACE_COLLECTION__ = JSON.stringify({
-      title: "Case 42",
-      traces: [
-        {
-          name: "Original",
-          source: JSON.stringify([
-            { kind: "request", parts: [{ part_kind: "user-prompt", content: "first input" }] },
-          ]),
-          transcript: "original transcript",
-        },
-        {
-          name: "Candidate",
-          source: JSON.stringify([
-            { kind: "response", parts: [{ part_kind: "text", content: "second output" }] },
-          ]),
-          transcript: "candidate transcript",
-        },
-      ],
-    });
+  it("switches between the runs of an embedded trajectory", () => {
+    embed(
+      payloadFromRuns(
+        [
+          {
+            id: "original",
+            name: "Original",
+            messages: [
+              { kind: "request", parts: [{ part_kind: "user-prompt", content: "first input" }] },
+            ],
+          },
+          {
+            id: "candidate",
+            name: "Candidate",
+            messages: [
+              { kind: "response", parts: [{ part_kind: "text", content: "second output" }] },
+            ],
+          },
+        ],
+        { name: "Case 42" },
+      ),
+    );
 
     const { getByRole, getAllByText } = render(<App />);
 
-    getAllByText("Case 42");
     getAllByText("first input");
-    fireEvent.click(getByRole("button", { name: "Candidate" }));
+    fireEvent.click(getByRole("button", { name: /Candidate/ }));
     getAllByText("second output");
   });
 
-  it("filters an embedded collection by trace name, not position", () => {
-    window.__TRACE_COLLECTION__ = JSON.stringify({
-      title: "Case 42",
-      traces: [
-        { name: "Original", source: "[]", transcript: "" },
-        { name: "Candidate", source: "[]", transcript: "" },
-      ],
-    });
+  it("opens a subagent from the tool call that started it", () => {
+    embed(
+      payloadFromRuns([
+        {
+          id: "worker",
+          name: "worker",
+          messages: [
+            {
+              kind: "response",
+              parts: [
+                { part_kind: "tool-call", tool_name: "ask", args: "{}", tool_call_id: "call_1" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "helper",
+          name: "helper",
+          parent: { run_id: "worker", tool_call_id: "call_1" },
+          outcome: { status: "failed", error_type: "TimeoutError", detail: "took too long" },
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "partial" }] }],
+        },
+      ]),
+    );
 
-    const { getByPlaceholderText, getByRole, queryByRole } = render(<App />);
+    const { container, getByText } = render(<App />);
+    const childCard = container.querySelector<HTMLButtonElement>(".tool-group .child-run")!;
+    expect(childCard.textContent).toContain("helper");
+    expect(childCard.textContent).toContain("failed");
 
-    fireEvent.input(getByPlaceholderText("Filter traces…"), { target: { value: "Candidate" } });
-    getByRole("button", { name: "Candidate" });
-    expect(queryByRole("button", { name: "Original" })).toBeNull();
+    fireEvent.click(childCard);
+    getByText("Run failed with TimeoutError: took too long");
   });
 
-  it("focuses trace search with slash and resets it when the trace changes", () => {
-    window.__TRACE_COLLECTION__ = JSON.stringify({
-      title: "Case 42",
-      traces: [
+  it("flags a run whose parent has not been recorded yet", () => {
+    embed(
+      payloadFromRuns([
         {
+          id: "child",
+          name: "child",
+          parent: { run_id: "later", tool_call_id: null },
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "a" }] }],
+        },
+        {
+          id: "other",
+          name: "other",
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "b" }] }],
+        },
+      ]),
+    );
+
+    const { getByText } = render(<App />);
+
+    getByText("parent not recorded");
+  });
+
+  it("focuses trace search with slash and resets it when the run changes", () => {
+    embed(
+      payloadFromRuns([
+        {
+          id: "original",
           name: "Original",
-          source: JSON.stringify([
+          messages: [
             { kind: "request", parts: [{ part_kind: "user-prompt", content: "first input" }] },
-          ]),
-          transcript: "",
+          ],
         },
         {
+          id: "candidate",
           name: "Candidate",
-          source: JSON.stringify([
+          messages: [
             { kind: "response", parts: [{ part_kind: "text", content: "second output" }] },
-          ]),
-          transcript: "",
+          ],
         },
-      ],
-    });
+      ]),
+    );
     const { getByRole } = render(<App />);
     const input = getByRole("searchbox", { name: "Search trace" });
 
@@ -187,16 +225,16 @@ describe("App in exported-trace mode", () => {
     fireEvent.input(input, { target: { value: "first" } });
     expect((input as HTMLInputElement).value).toBe("first");
 
-    fireEvent.click(getByRole("button", { name: "Candidate" }));
+    fireEvent.click(getByRole("button", { name: /Candidate/ }));
     expect((getByRole("searchbox", { name: "Search trace" }) as HTMLInputElement).value).toBe("");
   });
 
   it("moves keyboard focus through search matches and reopens each block", async () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       { kind: "request", parts: [{ part_kind: "user-prompt", content: "first needle" }] },
       { kind: "response", parts: [{ part_kind: "text", content: "second needle" }] },
       { kind: "request", parts: [{ part_kind: "user-prompt", content: "third needle" }] },
-    ];
+    ]);
     const { container, getByRole, getByText } = render(<App />);
     const input = getByRole("searchbox", { name: "Search trace" }) as HTMLInputElement;
     const details = Array.from(container.querySelectorAll<HTMLDetailsElement>("details"));
@@ -223,8 +261,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("renders every part kind of an embedded trace without crashing", () => {
-    window.__TRACE_DATA__ = FULL_TRACE;
-    window.__TRACE_NAME__ = "smoke.json";
+    embedMessages(FULL_TRACE, { name: "smoke.json" });
     const { container, getByText, getAllByText } = render(<App />);
 
     getByText("smoke.json"); // header title
@@ -232,7 +269,7 @@ describe("App in exported-trace mode", () => {
     getAllByText("search"); // tool call and its return in the original request
     getByText("no return recorded"); // orphan badge
     getByText("Field required"); // retry error table
-    getByText("some-future-part"); // fallback for unknown kinds
+    getByText("speech"); // parts without a dedicated renderer fall back to raw JSON
     getByText("Compaction"); // compaction part label
     getByText("Tools available"); // tool-availability-delta label
     getAllByText("Instructions"); // request-level instructions block
@@ -243,7 +280,7 @@ describe("App in exported-trace mode", () => {
     // Cards and parts remain in the same sequence as the source JSON.
     expect(getAllByText("Request").length).toBe(2);
     expect(getAllByText("Response").length).toBe(2);
-    // aggregate stats include legacy usage aliases: 10 + 20 in
+    // aggregate stats come from the payload's totals: 10 + 20 in
     expect(container.textContent).toContain("30");
     // input, cached, and output totals are always visible in the header.
     expect(container.textContent).toContain("0 cached");
@@ -252,7 +289,7 @@ describe("App in exported-trace mode", () => {
   it("renders framework tool payloads as named values instead of raw JSON", () => {
     // Tool search and capability loading keep the plain `tool-call` / `tool-return`
     // discriminator and carry a typed payload; `tool_kind` is what identifies them.
-    window.__TRACE_DATA__ = FULL_TRACE;
+    embedMessages(FULL_TRACE);
     const { container, getAllByText, getByText } = render(<App />);
 
     const searchCall = getAllByText("search_tools")[0].closest("details")!;
@@ -275,7 +312,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("leaves a user tool that shares a framework tool name alone", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [
@@ -287,7 +324,7 @@ describe("App in exported-trace mode", () => {
           },
         ],
       },
-    ];
+    ]);
 
     const { container } = render(<App />);
 
@@ -301,9 +338,7 @@ describe("App in exported-trace mode", () => {
       configurable: true,
       value: { writeText },
     });
-    window.__TRACE_DATA__ = FULL_TRACE;
-    window.__TRACE_NAME__ = "smoke.json";
-    window.__TRACE_TEXT__ = "precomputed transcript";
+    embedMessages(FULL_TRACE, { name: "smoke.json", transcript: "precomputed transcript" });
     const { getByRole } = render(<App />);
 
     fireEvent.click(getByRole("button", { name: "Copy trace" }));
@@ -315,7 +350,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("does not render a placeholder for thinking parts without content", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [
@@ -323,7 +358,7 @@ describe("App in exported-trace mode", () => {
           { part_kind: "text", content: "answer" },
         ],
       },
-    ];
+    ]);
     const { container, getAllByText } = render(<App />);
     getAllByText("answer"); // text block preview + body
     expect(container.textContent).not.toContain("Thinking");
@@ -332,7 +367,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("renders a paired result in its original request card", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [
@@ -349,7 +384,7 @@ describe("App in exported-trace mode", () => {
         instructions: null,
         state: "complete",
       },
-    ];
+    ]);
 
     const { container, getAllByText } = render(<App />);
 
@@ -361,7 +396,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("shows diagnostics for a response without visible parts", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [{ part_kind: "thinking", content: "", signature: "sig-only" }],
@@ -370,7 +405,7 @@ describe("App in exported-trace mode", () => {
         finish_reason: "content_filter",
         usage: { input_tokens: 12, output_tokens: 0 },
       },
-    ];
+    ]);
 
     const { container, getByText } = render(<App />);
 
@@ -381,9 +416,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("shows instructions on a request without parts", () => {
-    window.__TRACE_DATA__ = [
-      { kind: "request", instructions: "Use the private index.", parts: [] },
-    ];
+    embedMessages([{ kind: "request", instructions: "Use the private index.", parts: [] }]);
 
     const { getAllByText } = render(<App />);
 
@@ -392,7 +425,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("shows repeated instructions only after they change", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       { kind: "request", instructions: "First.", parts: [] },
       { kind: "request", instructions: "First.", parts: [] },
       { kind: "request", instructions: null, parts: [] },
@@ -400,7 +433,7 @@ describe("App in exported-trace mode", () => {
       { kind: "request", instructions: "Second.", parts: [] },
       { kind: "request", instructions: "Second.", parts: [] },
       { kind: "request", instructions: "First.", parts: [] },
-    ];
+    ]);
 
     const { container, getAllByText } = render(<App />);
     const requestCards = Array.from(container.querySelectorAll(".kind-request")).map((header) =>
@@ -419,10 +452,10 @@ describe("App in exported-trace mode", () => {
   });
 
   it("expands and collapses every content block with uppercase E and C", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       { kind: "request", parts: [{ part_kind: "user-prompt", content: "question" }] },
       { kind: "response", parts: [{ part_kind: "text", content: "answer" }] },
-    ];
+    ]);
     const { container } = render(<App />);
     const details = Array.from(
       container.querySelectorAll<HTMLDetailsElement>(".trace-body details"),
@@ -446,7 +479,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("shows a compact args preview on tool call summaries", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [
@@ -458,7 +491,7 @@ describe("App in exported-trace mode", () => {
           },
         ],
       },
-    ];
+    ]);
     const { container } = render(<App />);
     const preview = container.querySelector(".tool-group .block-preview");
     expect(preview?.textContent).toBe('path: "src/app.py"');
@@ -469,9 +502,23 @@ describe("App in exported-trace mode", () => {
   });
 
   it("renders JSON keys in their source order", () => {
-    window.__TRACE_DATA__ =
-      '[{"kind":"response","parts":[{"part_kind":"tool-call","tool_name":"ordered",' +
-      '"args":{"10":"ten","2":"two","name":"value"},"tool_call_id":"c1"}]}]';
+    const payload = payloadFromRuns([
+      {
+        messages: [
+          {
+            kind: "response",
+            parts: [
+              { part_kind: "tool-call", tool_name: "ordered", args: "ORDERED", tool_call_id: "c1" },
+            ],
+          },
+        ],
+      },
+    ]);
+    // Object literals reorder integer-like keys; splice the source text in instead.
+    window.__TRACE_PAYLOAD__ = JSON.stringify(payload).replaceAll(
+      '"ORDERED"',
+      '{"10":"ten","2":"two","name":"value"}',
+    );
     const { container } = render(<App />);
 
     const tree = container.querySelector(".json-tree")!;
@@ -481,26 +528,26 @@ describe("App in exported-trace mode", () => {
   });
 
   it("shows cache hit rate behind the cached token count", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [{ part_kind: "text", content: "hi" }],
         usage: { input_tokens: 1000, output_tokens: 5, cache_read_tokens: 823 },
         timestamp: "2026-07-01T09:00:00Z",
       },
-    ];
+    ]);
     const { container } = render(<App />);
     expect(container.textContent).toContain("(82.3%)");
   });
 
   it("explains an interrupted message when the trace has no reason", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "request",
         state: "interrupted",
         parts: [{ part_kind: "user-prompt", content: "hello" }],
       },
-    ];
+    ]);
     const { getByText } = render(<App />);
 
     getByText(
@@ -509,20 +556,18 @@ describe("App in exported-trace mode", () => {
   });
 
   it("renders markdown in text parts", () => {
-    window.__TRACE_DATA__ = [
-      { kind: "response", parts: [{ part_kind: "text", content: "**bold move**" }] },
-    ];
+    embedMessages([{ kind: "response", parts: [{ part_kind: "text", content: "**bold move**" }] }]);
     const { container } = render(<App />);
     expect(container.querySelector(".markdown strong")?.textContent).toBe("bold move");
   });
 
   it("highlights fenced code during markdown rendering", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [{ part_kind: "text", content: "```python\nprint(True)\n```" }],
       },
-    ];
+    ]);
     const { container } = render(<App />);
 
     expect(container.querySelector("code.language-python .hljs-built_in")?.textContent).toBe(
@@ -542,7 +587,7 @@ describe("App in exported-trace mode", () => {
       "code two",
       "```",
     ].join(newline);
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "request",
         instructions: content,
@@ -551,17 +596,15 @@ describe("App in exported-trace mode", () => {
           { part_kind: "user-prompt", content },
           { part_kind: "user-prompt", content: [content] },
           { part_kind: "user-prompt", content: [{ kind: "text-content", content }] },
-          { part_kind: "user-prompt", content: [{ kind: "text", text: content }] },
-          { part_kind: "user-prompt", content: [{ kind: "text-content", text: content }] },
           { part_kind: "retry-prompt", content },
         ],
       },
-    ];
+    ]);
 
     const { container, getAllByRole } = render(<App />);
     fireEvent.keyDown(window, { key: "E" });
     const prompts = container.querySelectorAll(".markdown");
-    expect(prompts).toHaveLength(7);
+    expect(prompts).toHaveLength(5);
     for (const prompt of prompts) {
       expect(prompt.querySelector("p")?.innerHTML).toBe(
         "first <strong>line</strong><br>second line",
@@ -572,13 +615,13 @@ describe("App in exported-trace mode", () => {
     }
     expect(container.querySelector(".tone-error .raw-text")?.textContent).toBe(content);
     for (const button of getAllByRole("button", { name: "raw" })) fireEvent.click(button);
-    expect(container.querySelectorAll(".raw-text")).toHaveLength(8);
+    expect(container.querySelectorAll(".raw-text")).toHaveLength(6);
     for (const raw of container.querySelectorAll(".raw-text"))
       expect(raw.textContent).toBe(content);
   });
 
   it("renders scalar and one-item sequence user text consistently", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "request",
         parts: [{ part_kind: "user-prompt", content: "same **prompt**" }],
@@ -587,7 +630,7 @@ describe("App in exported-trace mode", () => {
         kind: "request",
         parts: [{ part_kind: "user-prompt", content: ["same **prompt**"] }],
       },
-    ];
+    ]);
 
     const { container } = render(<App />);
     const previews = Array.from(container.querySelectorAll(".tone-user .block-preview"));
@@ -599,32 +642,28 @@ describe("App in exported-trace mode", () => {
   });
 
   it("renders TextContent objects in heterogeneous user content", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "request",
         parts: [
           {
             part_kind: "user-prompt",
             content: [
-              { kind: "text", text: "object **text**" },
+              { kind: "text-content", content: "object **text**" },
               { kind: "cache-point" },
-              { kind: "future-content", value: 42 },
             ],
           },
         ],
       },
-    ];
+    ]);
 
     const { container, getAllByText } = render(<App />);
     expect(container.querySelector(".tone-user .markdown strong")?.textContent).toBe("text");
     getAllByText("cache point");
-    expect(container.querySelector(".tone-user .json-tree")?.textContent).toContain(
-      "future-content",
-    );
   });
 
   it("renders an all-JSON text response as a structured value", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [
@@ -634,7 +673,7 @@ describe("App in exported-trace mode", () => {
           },
         ],
       },
-    ];
+    ]);
     const { container } = render(<App />);
 
     expect(container.querySelector(".json-tree")).not.toBeNull();
@@ -645,7 +684,7 @@ describe("App in exported-trace mode", () => {
   });
 
   it("escapes JSON string primitives", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [
@@ -656,14 +695,14 @@ describe("App in exported-trace mode", () => {
           },
         ],
       },
-    ];
+    ]);
     const { container } = render(<App />);
 
     expect(container.querySelector(".json-string")?.textContent).toBe('"line 1\\n\\"line 2\\""');
   });
 
   it("measures large JSON strings in UTF-8 bytes", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [
@@ -674,7 +713,7 @@ describe("App in exported-trace mode", () => {
           },
         ],
       },
-    ];
+    ]);
     const { container } = render(<App />);
 
     expect(container.querySelector(".json-tree details.collapsible")?.textContent).toContain(
@@ -683,25 +722,20 @@ describe("App in exported-trace mode", () => {
   });
 
   it("keeps prose containing a JSON fragment as markdown", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "response",
         parts: [{ part_kind: "text", content: 'Result: {"status":"ok"}' }],
       },
-    ];
+    ]);
     const { container } = render(<App />);
 
     expect(container.querySelector(".markdown")).not.toBeNull();
     expect(container.querySelector(".json-tree")).toBeNull();
   });
 
-  it("renders an empty trace without crashing", () => {
-    window.__TRACE_DATA__ = [];
-    render(<App />);
-  });
-
   it("falls back to a linked chip when an image attachment fails to load", () => {
-    window.__TRACE_DATA__ = [
+    embedMessages([
       {
         kind: "request",
         parts: [
@@ -711,7 +745,7 @@ describe("App in exported-trace mode", () => {
           },
         ],
       },
-    ];
+    ]);
     const { container } = render(<App />);
     const img = container.querySelector("img")!;
     fireEvent.error(img);

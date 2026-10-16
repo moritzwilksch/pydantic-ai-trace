@@ -1,8 +1,7 @@
-"""Token-efficient plain-text rendering for pydantic-ai trace dumps.
+"""Token-efficient plain-text transcript of a trajectory.
 
-This module intentionally has no pydantic-ai dependency. Trace dumps are
-untrusted, versioned wire data, so the formatter mirrors the frontend's
-tolerant parsing and fallback behavior instead of validating a fixed schema.
+Messages are rendered from their canonical Pydantic AI JSON dump, the same shape the
+browser viewer reads, in the same message and part order.
 """
 
 from __future__ import annotations
@@ -10,31 +9,83 @@ from __future__ import annotations
 import json
 import math
 import re
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from .trajectory import CAPABILITY_LOAD_KIND, TOOL_SEARCH_KIND, ParsedTrace, parse_trace
+from pydantic_ai.messages import ModelMessagesTypeAdapter
+
+from .analysis import Analysis, RunAnalysis, Totals, parse_tool_args
+from .trajectory import Run, Trajectory
+
+CAPABILITY_LOAD_KIND = "capability-load"
+TOOL_SEARCH_KIND = "tool-search"
 
 
-def format_trace_json_as_text(trace_json: str, name: str) -> str:
-    """Parse and render one trace JSON payload."""
-    return format_trace_as_text(json.loads(trace_json), name)
+def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> str:
+    """Render every run in tree order; a one-run trajectory has no run headings."""
+    by_id = {run.run_id: run for run in analysis.runs}
+    sections = [_section(_envelope("TRACE"), f"NAME: {_inline(name)}\n{_totals(analysis.totals)}")]
+    ordered = _tree_order(trajectory)
+    for run in ordered:
+        if len(ordered) > 1:
+            sections.append(
+                _section(_envelope(f"RUN: {_inline(run.name)}"), _run_details(run, by_id[run.id]))
+            )
+        sections.extend(_message_sections(run, by_id[run.id]))
+    return "\n\n".join(sections) + "\n"
 
 
-def format_trace_as_text(trace: object, name: str) -> str:
-    """Render one trace in the same message/part order as the browser viewer."""
-    parsed = parse_trace(trace)
-    messages = parsed.messages
-    sections = [_section(_envelope("TRACE"), _trace_details(parsed, name))]
+def _tree_order(trajectory: Trajectory) -> list[Run]:
+    ordered: list[Run] = []
+
+    def visit(run: Run) -> None:
+        ordered.append(run)
+        for child in trajectory.children(run.id):
+            visit(child)
+
+    for root in trajectory.roots():
+        visit(root)
+    return ordered
+
+
+def _run_details(run: Run, analysis: RunAnalysis) -> str:
+    lines = [f"ID: {run.id}"]
+    if run.parent is not None:
+        via = f" via tool call {run.parent.tool_call_id}" if run.parent.tool_call_id else ""
+        missing = " (not recorded)" if analysis.parent_missing else ""
+        lines.append(f"PARENT: {run.parent.run_id}{missing}{via}")
+    outcome = run.outcome
+    if outcome.status == "failed":
+        lines.append(f"OUTCOME: failed · {_inline(outcome.error_type)}: {_inline(outcome.detail)}")
+    else:
+        lines.append(f"OUTCOME: {outcome.status}")
+    lines.append(_totals(analysis.totals))
+    return "\n".join(lines)
+
+
+def _totals(totals: Totals) -> str:
+    tokens = totals.tokens
+    summary = [
+        f"LLM CALLS: {totals.llm_calls}",
+        f"TOKENS: {_token_usage(tokens.input, tokens.output, tokens.cache_read)}",
+    ]
+    if totals.cost_usd is not None:
+        unpriced = f" (+{totals.unpriced_calls} unpriced)" if totals.unpriced_calls else ""
+        summary.append(f"COST: {_usd(totals.cost_usd)}{unpriced}")
+    summary.append(f"WALL TIME: {totals.duration_seconds:.1f}s")
+    return " | ".join(summary)
+
+
+def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
+    messages: list[dict[str, Any]] = ModelMessagesTypeAdapter.dump_python(
+        list(run.messages), mode="json"
+    )
+    costs = {response.message: response.cost_usd for response in analysis.responses}
+    sections: list[str] = []
     request_number = 0
     response_number = 0
     last_instructions: object = None
-
-    for message in messages:
-        if message["kind"] == "unknown":
-            sections.append(_section(_envelope("UNKNOWN MESSAGE"), _json(message["raw"])))
-            continue
-
+    for index, message in enumerate(messages):
         parts: list[str] = []
         instructions = message.get("instructions")
         if message["kind"] == "request" and instructions and instructions != last_instructions:
@@ -47,45 +98,37 @@ def format_trace_as_text(trace: object, name: str) -> str:
 
         if message["kind"] == "response":
             response_number += 1
-            heading = _response_envelope(message, response_number)
+            heading = _response_envelope(message, response_number, costs.get(index))
         else:
             request_number += 1
             heading = _request_envelope(message.get("state"), request_number)
         sections.append(_section(heading, "\n\n".join(parts)))
-
-    return "\n\n".join(sections) + "\n"
-
-
-def _trace_details(trace: ParsedTrace, name: str) -> str:
-    stats = trace.stats
-    summary = [
-        f"LLM CALLS: {stats.llm_calls}",
-        f"TOKENS: {_token_usage(stats.input_tokens, stats.output_tokens, stats.cache_read_tokens)}",
-    ]
-    if stats.wall_time_seconds is not None:
-        summary.append(f"WALL TIME: {stats.wall_time_seconds:.1f}s")
-    return f"NAME: {_inline(name)}\n{' | '.join(summary)}"
+    return sections
 
 
 def _request_envelope(state: object, number: int) -> str:
-    label = f"REQUEST {number} [INTERRUPTED]" if state == "interrupted" else f"REQUEST {number}"
-    return _envelope(label)
+    return _envelope(f"REQUEST {number}{_state_label(state)}")
 
 
-def _response_envelope(response: dict[str, Any], number: int) -> str:
-    details = [
-        f"RESPONSE {number} [INTERRUPTED]"
-        if response.get("state") == "interrupted"
-        else f"RESPONSE {number}"
-    ]
+def _response_envelope(response: dict[str, Any], number: int, cost_usd: Decimal | None) -> str:
+    details = [f"RESPONSE {number}{_state_label(response.get('state'))}"]
     if response.get("model_name"):
         details.append(_inline(response["model_name"]))
-    usage = response.get("usage")
-    if isinstance(usage, dict):
-        details.append(
-            _token_usage(usage["input_tokens"], usage["output_tokens"], usage["cache_read_tokens"])
-        )
+    usage = response["usage"]
+    details.append(
+        _token_usage(usage["input_tokens"], usage["output_tokens"], usage["cache_read_tokens"])
+    )
+    if cost_usd is not None:
+        details.append(_usd(cost_usd))
     return _envelope(" · ".join(details))
+
+
+def _state_label(state: object) -> str:
+    return f" [{_inline(state).upper()}]" if state and state != "complete" else ""
+
+
+def _usd(amount: Decimal) -> str:
+    return f"${amount.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)}"
 
 
 def _token_usage(input_tokens: int, output_tokens: int, cached_tokens: int) -> str:
@@ -141,7 +184,7 @@ def _format_tool_call_args(part: dict[str, Any]) -> str:
     capability = _capability_id(part)
     if capability is not None:
         return f"CAPABILITY: {capability}"
-    return f"ARGUMENTS:\n{_format_value(part.get('parsed_args'))}"
+    return f"ARGUMENTS:\n{_format_value(parse_tool_args(part.get('args')))}"
 
 
 def _format_tool_return(part: dict[str, Any]) -> str:
@@ -169,7 +212,7 @@ def _format_tool_return_content(part: dict[str, Any]) -> str:
 
 
 def _format_tool_availability_delta(part: dict[str, Any]) -> str:
-    added = _tools_added(part)
+    added = part["tools_added"]
     body = "\n".join(f"+{name}" for name in added) if added else _json(part)
     return _part_section("TOOL AVAILABILITY", body)
 
@@ -179,24 +222,15 @@ def _format_retry_prompt(part: dict[str, Any]) -> str:
     return _part_section(f"RETRY PROMPT{tool}", _format_value(part.get("content")))
 
 
-def _tools_added(part: dict[str, Any]) -> list[str]:
-    """`tools_added`, or the `added` alias older dumps used."""
-    raw = part.get("tools_added")
-    if not isinstance(raw, list):
-        raw = part.get("added")
-    if not isinstance(raw, list):
-        return []
-    return [name for name in raw if isinstance(name, str)]
-
-
 def _tool_search_queries(part: dict[str, Any]) -> list[str] | None:
     """Queries of a tool-search call, or None when the part is not one."""
     if part.get("tool_kind") != TOOL_SEARCH_KIND:
         return None
-    args = part.get("parsed_args")
-    if not isinstance(args, dict) or not isinstance(args.get("queries"), list):
+    args = parse_tool_args(part.get("args"))
+    queries = args.get("queries") if isinstance(args, dict) else None
+    if not isinstance(queries, list):
         return None
-    return [query for query in args["queries"] if isinstance(query, str)]
+    return [query for query in queries if isinstance(query, str)]
 
 
 def _discovered_tools(part: dict[str, Any]) -> list[str] | None:
@@ -216,8 +250,9 @@ def _discovered_tools(part: dict[str, Any]) -> list[str] | None:
 def _capability_id(part: dict[str, Any]) -> str | None:
     if part.get("tool_kind") != CAPABILITY_LOAD_KIND:
         return None
-    args = part.get("parsed_args")
-    return args["id"] if isinstance(args, dict) and isinstance(args.get("id"), str) else None
+    args = parse_tool_args(part.get("args"))
+    capability = args.get("id") if isinstance(args, dict) else None
+    return capability if isinstance(capability, str) else None
 
 
 def _capability_instructions(part: dict[str, Any]) -> str | None:
@@ -239,14 +274,8 @@ def _format_user_item(item: object) -> str:
         return item
     if not isinstance(item, dict):
         return _json(item)
-    if item.get("kind") == "text":
-        return item["text"] if isinstance(item.get("text"), str) else _json(item)
     if item.get("kind") == "text-content":
-        if isinstance(item.get("text"), str):
-            return item["text"]
-        if isinstance(item.get("content"), str):
-            return item["content"]
-        return _json(item)
+        return _js_string(item.get("content"))
     if item.get("kind") == "uploaded-file":
         return "[uploaded file]"
     if item.get("kind") == "cache-point":

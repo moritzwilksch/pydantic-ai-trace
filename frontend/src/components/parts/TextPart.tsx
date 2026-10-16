@@ -1,5 +1,5 @@
 import { MessageSquare } from "lucide-preact";
-import { compactJson, parseJsonContainer } from "../../parse";
+import { compactJson, parseJsonContainer } from "../../format";
 import type { TextPart as TextPartType } from "../../types";
 import { Block } from "../Block";
 import { ValueView } from "./common";

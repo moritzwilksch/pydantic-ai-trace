@@ -17,9 +17,12 @@ import webbrowser
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol, TextIO
+from typing import TYPE_CHECKING, Literal, Protocol, TextIO
 
 from . import __version__, scan
+
+if TYPE_CHECKING:
+    from .payload import TracePayload
 
 DEFAULT_PORT = 1205
 DEFAULT_HOST = "127.0.0.1"
@@ -48,6 +51,16 @@ class CliError(Exception):
 class LoadedTrace:
     text: str
     name: str
+
+    def payload(self) -> TracePayload:
+        from .load import TraceLoadError, load_trajectory
+        from .payload import build_payload
+
+        try:
+            trajectory = load_trajectory(self.text, name=self.name)
+        except TraceLoadError as exc:
+            raise TraceLoadError(f"{self.name}: {exc}") from exc
+        return build_payload(trajectory, name=self.name)
 
 
 class TextWriter(Protocol):
@@ -170,9 +183,9 @@ def _run_export(argv: list[str]) -> int:
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
-        from ._html import trace_document
+        from ._html import payload_document
 
-        output.write_text(trace_document(loaded.text, trace_name=loaded.name), encoding="utf-8")
+        output.write_text(payload_document(loaded.payload()), encoding="utf-8")
     except (scan.TraceLookupError, FileNotFoundError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     print(f"wrote {output}")
@@ -195,10 +208,7 @@ def _run_text(argv: list[str]) -> int:
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
-        from .text import format_trace_json_as_text
-
-        rendered = format_trace_json_as_text(loaded.text, loaded.name)
-        _write_output(rendered, args.output)
+        _write_output(loaded.payload().transcript, args.output)
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     return 0
@@ -241,13 +251,9 @@ def _run_json(argv: list[str]) -> int:
 
         input_path = inputs[0] if inputs else None
         loaded = _load_trace(input_path, args.line, parser)
-        from .trajectory import format_trace_json_as_compact_json
+        from .compact import format_compact_json
 
-        rendered = format_trace_json_as_compact_json(
-            loaded.text,
-            name=loaded.name,
-            indent=2 if args.pretty else None,
-        )
+        rendered = format_compact_json(loaded.payload(), indent=2 if args.pretty else None)
         _write_output(rendered, args.output)
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
@@ -351,10 +357,10 @@ def _write_compact_traces(traces: Iterable[LoadedTrace], *, output: Path | None)
 
 
 def _render_compact_traces(traces: Iterable[LoadedTrace], *, stream: TextWriter) -> None:
-    from .trajectory import format_trace_json_as_compact_json
+    from .compact import format_compact_json
 
     for trace in traces:
-        stream.write(format_trace_json_as_compact_json(trace.text, name=trace.name))
+        stream.write(format_compact_json(trace.payload()))
 
 
 def _require_trace_file(input_path: Path) -> Literal["json", "jsonl"]:
