@@ -1,24 +1,20 @@
 # pydantic-ai-trace
 
-Use `pydantic-ai-trace` when you need to inspect an agent run from a JSON dump. Give it a [pydantic-ai](https://ai.pydantic.dev) `list[ModelMessage]` dump, or a trajectory of several runs, and it opens them in a browser view.
-
-It is a lightweight local tool. Point it at a trace or a directory of traces and it reads the files from disk, reloads them when they change, and exports individual traces as self-contained HTML files. Your traces stay on disk, with no hosted service or account.
+Inspect [Pydantic AI](https://ai.pydantic.dev) agent runs in your browser. Point `paitrace` at a `list[ModelMessage]` dump, a trajectory of several runs, or a directory of them. It reads the files from disk, reloads them when they change, and exports any trace as a self-contained HTML file. No hosted service, no account.
 
 <img width="1196" height="791" alt="image" src="https://github.com/user-attachments/assets/bfdfb570-69be-4c2f-811b-4fe8182f8601" />
 
 
 ## What you can inspect
 
-- The full request and response sequence, including prompts, text, thinking, tool calls, tool results, and every other Pydantic AI part
-- Tool search and capability loading rendered by what they carry: the queries asked, the tools discovered, and the tools each step made available
-- Tool calls paired with their results, including results in later messages
+- The full request and response sequence: prompts, text, thinking, tool calls, tool results, and every other Pydantic AI part
+- Tool search queries, the tools they discovered, and the tools each step could use
+- Tool calls paired with their results, also when a result arrives in a later message
 - Model, provider, timing, token usage, and cost (from [genai-prices](https://github.com/pydantic/genai-prices))
 - Trajectories: workflow steps and subagents as a tree of runs, each subagent linked from the tool call that started it, with costs summed up the tree
-- A searchable directory tree for `.json` and `.jsonl` traces
-- Collapsible large values, rendered Markdown, and keyboard navigation
-- In-trace search with `/`, match highlighting, and automatic expansion of collapsed results
-- One-click copying as a compact text transcript that preserves request and response order
-- CLI rendering of the same compact transcript for use by people, scripts, and AI agents
+- A searchable directory tree of `.json` and `.jsonl` traces
+- Collapsible large values, rendered Markdown, keyboard navigation, and in-trace search with `/`
+- A compact text transcript, copied from the viewer or printed with `paitrace text`
 
 ## Run from a checkout
 
@@ -40,91 +36,29 @@ pixi run paitrace trace.json
 | `paitrace stats [PATHS ...]` | Prints LLM calls, tokens, cost, and wall time per trace |
 
 `paitrace COMMAND --help` lists every option with examples. From a checkout, prefix commands
-with `pixi run`.
+with `pixi run`. With no input, a command reads piped stdin.
 
-### Inputs
+> [!WARNING]
+> The viewer has no authentication. It binds to `127.0.0.1` by default; binding `--host` to any
+> other address exposes every trace under the served path to whoever can reach the port.
 
-Every command reads the same traces:
+### Query with jq
 
-- A trace is a message list or a trajectory; see [Trace files](#trace-files).
-- A `.json` file holds one trace. A `.jsonl` file holds one trace per line.
-- With no input, a command reads piped stdin. Pass `-` to read stdin explicitly. Stdin can hold
-  one JSON trace or JSONL.
-- `--line N` picks trace `N` (counting from 1) of a multi-trace JSONL input. `export`, `text`,
-  and single-input `json` require it for such inputs.
-
-A command word is still treated as a path when a file or directory with that name exists, so
-`paitrace export` serves a directory named `export`.
-
-### `paitrace` — view traces
+`paitrace json` prints one document per trace: its `name`, aggregate `stats`, and `runs`, each
+with its own `stats` and `messages`. `paitrace stats --json` prints the same `stats` for each
+trace and run, without messages.
 
 ```bash
-paitrace trace.json                   # one trace
-paitrace ./traces/                    # every trace under a directory
-paitrace first.json runs.jsonl        # only the files you name
-curl -s https://example.test/trace.json | paitrace
-```
-
-The viewer binds to `127.0.0.1:1205` and opens a browser tab. `--port`, `--host`, and
-`--no-open` change that. The viewer has no authentication: binding `--host` to anything
-but loopback exposes every trace under the served path to whoever can reach the port. Each line of a JSONL file appears as its own trace, listed 100 at a
-time; a trajectory's runs appear under their trace in the sidebar.
-
-### `paitrace export` — write HTML
-
-```bash
-paitrace export trace.json                    # writes trace.html
-paitrace export runs.jsonl --line 2 -o run2.html
-curl -s https://example.test/trace.json | paitrace export -o trace.html
-```
-
-The file embeds the trace, its costs, and the viewer, and opens offline. `-o` defaults to the
-input path with an `.html` suffix and is required for stdin.
-
-### `paitrace text` — print a transcript
-
-```bash
-paitrace text trace.json | less
-paitrace text runs.jsonl --line 2 -o run2.txt
-```
-
-The transcript lists every run, request, and response in order, with token usage and cost.
-Instructions are printed only when they change. It goes to stdout unless `-o` names a file, and
-it is the text the viewer's "Copy trace" button copies.
-
-### `paitrace json` — print compact JSON
-
-```bash
-paitrace json trace.json --pretty                 # one indented document
-paitrace json runs.jsonl --all -o compact.jsonl   # one document per JSONL line
-paitrace json first.json second.json              # JSONL, in argument order
-paitrace json first.json runs.jsonl --all         # --all also expands JSONL inputs
-```
-
-Each document has the trace's `name`, aggregate `stats`, and `runs` in recorded order. A run
-carries its `id`, `name`, `parent`, `outcome`, timing, own `stats`, and `messages`; a message
-list is one run. Messages keep request and response order, native tool arguments and results,
-tool-call IDs, and model and token metadata. Tool calls and results stay separate events linked
-by `id`. Display headings, repeated instructions, provider response IDs, and binary payloads are
-left out. `cost_usd` is present when genai-prices knows the model; `unpriced_calls` counts the
-responses it could not price.
-
-One input prints one document. Several inputs, or `--all`, print JSONL with one document per
-trace; a JSONL `-o` file is replaced only after every trace converts. `--all` cannot be combined
-with `--line` or `--pretty`, and several inputs cannot use stdin, `--line`, or `--pretty`.
-
-Query it with jq:
-
-```bash
-# The final assistant text
+# The last assistant text, with runs in the order they ended
 paitrace json trace.json \
   | jq -r '[.runs[].messages[].parts[] | select(.type == "text") | .content] | last'
 
-# Tool calls, results, and retries in chronological order
+# Tool calls, results, and retries, in order within each run
 paitrace json trace.json \
   | jq '[.runs[].messages[].parts[] | select(.type == "tool_call" or .type == "tool_result" or .type == "retry")]'
 
-# Tool calls paired with their result or retry by call ID, within each run
+# Each tool call with its result or retry, within its run
+# (takes the first result with the call's ID, so assumes IDs are unique within a run)
 paitrace json trace.json | jq '
   [.runs[]
     | .id as $run
@@ -148,53 +82,21 @@ paitrace json trace.json | jq '.stats'
 
 # Several documents as one JSON array
 paitrace json first.json second.json | jq -s '.'
-```
 
-### `paitrace stats` — summarize traces
-
-```bash
-paitrace stats ./traces/
-paitrace stats trajectory.json runs/multi.jsonl
-paitrace stats ./traces/ --json > stats.jsonl
-```
-
-```text
-trace                       runs  calls   in  cached  out     cost  wall
-trajectory.json                4      5  500       0  100  $0.0023  6.0s
-  planner                             1  100       0   20  $0.0005  2.0s
-  worker                              2  200       0   40  $0.0009  3.0s
-    subagent                          1  100       0   20  $0.0005  1.0s
-  summarizer                          1  100       0   20  $0.0005  1.0s
-runs/multi.jsonl · trace 1     1      1    5       0    6  $0.0004  1.0s
-runs/multi.jsonl · trace 2     1      1    5       0    6  $0.0004  1.0s
-total                          6      7  510       0  112  $0.0030  8.0s
-```
-
-`stats` prints one row per trace and, for several traces, a totals row. A trajectory with
-several runs gets one indented row per run, in tree order. A run's row counts only that run's
-own LLM calls, tokens, and cost, not the runs it started, so run rows add up to their trace.
-Its wall time is the run's own start to end.
-
-It searches a directory like the viewer's sidebar, and each JSONL line is its own trace. A cost
-marked `*` includes responses whose model has no known price; `-` means none could be priced.
-Traces that do not validate are listed with their error after the table, and the command exits
-with status 1.
-
-`--json` prints JSONL instead, one object per trace: `{name, stats, runs}`, or `{name, error}`
-for an invalid trace. `stats` has the same shape as in `paitrace json`. Each run is
-`{id, name, parent, stats}`, with `parent` the parent run's ID. Group runs by name to compare
-agents across traces, for example each agent's share of the cost:
-
-```bash
+# Each agent's share of the cost across traces, grouping runs by name
 paitrace stats ./traces/ --json | jq -s '
   [.[] | .runs[]?]
   | group_by(.name)
   | map({name: .[0].name, cost_usd: (map(.stats.cost_usd // 0) | add)})
   | (map(.cost_usd) | add) as $total
-  | map(.share = (100 * .cost_usd / $total | round))
+  | map(.share = (if $total > 0 then 100 * .cost_usd / $total | round else null end))
   | sort_by(-.cost_usd)
 '
 ```
+
+A run's `stats` count only its own calls, not the runs it started, so summing runs by name
+counts no subagent twice. `cost_usd` is missing when genai-prices knows none of the models;
+`unpriced_calls` counts the responses it could not price.
 
 ## Trajectories
 
@@ -223,27 +125,20 @@ Path("case-42.json").write_text(trajectory.model_dump_json())
 `Run.from_messages` takes a run's start and end from its message timestamps and records it as
 completed. Construct `Run` directly to set `started_at`, `ended_at`, or an `outcome` of
 `Completed(output=...)`, `Failed(error_type=..., detail=...)`, or `Cancelled()`. A run holds only
-the messages it produced, without inherited history; use `result.new_messages()`.
+the messages it produced, without inherited history, so pass `result.new_messages()`.
 
-`Trajectory` validates that run IDs are unique, that a `tool_call_id` names exactly one tool call in its parent run,
-and that no run is its own ancestor. A run whose parent is not in the trajectory is shown as a
+`Trajectory` validates that run IDs are unique, that a `tool_call_id` names exactly one tool call
+in its parent run, and that no run is its own ancestor. A run whose parent is not in the trajectory is shown as a
 top-level run marked "parent not recorded", so a file written while a workflow runs stays
 viewable.
 
 ## Embed from Python
 
-`render_html` turns a trajectory into the same self-contained HTML document produced by
-`paitrace export`. It does not start a server or write a temporary file.
+`render_html` turns a trajectory into the same self-contained HTML document that
+`paitrace export` writes. It starts no server and writes no file. Show the document in an
+iframe, which keeps the viewer's CSS and keyboard shortcuts out of the host page.
 
-```python
-from pydantic_ai_trace import Trajectory, render_html
-
-html = render_html(Trajectory.from_messages(messages), name="Candidate response")
-```
-
-### Streamlit
-
-Streamlit renders custom HTML inside an iframe:
+In Streamlit:
 
 ```python
 import streamlit.components.v1 as components
@@ -254,10 +149,8 @@ html = render_html(Trajectory.from_messages(messages), name="Candidate response"
 components.html(html, height=900, scrolling=True)
 ```
 
-### Python HTTP servers
-
-Return the document from a dedicated endpoint, then show that URL in an iframe in the host page.
-For example, with Starlette:
+From a Python HTTP server, return the document from its own endpoint and point an iframe at that
+URL. For example, with Starlette:
 
 ```python
 from starlette.responses import HTMLResponse
@@ -271,32 +164,21 @@ async def trace_view(request):
     return HTMLResponse(render_html(trajectory, name=f"Run {request.path_params['run_id']}"))
 ```
 
-```html
-<iframe
-  src="/runs/abc123/trace"
-  title="Agent trace"
-  style="width: 100%; height: 100%; border: 0"
-></iframe>
-```
-
-The iframe isolates the viewer's CSS and keyboard shortcuts from the host application. The
-generated document contains inline JavaScript and CSS, so applications with a strict Content
-Security Policy must allow the document or serve it under a suitable policy.
+The document uses inline JavaScript and CSS. Under a strict Content Security Policy, serve it with
+a policy that allows them.
 
 ## Trace files
 
-The viewer reads two JSON shapes:
+Every command reads two JSON shapes:
 
-- A message list: the JSON emitted by `ModelMessagesTypeAdapter.dump_json(messages)`. It is shown
-  as one run.
-- A trajectory: the JSON emitted by `Trajectory.model_dump_json()`.
+- A message list: the JSON from `ModelMessagesTypeAdapter.dump_json(messages)`, shown as one run.
+- A trajectory: the JSON from `Trajectory.model_dump_json()`.
 
-`.json` files hold one of these. `.jsonl` files hold one per line; when you open a directory,
-each line is available as a separate trace.
+A `.json` file holds one trace. A `.jsonl` file holds one trace per line, and each line is its
+own trace in the viewer and in `paitrace stats`.
 
 Traces are validated with the installed Pydantic AI. A trace that does not validate is listed
-with its first validation error instead of being rendered. A dump from a newer Pydantic AI may
-need a newer install.
+with its first validation error instead. A dump from a newer Pydantic AI may need a newer install.
 
 ## Development
 
@@ -318,9 +200,9 @@ pixi run build       # bundled frontend plus sdist and wheel
 
 ## Releasing
 
-Create and publish a GitHub release with a `vX.Y.Z` tag. The package version is derived from that
-tag, so no source file needs a version bump. Publishing the release triggers GitHub Actions to run
-the full check suite, build the frontend into the wheel and source distribution, publish both to
-PyPI using trusted publishing, and attach them to the GitHub release. Configure a `pypi`
+Publish a GitHub release with a `vX.Y.Z` tag. The package version comes from that tag, so no
+source file needs a version bump. The release workflow runs every check, builds the frontend into
+the wheel and sdist, publishes both to PyPI with trusted publishing, and attaches them to the
+release. Configure a `pypi`
 environment in GitHub and add this repository as a trusted publisher for the `pydantic-ai-trace`
 project on PyPI before the first release.
