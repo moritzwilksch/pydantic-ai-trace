@@ -7,6 +7,7 @@ renderers read the canonical messages and join these facts by index.
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict, deque
 from collections.abc import Iterable
 from datetime import datetime
@@ -167,12 +168,24 @@ def _pair_tool_calls(
 
 
 def parse_tool_args(args: str | dict[str, object] | None) -> JsonValue:
+    """Parse a JSON string; keep the string when it is not standard JSON (e.g. `1e400`)."""
     if not isinstance(args, str):
         return args  # type: ignore[return-value]  # validated JSON-compatible dict or None
     try:
-        return json.loads(args)
-    except json.JSONDecodeError:
+        return json.loads(args, parse_float=_finite_float, parse_constant=_reject_constant)
+    except ValueError:  # includes JSONDecodeError
         return args
+
+
+def _finite_float(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite number {text!r}")
+    return value
+
+
+def _reject_constant(text: str) -> None:
+    raise ValueError(f"non-standard JSON constant {text!r}")
 
 
 def _cost(response: ModelResponse) -> Decimal | None:

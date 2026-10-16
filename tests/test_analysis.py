@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from pydantic_ai.usage import RequestUsage
 
 from pydantic_ai_trace import Completed, Parent, Run, RunId, ToolCallId, Trajectory
 from pydantic_ai_trace.analysis import PartRef, analyze
+from pydantic_ai_trace.payload import build_payload
 
 FIXTURES = Path(__file__).parent / "fixtures"
 START = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
@@ -79,6 +81,18 @@ class TestToolPairing:
 
         assert run.tool_calls[0].result is None
         assert run.matched_results == ()
+
+    @pytest.mark.parametrize("args", ['{"x": 1e400}', '{"x": [1, NaN]}', '{"x": -Infinity}'])
+    def test_args_with_non_finite_numbers_stay_strings_and_serialize(self, args: str):
+        response = ModelResponse(
+            parts=[ToolCallPart(tool_name="t", args=args, tool_call_id="a")], timestamp=START
+        )
+        trajectory = Trajectory(runs=(single_run(response),))
+
+        [run] = analyze(trajectory).runs
+
+        assert run.tool_calls[0].args == args
+        assert json.loads(build_payload(trajectory, name="t").to_json())["name"] == "t"
 
     def test_args_are_parsed_from_json_strings(self):
         [run] = analyze(Trajectory(runs=(single_run(call("a")),))).runs
