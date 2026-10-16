@@ -144,14 +144,38 @@ function ServerApp() {
   const [selection, setSelection] = useState<TraceSelection | null>(readHash);
   const [trace, setTrace] = useState<TraceState>({ status: "unselected" });
   const [appError, setAppError] = useState<string | null>(null);
+  const beginTreeRequest = useRequestOrder();
+  const beginTraceRequest = useRequestOrder();
+
+  // A save can trigger several change events, and their responses can arrive out
+  // of order. Only the latest request may update the tree or the trace.
+  function loadTree(onError: (error: unknown) => void) {
+    const isLatest = beginTreeRequest();
+    fetchTree()
+      .then((next) => {
+        if (isLatest()) setTree(next);
+      })
+      .catch((e) => {
+        if (isLatest()) onError(e);
+      });
+  }
+
+  function loadTrace(target: TraceSelection) {
+    const isLatest = beginTraceRequest();
+    fetchTrace(target)
+      .then((data) => {
+        if (isLatest()) setTrace({ status: "ready", data });
+      })
+      .catch((e) => {
+        if (isLatest()) setTrace({ status: "error", message: String(e) });
+      });
+  }
 
   useEffect(() => {
     fetchMeta()
       .then(setMeta)
       .catch((e) => setAppError(String(e)));
-    fetchTree()
-      .then(setTree)
-      .catch((e) => setAppError(String(e)));
+    loadTree((e) => setAppError(String(e)));
   }, []);
 
   // Single-file mode: auto-open the one trace.
@@ -164,21 +188,12 @@ function ServerApp() {
 
   useEffect(() => {
     if (selection === null) {
+      beginTraceRequest(); // discard a pending load
       setTrace({ status: "unselected" });
       return;
     }
-    let stale = false;
     setTrace({ status: "loading" });
-    fetchTrace(selection)
-      .then((data) => {
-        if (!stale) setTrace({ status: "ready", data });
-      })
-      .catch((e) => {
-        if (!stale) setTrace({ status: "error", message: String(e) });
-      });
-    return () => {
-      stale = true;
-    };
+    loadTrace(selection);
   }, [selection]);
 
   // Live updates: refresh the tree on any change, re-fetch the open trace if it changed.
@@ -186,22 +201,9 @@ function ServerApp() {
   selectionRef.current = selection;
   useEffect(() => {
     return subscribeChanges((paths) => {
-      fetchTree()
-        .then(setTree)
-        .catch(() => undefined);
+      loadTree(() => undefined);
       const current = selectionRef.current;
-      if (current && paths.includes(current.path)) {
-        fetchTrace(current)
-          // Guard against the refetch resolving after the user moved on.
-          .then((data) => {
-            if (selectionRef.current === current) setTrace({ status: "ready", data });
-          })
-          .catch((e) => {
-            if (selectionRef.current === current) {
-              setTrace({ status: "error", message: String(e) });
-            }
-          });
-      }
+      if (current && paths.includes(current.path)) loadTrace(current);
     });
   }, []);
 
@@ -250,6 +252,18 @@ function ServerApp() {
       />
     </div>
   );
+}
+
+/**
+ * Orders requests of one kind. `begin()` starts a request and returns `isLatest`,
+ * which turns false once a later request begins.
+ */
+function useRequestOrder(): () => () => boolean {
+  const latest = useRef(0);
+  return () => {
+    const request = ++latest.current;
+    return () => latest.current === request;
+  };
 }
 
 function TraceStatus({ trace }: { trace: TraceState }) {
