@@ -215,8 +215,8 @@ class TestInMemoryTraceData:
         assert traces == [(1, "[]"), (2, "[1]")]
 
     def test_jsonl_line_keeps_an_unescaped_line_separator_in_a_string(self):
-        traces = list(scan.iter_jsonl_traces(['["a b"]\n[]\n'], name="runs"))
-        assert traces == [(1, '["a b"]'), (2, "[]")]
+        traces = list(scan.iter_jsonl_traces(['["a\u2028b"]\n[]\n'], name="runs"))
+        assert traces == [(1, '["a\u2028b"]'), (2, "[]")]
 
     def test_iterating_empty_jsonl_is_rejected(self):
         with pytest.raises(scan.TraceLookupError, match="contains no traces"):

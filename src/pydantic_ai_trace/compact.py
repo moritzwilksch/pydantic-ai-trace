@@ -158,12 +158,11 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
 
 def _compact_tool_return_content(part: dict[str, Any]) -> object:
     """A tool-search return is a list of names wrapped in per-match objects; unwrap it."""
-    content = part.get("content")
     discovered = discovered_tools(part)
     if discovered is None:
-        return _compact_value(content)
+        return _compact_value(part.get("content"))
     compact: dict[str, object] = {"discovered_tools": discovered}
-    _copy_nonempty(content, compact, "message", "message")
+    _copy_nonempty(part["content"], compact, "message", "message")
     return compact
 
 
