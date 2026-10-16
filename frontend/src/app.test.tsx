@@ -205,6 +205,61 @@ describe("App in exported-trace mode", () => {
     expect(child.getAttribute("title")).toContain("parent not recorded");
   });
 
+  it("renders a trajectory whose root run has an empty ID", () => {
+    embed(
+      payloadFromRuns([
+        {
+          id: "",
+          name: "root",
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "root output" }] }],
+        },
+        {
+          id: "child",
+          name: "child",
+          parent: { run_id: "", tool_call_id: null },
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "child output" }] }],
+        },
+      ]),
+    );
+
+    const { container, getAllByText, getByRole } = render(<App />);
+
+    getAllByText("root output");
+    const sidebar = container.querySelector<HTMLElement>(".tree-pane")!;
+    fireEvent.click(within(sidebar).getByRole("button", { name: /^child/ }));
+    getAllByText("child output");
+    const path = getByRole("navigation", { name: "Run path" });
+    within(path).getByRole("button", { name: "root" }); // the breadcrumb leads back to the root
+  });
+
+  it.each([
+    [
+      { outcome: { status: "failed", error_type: "TimeoutError", detail: "slow" } as const },
+      "Run failed with TimeoutError: slow",
+    ],
+    [{ outcome: { status: "cancelled" } as const }, "This run was cancelled."],
+    [
+      { parent: { run_id: "later", tool_call_id: "call_1" } },
+      'This run\'s parent, run "later", is not recorded in this trace yet.',
+    ],
+  ])("shows diagnostics for a single run (%#)", (fields, message) => {
+    embed(
+      payloadFromRuns([
+        {
+          id: "only",
+          name: "only",
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "x" }] }],
+          ...fields,
+        },
+      ]),
+    );
+
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".tree-pane")).toBeNull(); // no run tree for one run
+    expect(container.textContent?.replace(/\s+/g, " ")).toContain(message);
+  });
+
   it("focuses trace search with slash and resets it when the run changes", () => {
     embed(
       payloadFromRuns([

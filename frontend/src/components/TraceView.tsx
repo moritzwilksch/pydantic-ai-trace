@@ -28,6 +28,12 @@ export function TraceView({
           Run failed with {entry.run.outcome.error_type}: {entry.run.outcome.detail}
         </div>
       ) : null}
+      {entry.analysis.parent_missing && entry.run.parent !== null ? (
+        <div class="interrupted-message" role="note">
+          This run's parent, run {JSON.stringify(entry.run.parent.run_id)}, is not recorded in this
+          trace yet.
+        </div>
+      ) : null}
       {entry.run.outcome.status === "cancelled" ? (
         <div class="interrupted-message" role="note">
           This run was cancelled.

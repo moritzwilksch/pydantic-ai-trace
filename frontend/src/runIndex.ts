@@ -32,24 +32,28 @@ export function indexTrajectory(payload: TracePayload): TrajectoryIndex {
   });
   const byStart = (a: RunEntry, b: RunEntry) =>
     Date.parse(a.run.started_at) - Date.parse(b.run.started_at);
+  // A run ID may be any string, including "", so an absent parent is `undefined`.
+  const parentOf = (entry: RunEntry): RunEntry | undefined =>
+    entry.run.parent === null ? undefined : entries.get(entry.run.parent.run_id);
   const all = [...entries.values()];
   const childrenOf = new Map<string, RunEntry[]>();
   for (const entry of all) {
-    const parentId = entry.run.parent?.run_id;
-    if (parentId === undefined || !entries.has(parentId)) continue;
-    childrenOf.set(parentId, [...(childrenOf.get(parentId) ?? []), entry]);
+    const parent = parentOf(entry);
+    if (parent === undefined) continue;
+    childrenOf.set(parent.run.id, [...(childrenOf.get(parent.run.id) ?? []), entry]);
   }
   for (const children of childrenOf.values()) children.sort(byStart);
   return {
     entries,
-    roots: all.filter((entry) => !entries.has(entry.run.parent?.run_id ?? "")).sort(byStart),
+    roots: all.filter((entry) => parentOf(entry) === undefined).sort(byStart),
     children: (runId) => childrenOf.get(runId) ?? [],
     ancestors: (runId) => {
       const chain: RunEntry[] = [];
-      let parent = entries.get(entries.get(runId)?.run.parent?.run_id ?? "");
+      const start = entries.get(runId);
+      let parent = start === undefined ? undefined : parentOf(start);
       while (parent !== undefined) {
         chain.unshift(parent);
-        parent = entries.get(parent.run.parent?.run_id ?? "");
+        parent = parentOf(parent);
       }
       return chain;
     },
