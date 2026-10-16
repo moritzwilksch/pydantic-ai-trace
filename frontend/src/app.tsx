@@ -224,7 +224,11 @@ function ServerApp() {
   }, []);
 
   useEffect(() => {
-    const onHashChange = () => setSelection(readHash());
+    // select() already set this selection; replacing it with an equal object would refetch.
+    const onHashChange = () => {
+      const next = readHash();
+      setSelection((current) => (sameSelection(current, next) ? current : next));
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
@@ -311,6 +315,10 @@ function TraceStatus({ trace }: { trace: TraceState }) {
     case "ready":
       return null;
   }
+}
+
+function sameSelection(a: TraceSelection | null, b: TraceSelection | null): boolean {
+  return a === b || (a !== null && b !== null && a.path === b.path && a.line === b.line);
 }
 
 function readHash(): TraceSelection | null {

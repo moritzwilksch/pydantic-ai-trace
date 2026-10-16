@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, render, waitFor } from "@testing-library/preact";
+import { act, fireEvent, render, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
@@ -96,6 +96,24 @@ describe("App in server mode", () => {
     expect(queryByText("Loading trace…")).toBeNull();
     getAllByText("first");
     expect(container.querySelector(".trace-header")!.innerHTML).toBe(header);
+  });
+
+  it("fetches a trace once per click in the tree", async () => {
+    vi.mocked(fetchTree).mockResolvedValueOnce(treeWith("other.json"));
+    mockedFetchTrace.mockResolvedValue(textPayload("hi"));
+    const { getByText } = render(<App />);
+    await waitFor(() => getByText("other.json"));
+
+    const hashChanged = new Promise((resolve) =>
+      window.addEventListener("hashchange", resolve, { once: true }),
+    );
+    fireEvent.click(getByText("other.json"));
+    await act(async () => {
+      await hashChanged;
+    });
+
+    const otherFetches = mockedFetchTrace.mock.calls.filter(([s]) => s.path === "other.json");
+    expect(otherFetches).toHaveLength(1);
   });
 
   it("shows loading while the selected trace is pending", async () => {
