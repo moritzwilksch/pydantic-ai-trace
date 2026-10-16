@@ -5,6 +5,7 @@
 import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
+import { JSON_PAGE_SIZE } from "./components/JsonTree";
 import { embed, embedMessages, payloadFromRuns } from "./testing/payload";
 
 const FULL_TRACE = [
@@ -882,6 +883,35 @@ describe("App in exported-trace mode", () => {
     const chip = container.querySelector(".media-chip")!;
     expect(chip.textContent).toContain("https://example.com/x.png");
     expect(chip.closest("a")?.getAttribute("href")).toBe("https://example.com/x.png");
+  });
+
+  it("shows an attachment URL with an unsafe scheme as inert text", () => {
+    const url = "javascript:fetch('/api/tree')";
+    embedMessages([
+      {
+        kind: "request",
+        parts: [{ part_kind: "user-prompt", content: [{ kind: "document-url", url }] }],
+      },
+    ]);
+    const { container } = render(<App />);
+    const chip = container.querySelector(".media-chip")!;
+    expect(chip.textContent).toContain(url);
+    expect(chip.closest("a")).toBeNull();
+  });
+
+  it("holds back large JSON containers until asked", () => {
+    const items = Array.from({ length: JSON_PAGE_SIZE + 50 }, (_, i) => `item-${i}`);
+    embedMessages([
+      {
+        kind: "response",
+        parts: [{ part_kind: "tool-return", tool_name: "list", content: { items } }],
+      },
+    ]);
+    const { container, getByText } = render(<App />);
+    expect(container.querySelectorAll(".json-string")).toHaveLength(JSON_PAGE_SIZE);
+
+    fireEvent.click(getByText("show 50 more"));
+    expect(container.querySelectorAll(".json-string")).toHaveLength(items.length);
   });
 
   it("shows a data URL image attachment inline, falling back to a chip", () => {

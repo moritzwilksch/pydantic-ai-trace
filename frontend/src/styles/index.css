@@ -831,6 +831,19 @@ details.collapsible > summary {
 
 /* ---- json tree ---- */
 
+.json-more {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.json-more:hover {
+  color: var(--text);
+}
+
 .json-tree {
   font-family: var(--font-mono);
   font-size: 12.5px;
