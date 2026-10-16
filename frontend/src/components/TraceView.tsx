@@ -15,11 +15,8 @@ export function TraceView({
   trajectory: TrajectoryIndex;
   onOpenRun: (runId: string) => void;
 }) {
-  const index = useMemo(() => indexRun(entry), [entry]);
+  const index = useMemo(() => indexRun(entry, trajectory), [entry, trajectory]);
   const runStartMs = Date.parse(entry.run.started_at);
-  const nested = entry.analysis.nested_run_ids
-    .map((id) => trajectory.entries.get(id))
-    .filter((child): child is RunEntry => child !== undefined);
   let lastInstructions: string | null = null;
   return (
     <div>
@@ -40,12 +37,11 @@ export function TraceView({
         </div>
       ) : null}
       {entry.run.messages.map((message, i) => {
-        const showInstructions =
-          message.kind === "request" &&
-          Boolean(message.instructions) &&
-          message.instructions !== lastInstructions;
-        if (showInstructions && message.kind === "request") {
-          lastInstructions = message.instructions ?? null;
+        // Show instructions only where they change, as the transcript does.
+        let instructions: string | null = null;
+        if (message.kind === "request" && message.instructions !== lastInstructions) {
+          instructions = message.instructions || null;
+          if (instructions !== null) lastInstructions = instructions;
         }
         return (
           <MessageCard
@@ -53,14 +49,13 @@ export function TraceView({
             message={message}
             messageIndex={i}
             run={index}
-            trajectory={trajectory}
             onOpenRun={onOpenRun}
-            showInstructions={showInstructions}
-            runStartMs={Number.isNaN(runStartMs) ? null : runStartMs}
+            instructions={instructions}
+            runStartMs={runStartMs}
           />
         );
       })}
-      {nested.map((child) => (
+      {index.nestedRuns.map((child) => (
         <ChildRunCard key={child.run.id} entry={child} onOpen={onOpenRun} />
       ))}
     </div>
@@ -73,14 +68,12 @@ export function TraceStatsBar({
 }: {
   totals: Totals;
   /** Shown when the run has descendants whose cost adds to its own. */
-  subtreeTotals?: Totals;
+  subtreeTotals: Totals;
 }) {
   const tokens = totals.tokens;
   const hitRate = cacheHitRate(tokens.input, tokens.cache_read);
-  const withSubruns =
-    subtreeTotals !== undefined && subtreeTotals.llm_calls !== totals.llm_calls
-      ? subtreeTotals
-      : null;
+  const cost = formatTotalsCost(totals);
+  const withSubruns = subtreeTotals.llm_calls !== totals.llm_calls ? subtreeTotals : null;
   const subtreeCost = withSubruns ? formatTotalsCost(withSubruns) : null;
   return (
     <div class="trace-stats">
@@ -97,7 +90,11 @@ export function TraceStatsBar({
       <span class="trace-token-summary">
         <b>{formatCount(tokens.output)}</b> out
       </span>
-      <CostSummary totals={totals} />
+      {cost !== null ? (
+        <span>
+          <b>{cost}</b>
+        </span>
+      ) : null}
       <span>
         <b>{totals.duration_seconds.toFixed(1)}s</b> wall time
       </span>
@@ -112,14 +109,5 @@ export function TraceStatsBar({
         </span>
       ) : null}
     </div>
-  );
-}
-
-function CostSummary({ totals }: { totals: Totals }) {
-  const cost = formatTotalsCost(totals);
-  return cost === null ? null : (
-    <span>
-      <b>{cost}</b>
-    </span>
   );
 }

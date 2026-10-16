@@ -2,20 +2,7 @@
 // into ./generated/payload.ts. This module adds names the renderers share, plus the
 // hand-written shapes of the directory-browsing API.
 
-import type {
-  LoadCapabilityCallPart,
-  LoadCapabilityReturnPart,
-  ModelRequest,
-  ModelResponse,
-  NativeToolCallPart,
-  NativeToolReturnPart,
-  NativeToolSearchCallPart,
-  NativeToolSearchReturnPart,
-  ToolCallPart,
-  ToolReturnPart,
-  ToolSearchCallPart,
-  ToolSearchReturnPart,
-} from "./generated/payload";
+import type { ModelRequest, ModelResponse } from "./generated/payload";
 
 export type * from "./generated/payload";
 
@@ -27,20 +14,10 @@ export type UserContent = Extract<Part, { part_kind: "user-prompt" }>["content"]
 export type UserContentItem = Exclude<UserContent, string>[number];
 
 /** Every part pydantic-ai dumps as `tool-call` or `builtin-tool-call`. */
-export type AnyToolCallPart =
-  | ToolCallPart
-  | NativeToolCallPart
-  | ToolSearchCallPart
-  | LoadCapabilityCallPart
-  | NativeToolSearchCallPart;
+export type AnyToolCallPart = Extract<Part, { part_kind: "tool-call" | "builtin-tool-call" }>;
 
 /** Every part pydantic-ai dumps as `tool-return` or `builtin-tool-return`. */
-export type AnyToolReturnPart =
-  | ToolReturnPart
-  | NativeToolReturnPart
-  | ToolSearchReturnPart
-  | LoadCapabilityReturnPart
-  | NativeToolSearchReturnPart;
+export type AnyToolReturnPart = Extract<Part, { part_kind: "tool-return" | "builtin-tool-return" }>;
 
 /** Framework-emitted tool variants, discriminated by `tool_kind`. */
 export const TOOL_SEARCH_KIND = "tool-search";

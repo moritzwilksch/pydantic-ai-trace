@@ -1,6 +1,6 @@
 import { ScrollText } from "lucide-preact";
 import { cacheHitRate, formatCost } from "../format";
-import type { RunEntry, RunIndex, TrajectoryIndex } from "../runIndex";
+import type { RunIndex } from "../runIndex";
 import type { Message, ModelResponse, Part, RequestUsage } from "../types";
 import { Block } from "./Block";
 import { ValueView } from "./parts/common";
@@ -25,18 +25,17 @@ export function MessageCard({
   message,
   messageIndex,
   run,
-  trajectory,
   onOpenRun,
-  showInstructions,
+  instructions,
   runStartMs,
 }: {
   message: Message;
   messageIndex: number;
   run: RunIndex;
-  trajectory: TrajectoryIndex;
   onOpenRun: (runId: string) => void;
-  showInstructions: boolean;
-  runStartMs: number | null;
+  /** Request instructions to show, or null where they repeat the previous ones. */
+  instructions: string | null;
+  runStartMs: number;
 }) {
   const visibleParts = message.parts
     .map((part, partIndex) => ({ part: part as Part, partIndex }))
@@ -47,11 +46,11 @@ export function MessageCard({
       <div class={`card-kind kind-${message.kind}`}>
         {message.kind === "request" ? "Request" : "Response"}
         {message.state !== "complete" ? <span class="badge warn">{message.state}</span> : null}
-        <Timestamp value={message.timestamp ?? null} runStartMs={runStartMs} />
+        <Timestamp value={message.timestamp} runStartMs={runStartMs} />
       </div>
       <div class="card-body">
         {message.state === "interrupted" ? <InterruptedMessage kind={message.kind} /> : null}
-        {message.kind === "request" && showInstructions && message.instructions ? (
+        {instructions !== null ? (
           <div class="part" data-nav>
             <Block
               label={
@@ -60,9 +59,9 @@ export function MessageCard({
                 </>
               }
               tone="system"
-              preview={message.instructions}
+              preview={instructions}
             >
-              <ValueView value={message.instructions} markdown preserveNewlines />
+              <ValueView value={instructions} markdown preserveNewlines />
             </Block>
           </div>
         ) : null}
@@ -73,7 +72,6 @@ export function MessageCard({
               messageIndex={messageIndex}
               partIndex={partIndex}
               run={run}
-              trajectory={trajectory}
               onOpenRun={onOpenRun}
             />
           </div>
@@ -108,14 +106,12 @@ function PartView({
   messageIndex,
   partIndex,
   run,
-  trajectory,
   onOpenRun,
 }: {
   part: Part;
   messageIndex: number;
   partIndex: number;
   run: RunIndex;
-  trajectory: TrajectoryIndex;
   onOpenRun: (runId: string) => void;
 }) {
   switch (part.part_kind) {
@@ -130,15 +126,12 @@ function PartView({
     case "tool-call":
     case "builtin-tool-call": {
       const info = run.toolCall(messageIndex, partIndex);
-      const childRuns = (info?.child_run_ids ?? [])
-        .map((id) => trajectory.entries.get(id))
-        .filter((child): child is RunEntry => child !== undefined);
       return (
         <ToolCallGroup
           part={part}
           args={info?.args ?? null}
-          result={info?.result ? (run.part(info.result) ?? null) : null}
-          childRuns={childRuns}
+          result={info ? run.toolResult(info) : null}
+          childRuns={info ? run.childRuns(info) : []}
           onOpenRun={onOpenRun}
         />
       );
@@ -192,15 +185,12 @@ function UsageSummary({ usage }: { usage: RequestUsage }) {
   );
 }
 
-function Timestamp({ value, runStartMs }: { value: string | null; runStartMs: number | null }) {
+function Timestamp({ value, runStartMs }: { value: string | null; runStartMs: number }) {
   if (value === null) return null;
   const parsed = Date.parse(value);
-  if (Number.isNaN(parsed)) return null;
-  const offset = runStartMs !== null ? ` (+${((parsed - runStartMs) / 1000).toFixed(1)}s)` : "";
   return (
     <span class="when" title={value}>
-      {new Date(parsed).toLocaleTimeString()}
-      {offset}
+      {new Date(parsed).toLocaleTimeString()} (+{((parsed - runStartMs) / 1000).toFixed(1)}s)
     </span>
   );
 }

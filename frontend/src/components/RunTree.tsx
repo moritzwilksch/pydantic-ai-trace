@@ -4,7 +4,7 @@ import type { RunEntry, TrajectoryIndex } from "../runIndex";
 
 /**
  * The trajectory's runs, styled as sidebar tree rows so they can nest under
- * the file that holds them. Renders nothing for a single-run trace.
+ * the file that holds them.
  */
 export function RunTree({
   trajectory,
@@ -15,7 +15,6 @@ export function RunTree({
   selected: string;
   onSelect: (runId: string) => void;
 }) {
-  if (trajectory.entries.size < 2) return null;
   return (
     <div role="group" aria-label="Runs">
       {trajectory.roots.map((entry) => (

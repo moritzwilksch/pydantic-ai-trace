@@ -1,12 +1,9 @@
 import { FileText } from "lucide-preact";
 import type { FilePart as FilePartType } from "../../types";
 import { Block } from "../Block";
-import { JsonTree } from "../JsonTree";
-import { isMediaItem, MediaContent } from "./common";
+import { MediaContent } from "./common";
 
 export function FilePart({ part }: { part: FilePartType }) {
-  const content = part.content as unknown as Record<string, unknown>;
-  const mediaType = typeof content.media_type === "string" ? content.media_type : "";
   return (
     <Block
       label={
@@ -15,9 +12,9 @@ export function FilePart({ part }: { part: FilePartType }) {
         </>
       }
       tone="assistant"
-      badges={mediaType ? <span class="badge">{mediaType}</span> : null}
+      badges={<span class="badge">{part.content.media_type}</span>}
     >
-      {isMediaItem(content) ? <MediaContent item={content} /> : <JsonTree value={content} />}
+      <MediaContent item={part.content as unknown as Record<string, unknown>} />
     </Block>
   );
 }

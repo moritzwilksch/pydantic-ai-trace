@@ -13,12 +13,6 @@ import type {
   TracePayload,
 } from "../types";
 
-declare global {
-  interface Window {
-    __TRACE_PAYLOAD__?: string;
-  }
-}
-
 const START = "2026-07-01T09:00:00Z";
 
 export interface RunSpec {

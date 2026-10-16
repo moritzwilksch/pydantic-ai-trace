@@ -93,17 +93,13 @@ export function MediaImage({
   src,
   alt,
   chipLabel,
-  href,
 }: {
   src: string;
   alt: string;
   chipLabel: string;
-  href?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
-    return <MediaChip icon={<ImageOff size={13} />} label={chipLabel} href={href} />;
-  }
+  if (failed) return <MediaChip icon={<ImageOff size={13} />} label={chipLabel} />;
   return (
     <div class="media-item">
       <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />
