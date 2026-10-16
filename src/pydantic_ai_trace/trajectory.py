@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from functools import cached_property
 from typing import Annotated, Any, Literal, NewType, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, model_validator
@@ -144,14 +145,18 @@ class Trajectory(_Frozen):
                     f"run {run.id!r} names tool call {run.parent.tool_call_id!r}, "
                     f"which run {parent.id!r} {found}"
                 )
+        # Walk up from each run; a run whose ancestry is already known to end stops early,
+        # so long chains stay linear.
+        acyclic: set[RunId] = set()
         for run in self.runs:
-            seen = {run.id}
-            current = run
-            while current.parent is not None and current.parent.run_id in by_id:
-                current = by_id[current.parent.run_id]
-                if current.id in seen:
-                    raise ValueError(f"run {run.id!r} is its own ancestor")
-                seen.add(current.id)
+            path: list[RunId] = []
+            current: Run | None = run
+            while current is not None and current.id not in acyclic:
+                if current.id in path:
+                    raise ValueError(f"run {current.id!r} is its own ancestor")
+                path.append(current.id)
+                current = by_id.get(current.parent.run_id) if current.parent else None
+            acyclic.update(path)
         return self
 
     @classmethod
@@ -167,30 +172,31 @@ class Trajectory(_Frozen):
 
     def roots(self) -> list[Run]:
         """Top-level runs, including runs whose parent is not recorded yet."""
-        ids = {run.id for run in self.runs}
-        return sorted(
-            (run for run in self.runs if run.parent is None or run.parent.run_id not in ids),
-            key=lambda run: run.started_at,
-        )
+        return self._children[None]
 
     def children(self, run_id: RunId) -> list[Run]:
-        return sorted(
-            (run for run in self.runs if run.parent is not None and run.parent.run_id == run_id),
-            key=lambda run: run.started_at,
-        )
+        return self._children.get(run_id, [])
 
     def walk(self) -> list[tuple[Run, int]]:
         """Every run depth-first in tree order, with its depth (0 for top-level runs)."""
         walked: list[tuple[Run, int]] = []
-
-        def visit(run: Run, depth: int) -> None:
+        # An explicit stack, because a run tree can be deeper than Python's recursion limit.
+        stack = [(root, 0) for root in reversed(self.roots())]
+        while stack:
+            run, depth = stack.pop()
             walked.append((run, depth))
-            for child in self.children(run.id):
-                visit(child, depth + 1)
-
-        for root in self.roots():
-            visit(root, 0)
+            stack.extend((child, depth + 1) for child in reversed(self.children(run.id)))
         return walked
+
+    @cached_property
+    def _children(self) -> dict[RunId | None, list[Run]]:
+        """Children by parent ID, sorted by start; roots are under `None`."""
+        ids = {run.id for run in self.runs}
+        children: dict[RunId | None, list[Run]] = {None: []}
+        for run in sorted(self.runs, key=lambda run: run.started_at):
+            parent_id = run.parent.run_id if run.parent and run.parent.run_id in ids else None
+            children.setdefault(parent_id, []).append(run)
+        return children
 
 
 def _parent(parent: Run | None, tool_call_id: str | None) -> Parent | None:

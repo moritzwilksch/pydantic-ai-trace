@@ -1,4 +1,5 @@
 import json
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -178,3 +179,33 @@ class TestTotals:
         assert run.responses[0].cost_usd is None
         assert run.totals.cost_usd is None
         assert run.totals.unpriced_calls == 1
+
+
+def test_a_chain_deeper_than_the_recursion_limit_is_analyzed():
+    depth = sys.getrecursionlimit() + 500
+    chain = tuple(
+        single_run(
+            ModelResponse(
+                parts=[TextPart(content="x")],
+                usage=RequestUsage(input_tokens=1),
+                timestamp=START + timedelta(seconds=i),
+            ),
+            id=RunId(f"r{i}"),
+            name=f"r{i}",
+            parent=Parent(run_id=RunId(f"r{i - 1}")) if i else None,
+            started_at=START + timedelta(seconds=i),
+            ended_at=START + timedelta(seconds=i + 1),
+        )
+        for i in range(depth)
+    )
+    trajectory = Trajectory(runs=tuple(reversed(chain)))  # recorded in end order
+
+    analysis = analyze(trajectory)
+    payload = build_payload(trajectory, name="deep")
+
+    assert [run.id for run, _ in trajectory.walk()] == [f"r{i}" for i in range(depth)]
+    root = next(run for run in analysis.runs if run.run_id == "r0")
+    assert root.subtree_totals.llm_calls == depth
+    assert root.subtree_totals.tokens.input == depth
+    assert root.subtree_totals.duration_seconds == depth
+    assert payload.transcript.count("========== RUN:") == depth

@@ -78,18 +78,18 @@ class Analysis(_Frozen):
 def analyze(trajectory: Trajectory) -> Analysis:
     ids = {run.id for run in trajectory.runs}
     own = {run.id: _run_totals(run) for run in trajectory.runs}
-    subtree: dict[RunId, tuple[Totals, list[Run]]] = {}
-
-    def subtree_of(run: Run) -> tuple[Totals, list[Run]]:
-        """The run's subtree totals, and the runs in that subtree."""
-        if run.id not in subtree:
-            children = [subtree_of(child) for child in trajectory.children(run.id)]
-            members = [run, *(member for _, members in children for member in members)]
-            subtree[run.id] = (
-                combine_totals([own[run.id], *(totals for totals, _ in children)], _span(members)),
-                members,
-            )
-        return subtree[run.id]
+    # Children before parents (reversed tree order), without recursion: a run tree can be
+    # deeper than Python's recursion limit.
+    subtree: dict[RunId, Totals] = {}
+    bounds: dict[RunId, tuple[datetime, datetime]] = {}
+    for run, _ in reversed(trajectory.walk()):
+        children = trajectory.children(run.id)
+        start = min([run.started_at, *(bounds[child.id][0] for child in children)])
+        end = max([run.ended_at, *(bounds[child.id][1] for child in children)])
+        bounds[run.id] = (start, end)
+        subtree[run.id] = combine_totals(
+            [own[run.id], *(subtree[child.id] for child in children)], _seconds(start, end)
+        )
 
     runs = tuple(
         _analyze_run(
@@ -97,7 +97,7 @@ def analyze(trajectory: Trajectory) -> Analysis:
             children=trajectory.children(run.id),
             parent_missing=run.parent is not None and run.parent.run_id not in ids,
             totals=own[run.id],
-            subtree_totals=subtree_of(run)[0],
+            subtree_totals=subtree[run.id],
         )
         for run in trajectory.runs
     )
