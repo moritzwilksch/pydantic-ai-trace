@@ -381,6 +381,32 @@ body {
 }
 
 /* A trajectory's runs, nested under their file in the sidebar. */
+/* A selected run is a position within the selected file: instead of the file's
+   full highlight, it gets accent text and an accent segment on the tree's guide
+   line (`.tree-children` draws the guide 5px to the row's left). */
+.run-node {
+  position: relative;
+  overflow: visible;
+}
+
+.run-node.selected {
+  background: none;
+}
+
+.run-node.selected:hover {
+  background: var(--bg-hover);
+}
+
+.run-node.selected::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 1px;
+  background: var(--accent);
+}
+
 .run-node .run-name {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -41,7 +41,9 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
             {payload.name}
           </div>
           <div class="tree-body">
-            <RunTreeFor runs={runs} />
+            <div class="tree-children">
+              <RunTreeFor runs={runs} />
+            </div>
           </div>
         </nav>
       ) : null}
