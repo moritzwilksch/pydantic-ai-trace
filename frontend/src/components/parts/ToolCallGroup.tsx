@@ -1,4 +1,4 @@
-import { Wrench } from "lucide-preact";
+import { SquarePlay, Wrench } from "lucide-preact";
 import { compactJson } from "../../format";
 import type { RunEntry } from "../../runIndex";
 import {
@@ -87,7 +87,7 @@ export function ToolReturn({
     <Block
       label={
         <>
-          <Wrench size={13} /> Tool return
+          <SquarePlay size={13} /> Tool return
         </>
       }
       tone="tool"
