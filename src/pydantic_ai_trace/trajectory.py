@@ -22,12 +22,12 @@ type MessagesLike = Sequence[ModelMessage] | Sequence[Mapping[str, Any]]
 """Pydantic AI messages, or their JSON-compatible dump."""
 
 
-def as_utc(value: datetime) -> datetime:
+def _as_utc(value: datetime) -> datetime:
     """Read a naive timestamp as UTC, so naive and aware timestamps compare."""
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
-type UtcDatetime = Annotated[datetime, AfterValidator(as_utc)]
+type UtcDatetime = Annotated[datetime, AfterValidator(_as_utc)]
 
 
 def new_run_id() -> RunId:
@@ -206,11 +206,11 @@ def _timestamps(message: ModelMessage | Mapping[str, Any]) -> list[datetime]:
 
 def _datetime(value: object) -> datetime | None:
     if isinstance(value, datetime):
-        return as_utc(value)
+        return _as_utc(value)
     if not isinstance(value, str):
         return None
     try:
-        return as_utc(datetime.fromisoformat(value))
+        return _as_utc(datetime.fromisoformat(value))
     except ValueError:
         return None
 
