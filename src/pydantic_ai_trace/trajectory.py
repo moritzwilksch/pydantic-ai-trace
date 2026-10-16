@@ -174,6 +174,19 @@ class Trajectory(_Frozen):
             key=lambda run: run.started_at,
         )
 
+    def walk(self) -> list[tuple[Run, int]]:
+        """Every run depth-first in tree order, with its depth (0 for top-level runs)."""
+        walked: list[tuple[Run, int]] = []
+
+        def visit(run: Run, depth: int) -> None:
+            walked.append((run, depth))
+            for child in self.children(run.id):
+                visit(child, depth + 1)
+
+        for root in self.roots():
+            visit(root, 0)
+        return walked
+
 
 def _parent(parent: Run | None, tool_call_id: str | None) -> Parent | None:
     if parent is None:

@@ -208,3 +208,14 @@ class TestBytes:
         assert isinstance(part, UserPromptPart) and not isinstance(part.content, str)
         [item] = part.content
         assert isinstance(item, BinaryContent) and item.data == b"\xff\x00"
+
+
+def test_walk_visits_runs_depth_first_with_their_depth():
+    trajectory = Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
+
+    assert [(run.name, depth) for run, depth in trajectory.walk()] == [
+        ("planner", 0),
+        ("worker", 0),
+        ("subagent", 1),
+        ("summarizer", 0),
+    ]

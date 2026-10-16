@@ -28,7 +28,7 @@ def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> 
     move into the trace details instead, so diagnostics are never dropped.
     """
     by_id = {run.run_id: run for run in analysis.runs}
-    ordered = _tree_order(trajectory)
+    ordered = [run for run, _ in trajectory.walk()]
     details = [f"NAME: {_inline(name)}", _totals(analysis.totals)]
     if len(ordered) == 1:
         [run] = ordered
@@ -43,19 +43,6 @@ def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> 
             )
         sections.extend(_message_sections(run, by_id[run.id]))
     return "\n\n".join(sections) + "\n"
-
-
-def _tree_order(trajectory: Trajectory) -> list[Run]:
-    ordered: list[Run] = []
-
-    def visit(run: Run) -> None:
-        ordered.append(run)
-        for child in trajectory.children(run.id):
-            visit(child)
-
-    for root in trajectory.roots():
-        visit(root)
-    return ordered
 
 
 def _run_details(run: Run, analysis: RunAnalysis) -> str:
