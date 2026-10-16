@@ -2,7 +2,9 @@
 
 Reading and selecting only checks that each trace is a JSON array or object;
 `load.load_trajectory` owns validation. Tree nodes run that validation so the
-sidebar can explain why a trace cannot be opened.
+sidebar can explain why a trace cannot be opened. For a JSONL file they validate
+only the first trace, so a large log stays cheap to list; an error in a later
+trace is reported when that trace is opened.
 """
 
 from __future__ import annotations
@@ -233,7 +235,15 @@ def iter_trace_files(directory: Path) -> Iterator[Path]:
 
 def jsonl_traces(text: str) -> list[str]:
     """The non-empty lines of JSONL text, one trace each, unvalidated."""
-    return [line for line in text.splitlines() if line.strip()]
+    return list(_jsonl_lines([text]))
+
+
+def _jsonl_lines(chunks: Iterable[str]) -> Iterator[str]:
+    """Non-empty lines split as `str.splitlines` does, also when `chunks` streams a file."""
+    for chunk in chunks:
+        for line in chunk.splitlines():
+            if line.strip():
+                yield line
 
 
 def _visible_entries(directory: Path) -> list[Path]:
@@ -272,33 +282,31 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
         "error": False,
     }
     try:
-        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".json":
+            node["trace_count"] = 1
+            error = _trace_error(path.read_text(encoding="utf-8"), relative_path)
+        else:
+            node["trace_count"], error = _jsonl_summary(path, relative_path)
     except (OSError, UnicodeDecodeError) as exc:
         node["error"] = True
         node["error_message"] = f"cannot read file: {exc}"
         return node
-
-    if path.suffix == ".json":
-        node["trace_count"] = 1
-        error = _trace_error(text, relative_path)
-    else:
-        lines = jsonl_traces(text)
-        node["trace_count"] = len(lines)
-        if not lines:
-            error = "contains no traces"
-        else:
-            error = next(
-                (
-                    f"line {line_number}: {line_error}"
-                    for line_number, line in enumerate(lines, start=1)
-                    if (line_error := _trace_error(line, relative_path)) is not None
-                ),
-                None,
-            )
     if error is not None:
         node["error"] = True
         node["error_message"] = error
     return node
+
+
+def _jsonl_summary(path: Path, relative_path: str) -> tuple[int, str | None]:
+    """Count a JSONL file's traces while streaming it, and validate only the first."""
+    count = 0
+    error: str | None = None
+    with path.open(encoding="utf-8") as stream:
+        for line in _jsonl_lines(stream):
+            count += 1
+            if count == 1 and (first_error := _trace_error(line, relative_path)) is not None:
+                error = f"line 1: {first_error}"
+    return count, error if count else "contains no traces"
 
 
 def _sort_tree(node: TreeNode) -> None:

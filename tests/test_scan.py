@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+from traces import minimal_trace
 
 from pydantic_ai_trace import scan
 
@@ -49,6 +50,19 @@ class TestBuildTree:
         assert broken["error"] is True
         assert "not valid JSON" in broken["error_message"]
         assert find_node(tree, "full_trace.json")["error"] is False
+
+    def test_jsonl_with_an_invalid_first_trace_is_flagged(self, tmp_path: Path):
+        (tmp_path / "log.jsonl").write_text(f'[{{"kind": "telepathy"}}]\n{minimal_trace()}\n')
+        node = scan.build_tree(tmp_path / "log.jsonl")
+        assert (node["trace_count"], node["error"]) == (2, True)
+        assert node["error_message"].startswith("line 1: ")
+
+    def test_jsonl_lists_later_traces_without_validating_them(self, tmp_path: Path):
+        # Validating every trace of a large log on each listing would stall the sidebar;
+        # the server reports a later invalid trace when it is opened.
+        (tmp_path / "log.jsonl").write_text(f'{minimal_trace()}\n\n[{{"kind": "telepathy"}}]\n')
+        node = scan.build_tree(tmp_path / "log.jsonl")
+        assert (node["trace_count"], node["error"]) == (2, False)
 
     def test_single_file_root_yields_single_node(self, fixtures_copy: Path):
         tree = scan.build_tree(fixtures_copy / "full_trace.json")

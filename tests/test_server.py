@@ -105,6 +105,14 @@ class TestTrace:
         assert response.status_code == 400
         assert response.json()["error"].startswith("bad.json: 0: Input tag 'telepathy'")
 
+    def test_invalid_later_jsonl_trace_is_400_when_opened(self, tmp_path: Path):
+        (tmp_path / "log.jsonl").write_text(f'{minimal_trace()}\n[{{"kind": "telepathy"}}]\n')
+
+        response = client_for(tmp_path).get("/api/trace", params={"path": "log.jsonl", "line": 2})
+
+        assert response.status_code == 400
+        assert "Input tag 'telepathy'" in response.json()["error"]
+
     def test_serves_selected_jsonl_line(self, fixtures_copy: Path):
         response = client_for(fixtures_copy).get(
             "/api/trace", params={"path": "runs/multi.jsonl", "line": 2}
