@@ -156,6 +156,20 @@ class TestTotals:
         assert run.totals.cost_usd == run.responses[0].cost_usd
         assert run.totals.unpriced_calls == 0
 
+    def test_usage_that_genai_prices_rejects_is_unpriced(self):
+        inconsistent = ModelResponse(
+            parts=[TextPart(content="x")],
+            model_name="gpt-4o",
+            usage=RequestUsage(input_tokens=1, cache_read_tokens=2),
+            timestamp=START,
+        )
+
+        [run] = analyze(Trajectory(runs=(single_run(inconsistent),))).runs
+
+        assert run.responses[0].cost_usd is None
+        assert (run.totals.cost_usd, run.totals.unpriced_calls) == (None, 1)
+        assert (run.totals.tokens.input, run.totals.tokens.cache_read) == (1, 2)
+
     def test_unknown_models_are_counted_as_unpriced_not_free(self):
         unknown = ModelResponse(parts=[TextPart(content="x")], model_name="in-house-model")
 

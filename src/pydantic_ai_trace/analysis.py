@@ -181,7 +181,9 @@ def _cost(response: ModelResponse) -> Decimal | None:
         return None
     try:
         return response.cost().total_price
-    except LookupError:  # genai-prices does not know this model or provider
+    # LookupError: genai-prices does not know the model or provider.
+    # ValueError: it rejects the usage, e.g. more cached than input tokens.
+    except (LookupError, ValueError):
         return None
 
 
