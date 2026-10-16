@@ -220,11 +220,15 @@ body {
   min-width: 0;
 }
 
+/* Fixed height, and the title absorbs width changes, so loading or switching traces
+   never moves the header or its controls. */
 .trace-header {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 18px;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0 18px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-pane);
   position: sticky;
@@ -233,6 +237,8 @@ body {
 }
 
 .trace-title {
+  flex: 1 0 160px;
+  min-width: 0;
   font-weight: 600;
   font-size: 13px;
   overflow: hidden;
@@ -240,10 +246,13 @@ body {
   white-space: nowrap;
 }
 
+/* When space runs out, the stats clip before the title or the controls move. */
 .trace-stats {
   display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   gap: 12px;
-  margin-left: auto;
   font-size: 12px;
   color: var(--text-dim);
   white-space: nowrap;

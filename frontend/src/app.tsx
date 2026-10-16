@@ -13,10 +13,18 @@ import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
 import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
+/** A loaded trace, with the selection it was loaded for. */
+interface ShownTrace {
+  status: "ready";
+  selection: TraceSelection;
+  data: TracePayload;
+}
+
+/** While the next trace loads, the previous one stays on screen, so nothing jumps. */
 type TraceState =
   | { status: "unselected" }
-  | { status: "loading" }
-  | { status: "ready"; data: TracePayload }
+  | { status: "loading"; previous: ShownTrace | null }
+  | ShownTrace
   | { status: "error"; message: string };
 
 export function App() {
@@ -166,7 +174,7 @@ function ServerApp() {
     const isLatest = beginTraceRequest();
     fetchTrace(target)
       .then((data) => {
-        if (isLatest()) setTrace({ status: "ready", data });
+        if (isLatest()) setTrace({ status: "ready", selection: target, data });
       })
       .catch((e) => {
         if (isLatest()) setTrace({ status: "error", message: String(e) });
@@ -194,7 +202,7 @@ function ServerApp() {
       setTrace({ status: "unselected" });
       return;
     }
-    setTrace({ status: "loading" });
+    setTrace((current) => ({ status: "loading", previous: shownTrace(current) }));
     loadTrace(selection);
   }, [selection]);
 
@@ -221,11 +229,19 @@ function ServerApp() {
     setSelection(next);
   }
 
-  const title = selection
-    ? `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`
-    : (meta?.root ?? "");
-  const payload = trace.status === "ready" ? trace.data : null;
+  const shown = shownTrace(trace);
+  const shownSelection = shown?.selection ?? selection;
+  const title = shownSelection ? selectionTitle(shownSelection) : (meta?.root ?? "");
+  const payload = shown?.data ?? null;
   const runs = useRuns(payload, title);
+  // Runs nest under the trace they belong to, not under a newer selection still loading.
+  const runsUnderSelection =
+    runs?.multiRun &&
+    shown &&
+    selection &&
+    selectionTitle(shown.selection) === selectionTitle(selection)
+      ? runs
+      : null;
   // File mode hides the tree — unless the file needs it (multi-trace, broken, or several runs).
   const showTree =
     meta === null ||
@@ -241,7 +257,7 @@ function ServerApp() {
           rootLabel={meta?.root ?? ""}
           selection={selection}
           onSelect={select}
-          selectedChildren={runs?.multiRun ? <RunTreeFor runs={runs} /> : null}
+          selectedChildren={runsUnderSelection ? <RunTreeFor runs={runsUnderSelection} /> : null}
         />
       ) : null}
       <TracePane
@@ -266,6 +282,16 @@ function useRequestOrder(): () => () => boolean {
     const request = ++latest.current;
     return () => latest.current === request;
   };
+}
+
+function shownTrace(trace: TraceState): ShownTrace | null {
+  if (trace.status === "ready") return trace;
+  if (trace.status === "loading") return trace.previous;
+  return null;
+}
+
+function selectionTitle(selection: TraceSelection): string {
+  return `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`;
 }
 
 function TraceStatus({ trace }: { trace: TraceState }) {

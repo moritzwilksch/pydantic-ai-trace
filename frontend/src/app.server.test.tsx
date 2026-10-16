@@ -76,6 +76,28 @@ describe("App in server mode", () => {
     await waitFor(() => expect(getAllByText("hi").length).toBeGreaterThan(0));
   });
 
+  it("keeps the previous trace on screen while the next one loads", async () => {
+    const first = payloadFromMessages([
+      { kind: "response", parts: [{ part_kind: "text", content: "first" }] },
+    ]);
+    mockedFetchTrace.mockImplementation((selection) =>
+      selection.path === "run.json" ? Promise.resolve(first) : new Promise(() => undefined),
+    );
+    const { container, getAllByText, queryByText } = render(<App />);
+    await waitFor(() => expect(getAllByText("first").length).toBeGreaterThan(0));
+    const header = container.querySelector(".trace-header")!.innerHTML;
+
+    location.hash = "#/other.json";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() =>
+      expect(mockedFetchTrace).toHaveBeenCalledWith({ path: "other.json", line: undefined }),
+    );
+
+    expect(queryByText("Loading trace…")).toBeNull();
+    getAllByText("first");
+    expect(container.querySelector(".trace-header")!.innerHTML).toBe(header);
+  });
+
   it("shows loading while the selected trace is pending", async () => {
     mockedFetchTrace.mockReturnValue(new Promise(() => undefined));
     const { getByText } = render(<App />);
