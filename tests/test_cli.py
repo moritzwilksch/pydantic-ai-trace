@@ -697,3 +697,16 @@ class TestStatsCommand:
         else:
             assert out.splitlines()[1].startswith("good.json")
             assert "  bad.json: cannot read file: " in out
+
+    def test_json_escapes_a_lone_surrogate_in_a_run_name(
+        self, fixtures_copy: Path, tmp_path: Path, capfdbinary: pytest.CaptureFixture
+    ):
+        trajectory = json.loads((fixtures_copy / "trajectory.json").read_text())
+        trajectory["runs"][0]["name"] = "\ud800"
+        source = tmp_path / "surrogate.json"
+        source.write_text(json.dumps(trajectory))  # ASCII, so the file itself is valid UTF-8
+
+        assert cli.main(["stats", str(source), "--json"]) == 0
+
+        [line] = capfdbinary.readouterr().out.decode("utf-8").splitlines()
+        assert json.loads(line)["runs"][0]["name"] == "\ud800"

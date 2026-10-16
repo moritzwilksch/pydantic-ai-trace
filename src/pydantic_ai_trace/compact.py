@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import math
 import re
 from typing import Any
 
 from pydantic_ai.messages import ModelMessagesTypeAdapter
 
+from ._json import dumps_readable
 from .analysis import Totals, parse_tool_args
 from .payload import TracePayload
 from .text import TOOL_SEARCH_KIND
@@ -28,11 +28,7 @@ def compact_payload(payload: TracePayload) -> dict[str, object]:
 def format_compact_json(payload: TracePayload, *, indent: int | None = None) -> str:
     """One compact JSON document, newline-terminated."""
     separators = (",", ":") if indent is None else None
-    rendered = json.dumps(
-        compact_payload(payload), ensure_ascii=False, indent=indent, separators=separators
-    )
-    # Keep Unicode readable while escaping lone surrogates as valid JSON escapes.
-    return rendered.encode("utf-8", errors="backslashreplace").decode("utf-8") + "\n"
+    return dumps_readable(compact_payload(payload), indent=indent, separators=separators) + "\n"
 
 
 def _compact_run(run: Run, totals: Totals) -> dict[str, object]:

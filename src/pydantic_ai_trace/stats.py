@@ -7,11 +7,11 @@ traces without counting a subagent twice.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from ._json import dumps_readable
 from .analysis import Totals, analyze, combine_totals
 from .compact import compact_totals
 from .load import TraceLoadError, load_trajectory
@@ -136,7 +136,7 @@ def format_jsonl(rows: Iterable[StatsRow]) -> str:
         else {"name": row.name, "error": row.error}
         for row in rows
     )
-    return "".join(json.dumps(document, ensure_ascii=False) + "\n" for document in documents)
+    return "".join(dumps_readable(document) + "\n" for document in documents)
 
 
 _HEADER = ("trace", "runs", "calls", "in", "cached", "out", "cost", "wall")
