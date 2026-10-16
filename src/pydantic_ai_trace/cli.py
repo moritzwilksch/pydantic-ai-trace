@@ -1,9 +1,7 @@
 """`paitrace` command line interface.
 
-`paitrace PATH` serves a trace file or directory; `paitrace export` writes HTML;
-and `paitrace text` or `paitrace json` writes a compact representation. Trace
-commands accept paths or stdin. A command word is still treated as a path when a
-file or directory with that name exists.
+`paitrace PATH` serves traces; `export`, `text`, `json`, and `stats` are subcommands. A
+command word is still treated as a path when a file or directory with that name exists.
 """
 
 from __future__ import annotations
@@ -201,7 +199,7 @@ def _serve_source(
     try:
         serve(source, host=host, port=port, on_bound=on_bound)
     except ServerStartError as exc:
-        raise CliError(f"{exc} — pick another port with --port") from exc
+        raise CliError(f"{exc}; pick another port with --port") from exc
     return 0
 
 
