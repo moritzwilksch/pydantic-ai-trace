@@ -195,6 +195,10 @@ body {
   color: var(--text-dim);
 }
 
+.tree-node.tree-more {
+  color: var(--text-dim);
+}
+
 .tree-children {
   margin-left: 14px;
   border-left: 1px solid var(--border);

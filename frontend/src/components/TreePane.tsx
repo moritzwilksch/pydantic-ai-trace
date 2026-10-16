@@ -1,8 +1,11 @@
-import { CornerDownRight, FileText, Folder, TriangleAlert } from "lucide-preact";
+import { CornerDownRight, Ellipsis, FileText, Folder, TriangleAlert } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { defaultSelection, isMultiTrace } from "../selection";
 import type { TraceSelection, TreeNode } from "../types";
+
+/** JSONL traces listed per page: evaluation logs can hold many thousands. */
+export const TRACE_LINE_PAGE = 100;
 
 export function TreePane({
   root,
@@ -98,24 +101,63 @@ function NodeView({
         <NestedUnderSelection>{selectedChildren}</NestedUnderSelection>
       ) : null}
       {multiTrace ? (
-        <div class="tree-children">
-          {Array.from({ length: node.trace_count ?? 0 }, (_, i) => i + 1).map((line) => (
-            <div key={line}>
-              <button
-                class={`tree-node ${isSelected(selection, node.path, line) ? "selected" : ""}`}
-                onClick={() => onSelect({ path: node.path, line })}
-              >
-                <span class="icon">
-                  <CornerDownRight size={12} />
-                </span>
-                trace {line}
-              </button>
-              {isSelected(selection, node.path, line) ? (
-                <NestedUnderSelection>{selectedChildren}</NestedUnderSelection>
-              ) : null}
-            </div>
-          ))}
+        <TraceLines
+          node={node}
+          selection={selection}
+          onSelect={onSelect}
+          selectedChildren={selectedChildren}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** A JSONL file's traces, one page at a time; a selected later trace stays listed. */
+function TraceLines({
+  node,
+  selection,
+  onSelect,
+  selectedChildren,
+}: {
+  node: TreeNode;
+  selection: TraceSelection | null;
+  onSelect: (selection: TraceSelection) => void;
+  selectedChildren: ComponentChildren;
+}) {
+  const [shown, setShown] = useState(TRACE_LINE_PAGE);
+  const count = node.trace_count ?? 0;
+  const listed = Math.min(shown, count);
+  const lines = Array.from({ length: listed }, (_, i) => i + 1);
+  const selectedLine = selection?.path === node.path ? selection.line : undefined;
+  if (selectedLine !== undefined && selectedLine > listed && selectedLine <= count) {
+    lines.push(selectedLine);
+  }
+  const hidden = count - listed;
+  return (
+    <div class="tree-children">
+      {lines.map((line) => (
+        <div key={line}>
+          <button
+            class={`tree-node ${isSelected(selection, node.path, line) ? "selected" : ""}`}
+            onClick={() => onSelect({ path: node.path, line })}
+          >
+            <span class="icon">
+              <CornerDownRight size={12} />
+            </span>
+            trace {line}
+          </button>
+          {isSelected(selection, node.path, line) ? (
+            <NestedUnderSelection>{selectedChildren}</NestedUnderSelection>
+          ) : null}
         </div>
+      ))}
+      {hidden > 0 ? (
+        <button class="tree-node tree-more" onClick={() => setShown(listed + TRACE_LINE_PAGE)}>
+          <span class="icon">
+            <Ellipsis size={12} />
+          </span>
+          show {Math.min(hidden, TRACE_LINE_PAGE)} more of {hidden}
+        </button>
       ) : null}
     </div>
   );
