@@ -1,4 +1,4 @@
-import { FileText, Film, ImageOff, Paperclip, Volume2 } from "lucide-preact";
+import { FileText, Film, ImageIcon, ImageOff, Paperclip, Volume2 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import {
@@ -40,7 +40,11 @@ export function MediaContent({ item }: { item: Record<string, unknown> }) {
   }
   const url = item.url as string;
   if (kind === "image-url") {
-    return <MediaImage src={url} alt="image attachment" chipLabel={url} href={url} />;
+    // Loading a remote image would tell its server that someone opened this trace.
+    if (!url.startsWith("data:")) {
+      return <MediaChip icon={<ImageIcon size={13} />} label={url} href={url} />;
+    }
+    return <MediaImage src={url} alt="image attachment" chipLabel="image attachment" />;
   }
   const icon = URL_KIND_ICONS[kind] ?? <Paperclip size={13} />;
   return <MediaChip icon={icon} label={url} href={url} />;

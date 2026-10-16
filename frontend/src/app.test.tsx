@@ -796,7 +796,7 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".json-tree")).toBeNull();
   });
 
-  it("falls back to a linked chip when an image attachment fails to load", () => {
+  it("links a remote image attachment instead of loading it", () => {
     embedMessages([
       {
         kind: "request",
@@ -809,11 +809,25 @@ describe("App in exported-trace mode", () => {
       },
     ]);
     const { container } = render(<App />);
-    const img = container.querySelector("img")!;
-    fireEvent.error(img);
     expect(container.querySelector("img")).toBeNull();
     const chip = container.querySelector(".media-chip")!;
     expect(chip.textContent).toContain("https://example.com/x.png");
     expect(chip.closest("a")?.getAttribute("href")).toBe("https://example.com/x.png");
+  });
+
+  it("shows a data URL image attachment inline, falling back to a chip", () => {
+    const url = "data:image/png;base64,iVBORw0KGgo=";
+    embedMessages([
+      {
+        kind: "request",
+        parts: [{ part_kind: "user-prompt", content: [{ kind: "image-url", url }] }],
+      },
+    ]);
+    const { container } = render(<App />);
+    const img = container.querySelector("img")!;
+    expect(img.getAttribute("src")).toBe(url);
+    fireEvent.error(img);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".media-chip")?.textContent).toContain("image attachment");
   });
 });

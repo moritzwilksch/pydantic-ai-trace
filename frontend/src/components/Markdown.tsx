@@ -35,10 +35,33 @@ renderer.code = (token) => {
   return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
 };
 
+// Loading a remote image would tell its server that someone opened this trace, so
+// sanitizing turns every image except an inline `data:` one into a link. The hook
+// runs in DOMPurify's inert document, where no image loads.
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName !== "IMG") return;
+  const src = node.getAttribute("src") ?? "";
+  if (src.startsWith("data:")) return;
+  const link = node.ownerDocument.createElement("a");
+  link.textContent = node.getAttribute("alt") || src || "image";
+  if (src) {
+    link.setAttribute("href", src);
+    link.setAttribute("target", "_blank");
+    link.setAttribute("rel", "noreferrer noopener");
+  }
+  node.replaceWith(link);
+});
+
 // Sanitize even though the server is local: exported HTML files get shared.
 function renderMarkdown(source: string, preserveNewlines: boolean): string {
   return DOMPurify.sanitize(
     marked.parse(source, { async: false, renderer, breaks: preserveNewlines }),
+    {
+      // Drop the remaining elements and attributes that load URLs; Markdown needs none.
+      USE_PROFILES: { html: true }, // no SVG or MathML
+      FORBID_TAGS: ["audio", "input", "picture", "source", "track", "video"],
+      FORBID_ATTR: ["background", "poster", "srcset", "style"],
+    },
   );
 }
 
