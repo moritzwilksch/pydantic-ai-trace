@@ -6,8 +6,6 @@ renderers read the canonical messages and join these facts by index.
 
 from __future__ import annotations
 
-import json
-import math
 from collections import defaultdict, deque
 from collections.abc import Iterable
 from datetime import datetime
@@ -21,6 +19,7 @@ from pydantic_ai.messages import (
     RetryPromptPart,
 )
 
+from ._json import loads_finite
 from .trajectory import Run, RunId, Trajectory
 
 
@@ -172,20 +171,9 @@ def parse_tool_args(args: str | dict[str, object] | None) -> JsonValue:
     if not isinstance(args, str):
         return args  # type: ignore[return-value]  # validated JSON-compatible dict or None
     try:
-        return json.loads(args, parse_float=_finite_float, parse_constant=_reject_constant)
-    except ValueError:  # includes JSONDecodeError
+        return loads_finite(args)  # type: ignore[return-value]  # parsed JSON
+    except ValueError:  # includes json.JSONDecodeError
         return args
-
-
-def _finite_float(text: str) -> float:
-    value = float(text)
-    if not math.isfinite(value):
-        raise ValueError(f"non-finite number {text!r}")
-    return value
-
-
-def _reject_constant(text: str) -> None:
-    raise ValueError(f"non-standard JSON constant {text!r}")
 
 
 def _cost(response: ModelResponse) -> Decimal | None:

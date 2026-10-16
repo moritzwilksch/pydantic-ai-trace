@@ -6,10 +6,9 @@ A JSON object is a `Trajectory`. Loading is strict: anything else is an error.
 
 from __future__ import annotations
 
-import json
-
 from pydantic import ValidationError
 
+from ._json import loads_finite
 from .trajectory import Run, RunId, Trajectory
 
 SINGLE_RUN_ID = RunId("run")  # Deterministic, so a selected run survives live reload.
@@ -21,8 +20,8 @@ class TraceLoadError(ValueError):
 
 def load_trajectory(text: str, *, name: str) -> Trajectory:
     try:
-        data = json.loads(text, parse_constant=_reject_constant)
-    except (json.JSONDecodeError, ValueError) as exc:
+        data = loads_finite(text)
+    except ValueError as exc:  # includes json.JSONDecodeError
         raise TraceLoadError(f"not valid JSON: {exc}") from exc
     try:
         if isinstance(data, list):
@@ -42,7 +41,3 @@ def _describe(exc: ValidationError) -> str:
     location = ".".join(str(part) for part in first["loc"]) or "<root>"
     more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
     return f"{location}: {first['msg']}{more}"
-
-
-def _reject_constant(value: str) -> None:
-    raise ValueError(f"non-standard JSON constant {value!r}")

@@ -28,6 +28,7 @@ def test_an_object_is_a_trajectory():
     [
         ("[", "not valid JSON"),
         ("[NaN]", "non-standard JSON constant"),
+        ('[{"args": {"x": 1e400}}]', "number out of range: 1e400"),
         ('"text"', "expected a JSON array of messages or a trajectory object"),
         ("[]", "run 't' has no messages"),
         ('[{"kind": "telepathy", "parts": []}]', "0: Input tag 'telepathy'"),

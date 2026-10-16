@@ -97,6 +97,19 @@ class TestTrace:
         assert payload["name"] == "runs.jsonl · trace 2"
         assert len(payload["trajectory"]["runs"]) == 4
 
+    def test_an_out_of_range_number_is_400_not_500(self, tmp_path: Path):
+        trace = json.loads(minimal_trace())
+        trace[1]["parts"] = [
+            {"part_kind": "tool-call", "tool_name": "t", "args": {"x": 0}, "tool_call_id": "c"}
+        ]
+        text = json.dumps(trace).replace('{"x": 0}', '{"x": 1e400}')
+        (tmp_path / "huge.json").write_text(text)
+
+        response = client_for(tmp_path).get("/api/trace", params={"path": "huge.json"})
+
+        assert response.status_code == 400
+        assert "number out of range: 1e400" in response.json()["error"]
+
     def test_invalid_trace_is_400_with_the_validation_error(self, tmp_path: Path):
         (tmp_path / "bad.json").write_text('[{"kind": "telepathy", "parts": []}]')
 
