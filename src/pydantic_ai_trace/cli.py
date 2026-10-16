@@ -27,6 +27,13 @@ if TYPE_CHECKING:
 DEFAULT_PORT = 1205
 DEFAULT_HOST = "127.0.0.1"
 
+_TRACE_FORMATS = """\
+A trace is a message list (`ModelMessagesTypeAdapter.dump_json`) or a trajectory
+(`Trajectory.model_dump_json`). A .json file holds one trace; a .jsonl file holds
+one per line."""
+_INPUT_HELP = "a .json or .jsonl trace file, or - for stdin (default: stdin when piped)"
+_LINE_HELP = "which trace of a multi-trace .jsonl input to use, counting from 1"
+
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
@@ -68,23 +75,44 @@ class TextWriter(Protocol):
 
 
 def _run_serve(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(
-        prog="paitrace",
-        description="Serve a local viewer for pydantic-ai trace dumps.",
-        epilog=(
-            "Use `paitrace export --help` for HTML, `paitrace text --help` for plain text, "
-            "or `paitrace json --help` for compact JSON."
-        ),
+    parser = _parser(
+        "paitrace",
+        usage="%(prog)s [options] [PATHS ...]\n       %(prog)s {export,text,json} ...",
+        description=f"""\
+Browse Pydantic AI traces in a local web viewer. The viewer lists every trace
+under a directory, or the files you name, and reloads a trace when it changes
+on disk.
+
+{_TRACE_FORMATS}""",
+        epilog="""\
+commands:
+  export    write one trace as a self-contained HTML file
+  text      print one trace as a plain-text transcript
+  json      print traces as compact JSON for jq, scripts, and agents
+
+Run `paitrace COMMAND --help` for a command's options.
+
+examples:
+  paitrace trace.json
+  paitrace ./traces/
+  paitrace first.json runs.jsonl --port 8080
+  curl -s https://example.test/trace.json | paitrace""",
     )
     parser.add_argument(
         "paths",
+        metavar="PATHS",
         type=Path,
         nargs="*",
-        help=".json/.jsonl trace files, one directory, or - for stdin",
+        help="a directory, one or more .json/.jsonl trace files, or - for stdin "
+        "(default: stdin when piped)",
     )
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--host", default=DEFAULT_HOST)
-    parser.add_argument("--no-open", action="store_true", help="do not open the browser")
+    parser.add_argument(
+        "--port", type=int, default=DEFAULT_PORT, help="port to listen on (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--host", default=DEFAULT_HOST, help="address to bind (default: %(default)s)"
+    )
+    parser.add_argument("--no-open", action="store_true", help="do not open a browser tab")
     parser.add_argument("--version", action="version", version=f"paitrace {__version__}")
     args = parser.parse_args(argv)
 
@@ -165,16 +193,27 @@ def _serve_source(
 
 
 def _run_export(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(
-        prog="paitrace export", description="Export a trace as a self-contained HTML file."
+    parser = _parser(
+        "paitrace export",
+        description=f"""\
+Write one trace as a self-contained HTML file. The file embeds the trace, its
+costs, and the viewer, so it opens offline in any browser.
+
+{_TRACE_FORMATS}""",
+        epilog="""\
+examples:
+  paitrace export trace.json                 # writes trace.html
+  paitrace export runs.jsonl --line 2 -o run2.html
+  curl -s https://example.test/trace.json | paitrace export -o trace.html""",
     )
+    parser.add_argument("input", metavar="INPUT", type=Path, nargs="?", help=_INPUT_HELP)
     parser.add_argument(
-        "input", type=Path, nargs="?", help="a .json/.jsonl trace file or - for stdin"
+        "-o",
+        "--output",
+        type=Path,
+        help="where to write the HTML (default: INPUT with an .html suffix; required for stdin)",
     )
-    parser.add_argument("-o", "--output", type=Path, help="output path (default: INPUT.html)")
-    parser.add_argument(
-        "--line", type=int, help="1-based trace line for .jsonl inputs with multiple traces"
-    )
+    parser.add_argument("--line", type=int, help=_LINE_HELP)
     args = parser.parse_args(argv)
 
     if args.output is None and (args.input is None or args.input == Path("-")):
@@ -193,17 +232,22 @@ def _run_export(argv: list[str]) -> int:
 
 
 def _run_text(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(
-        prog="paitrace text",
-        description="Render a trace as compact plain text (default: stdout).",
+    parser = _parser(
+        "paitrace text",
+        description=f"""\
+Print one trace as a plain-text transcript: every run, request, and response in
+order, with token usage and cost. Instructions are printed only when they change.
+This is the text the viewer's "Copy trace" button copies.
+
+{_TRACE_FORMATS}""",
+        epilog="""\
+examples:
+  paitrace text trace.json | less
+  paitrace text runs.jsonl --line 2 -o run2.txt""",
     )
-    parser.add_argument(
-        "input", type=Path, nargs="?", help="a .json/.jsonl trace file or - for stdin"
-    )
+    parser.add_argument("input", metavar="INPUT", type=Path, nargs="?", help=_INPUT_HELP)
     parser.add_argument("-o", "--output", type=Path, help="write to this file instead of stdout")
-    parser.add_argument(
-        "--line", type=int, help="1-based trace line for .jsonl inputs with multiple traces"
-    )
+    parser.add_argument("--line", type=int, help=_LINE_HELP)
     args = parser.parse_args(argv)
 
     try:
@@ -215,21 +259,46 @@ def _run_text(argv: list[str]) -> int:
 
 
 def _run_json(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(
-        prog="paitrace json",
-        description="Render a trace as compact, structured JSON (default: stdout).",
+    parser = _parser(
+        "paitrace json",
+        description=f"""\
+Print traces as compact, structured JSON for jq, scripts, and AI agents. Each
+document has the trace's name, its stats, and its runs with their messages,
+outcomes, stats, and costs. Display headings, repeated instructions, provider
+response IDs, and binary payloads are left out.
+
+One input prints one JSON document. Several inputs, or --all, print JSONL with
+one document per trace.
+
+{_TRACE_FORMATS}""",
+        epilog="""\
+examples:
+  paitrace json trace.json --pretty
+  paitrace json trace.json | jq '.stats'
+  paitrace json runs.jsonl --all -o compact.jsonl
+  paitrace json first.json second.json | jq -s '.'""",
     )
     parser.add_argument(
-        "inputs", type=Path, nargs="*", help=".json/.jsonl trace files or - for stdin"
+        "inputs",
+        metavar="INPUTS",
+        type=Path,
+        nargs="*",
+        help=".json or .jsonl trace files, or - for stdin (default: stdin when piped)",
     )
-    parser.add_argument("-o", "--output", type=Path, help="write to this file instead of stdout")
     parser.add_argument(
-        "--line", type=int, help="1-based trace line for .jsonl inputs with multiple traces"
+        "-o",
+        "--output",
+        type=Path,
+        help="write to this file instead of stdout; JSONL output replaces the file only "
+        "after every trace converts",
     )
+    parser.add_argument("--line", type=int, help=_LINE_HELP)
     parser.add_argument(
-        "--all", action="store_true", help="render every input trace as compact JSONL"
+        "--all",
+        action="store_true",
+        help="print every trace of every input, including each line of .jsonl inputs",
     )
-    parser.add_argument("--pretty", action="store_true", help="indent single-trace JSON output")
+    parser.add_argument("--pretty", action="store_true", help="indent a single document")
     args = parser.parse_args(argv)
 
     try:
@@ -361,6 +430,19 @@ def _render_compact_traces(traces: Iterable[LoadedTrace], *, stream: TextWriter)
 
     for trace in traces:
         stream.write(format_compact_json(trace.payload()))
+
+
+def _parser(
+    prog: str, *, description: str, epilog: str, usage: str | None = None
+) -> argparse.ArgumentParser:
+    """A parser whose description and examples keep their line breaks."""
+    return argparse.ArgumentParser(
+        prog=prog,
+        usage=usage,
+        description=description,
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
 
 def _require_trace_file(input_path: Path) -> Literal["json", "jsonl"]:

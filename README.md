@@ -29,93 +29,101 @@ pixi run build-frontend
 pixi run paitrace trace.json
 ```
 
-## Usage
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `paitrace [PATHS ...]` | Opens traces in a local web viewer that reloads when files change |
+| `paitrace export [INPUT]` | Writes one trace as a self-contained HTML file |
+| `paitrace text [INPUT]` | Prints one trace as a plain-text transcript |
+| `paitrace json [INPUTS ...]` | Prints traces as compact JSON for jq, scripts, and AI agents |
+
+`paitrace COMMAND --help` lists every option with examples. From a checkout, prefix commands
+with `pixi run`.
+
+### Inputs
+
+Every command reads the same traces:
+
+- A trace is a message list or a trajectory; see [Trace files](#trace-files).
+- A `.json` file holds one trace. A `.jsonl` file holds one trace per line.
+- With no input, a command reads piped stdin. Pass `-` to read stdin explicitly. Stdin can hold
+  one JSON trace or JSONL.
+- `--line N` picks trace `N` (counting from 1) of a multi-trace JSONL input. `export`, `text`,
+  and single-input `json` require it for such inputs.
+
+A command word is still treated as a path when a file or directory with that name exists, so
+`paitrace export` serves a directory named `export`.
+
+### `paitrace` — view traces
 
 ```bash
-# View one trace
-pixi run paitrace trace.json
-
-# Browse a directory tree of traces
-pixi run paitrace ./my-traces/
-
-# Browse an explicit collection of trace files with live reload
-pixi run paitrace first.json second.json runs/multi.jsonl
-
-# Write one trace to a standalone HTML file
-pixi run paitrace export trace.json -o trace.html
-
-# Choose a trace line when exporting a multi-trace JSONL file
-pixi run paitrace export runs.jsonl --line 2
-
-# Print the browser's compact text representation to stdout
-pixi run paitrace text trace.json
-
-# Print a compact, structured trajectory for jq and other tools
-pixi run paitrace json trace.json
-
-# Read a trace from stdin; `-` can also be used explicitly
-curl https://example.test/my-traj.json | pixi run paitrace json | jq '.runs[].messages[]'
-curl https://example.test/my-traj.json | pixi run paitrace text
-
-# Select a trace from JSONL, or write the text to a file
-pixi run paitrace text runs.jsonl --line 2
-pixi run paitrace text trace.json -o trace.txt
-
-# JSON output supports the same selection and output options
-pixi run paitrace json runs.jsonl --line 2
-pixi run paitrace json trace.json -o compact.json
-
-# Convert every trace in JSONL to one compact JSON object per line
-pixi run paitrace json runs.jsonl --all -o compact.jsonl
-
-# Convert multiple JSON files to compact JSONL in argument order
-pixi run paitrace json first.json second.json -o compact.jsonl
-
-# Mix JSON and JSONL inputs; --all expands every JSONL source
-pixi run paitrace json first.json runs.jsonl --all -o compact.jsonl
-
-# Indent one compact trajectory for direct inspection
-pixi run paitrace json trace.json --pretty
-
-# Export or view a trace received on stdin
-curl https://example.test/my-traj.json | pixi run paitrace export -o trace.html
-curl https://example.test/my-traj.json | pixi run paitrace --no-open
+paitrace trace.json                   # one trace
+paitrace ./traces/                    # every trace under a directory
+paitrace first.json runs.jsonl        # only the files you name
+curl -s https://example.test/trace.json | paitrace
 ```
 
-`paitrace text` writes only the transcript to stdout by default, so it can be piped directly into
-another command. Repeated request instructions are omitted until they change. Multi-trace JSONL
-files require `--line`, just as HTML export does.
+The viewer binds to `127.0.0.1:1205` and opens a browser tab. `--port`, `--host`, and
+`--no-open` change that. Each line of a JSONL file appears as its own trace; a trajectory's runs
+appear under their trace in the sidebar.
 
-`paitrace json` emits a token-efficient trajectory document: `name`, aggregate `stats`, and
-`runs` in recorded order. Each run carries its `id`, `name`, `parent`, `outcome`, timing, own
-`stats`, and `messages`. A message list is one run. Messages preserve request and response order,
-native tool arguments and results, tool-call IDs, and model and token metadata. They omit display
-headings, repeated instructions, provider response identifiers, and binary payloads. Tool calls
-and results remain separate events linked by `id`. `cost_usd` is present when genai-prices knows
-the model; `unpriced_calls` counts the responses it could not price.
-
-Pass `--all` to convert every trace in a JSONL file or stream. The output remains JSONL, with one
-compact trajectory per line. `--all` cannot be combined with `--line` or `--pretty`. Pass
-`--pretty` to indent single-trace output by two spaces.
-
-Multiple `.json` inputs also produce compact JSONL, in argument order. When multiple inputs include
-JSONL, pass `--all` to expand each JSONL source. Multiple inputs cannot use stdin, `--line`, or
-`--pretty`. The browser also accepts multiple explicit `.json` and `.jsonl` files and watches each
-source for changes. `text` and `export` remain single-input commands.
-
-### Query compact JSON with jq
+### `paitrace export` — write HTML
 
 ```bash
-# Extract the final assistant text
-pixi run paitrace json trace.json \
+paitrace export trace.json                    # writes trace.html
+paitrace export runs.jsonl --line 2 -o run2.html
+curl -s https://example.test/trace.json | paitrace export -o trace.html
+```
+
+The file embeds the trace, its costs, and the viewer, and opens offline. `-o` defaults to the
+input path with an `.html` suffix and is required for stdin.
+
+### `paitrace text` — print a transcript
+
+```bash
+paitrace text trace.json | less
+paitrace text runs.jsonl --line 2 -o run2.txt
+```
+
+The transcript lists every run, request, and response in order, with token usage and cost.
+Instructions are printed only when they change. It goes to stdout unless `-o` names a file, and
+it is the text the viewer's "Copy trace" button copies.
+
+### `paitrace json` — print compact JSON
+
+```bash
+paitrace json trace.json --pretty                 # one indented document
+paitrace json runs.jsonl --all -o compact.jsonl   # one document per JSONL line
+paitrace json first.json second.json              # JSONL, in argument order
+paitrace json first.json runs.jsonl --all         # --all also expands JSONL inputs
+```
+
+Each document has the trace's `name`, aggregate `stats`, and `runs` in recorded order. A run
+carries its `id`, `name`, `parent`, `outcome`, timing, own `stats`, and `messages`; a message
+list is one run. Messages keep request and response order, native tool arguments and results,
+tool-call IDs, and model and token metadata. Tool calls and results stay separate events linked
+by `id`. Display headings, repeated instructions, provider response IDs, and binary payloads are
+left out. `cost_usd` is present when genai-prices knows the model; `unpriced_calls` counts the
+responses it could not price.
+
+One input prints one document. Several inputs, or `--all`, print JSONL with one document per
+trace; a JSONL `-o` file is replaced only after every trace converts. `--all` cannot be combined
+with `--line` or `--pretty`, and several inputs cannot use stdin, `--line`, or `--pretty`.
+
+Query it with jq:
+
+```bash
+# The final assistant text
+paitrace json trace.json \
   | jq -r '[.runs[].messages[].parts[] | select(.type == "text") | .content] | last'
 
-# Extract tool calls, results, and retries in chronological order
-pixi run paitrace json trace.json \
+# Tool calls, results, and retries in chronological order
+paitrace json trace.json \
   | jq '[.runs[].messages[].parts[] | select(.type == "tool_call" or .type == "tool_result" or .type == "retry")]'
 
-# Pair tool calls with their result or retry by call ID
-pixi run paitrace json trace.json | jq '
+# Tool calls paired with their result or retry by call ID
+paitrace json trace.json | jq '
   [.runs[].messages[].parts[]] as $parts
   | [$parts[] | select(.type == "tool_result" or .type == "retry")] as $results
   | [$parts[] | select(.type == "tool_call")
@@ -129,18 +137,12 @@ pixi run paitrace json trace.json | jq '
     ]
 '
 
-# Read aggregate model-call and token statistics
-pixi run paitrace json trace.json | jq '.stats'
+# Aggregate LLM calls, tokens, and cost
+paitrace json trace.json | jq '.stats'
 
-# Collect several compact trajectories into one JSON array
-pixi run paitrace json first.json second.json | jq -s '.'
+# Several documents as one JSON array
+paitrace json first.json second.json | jq -s '.'
 ```
-
-The viewer, `text`, `json`, and `export` commands accept a trace from piped stdin when their input
-is omitted. Pass `-` to request stdin explicitly. Stdin can contain one JSON trace or JSONL traces;
-use `--line` to select from multi-trace JSONL. HTML export from stdin requires `-o`.
-
-The viewer binds to `127.0.0.1:1205` and opens your browser. Pass `--port`, `--host`, or `--no-open` to change that behavior.
 
 ## Trajectories
 
