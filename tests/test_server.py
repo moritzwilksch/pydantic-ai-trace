@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from starlette.testclient import TestClient
+from traces import minimal_trace
 
 from pydantic_ai_trace import scan
 from pydantic_ai_trace.server import (
@@ -80,6 +81,21 @@ class TestTrace:
             "worker",
             "summarizer",
         ]
+
+    def test_serves_a_trajectory_from_a_jsonl_line(self, fixtures_copy: Path, tmp_path: Path):
+        trajectory = json.dumps(json.loads((fixtures_copy / "trajectory.json").read_text()))
+        root = tmp_path / "traces"  # `fixtures_copy` also lives in `tmp_path`
+        root.mkdir()
+        (root / "runs.jsonl").write_text(f"{minimal_trace()}\n{trajectory}\n")
+        client = client_for(root)
+
+        tree = client.get("/api/tree").json()
+        payload = client.get("/api/trace", params={"path": "runs.jsonl", "line": 2}).json()
+
+        [node] = tree["children"]
+        assert (node["trace_count"], node["error"]) == (2, False)
+        assert payload["name"] == "runs.jsonl · trace 2"
+        assert len(payload["trajectory"]["runs"]) == 4
 
     def test_invalid_trace_is_400_with_the_validation_error(self, tmp_path: Path):
         (tmp_path / "bad.json").write_text('[{"kind": "telepathy", "parts": []}]')

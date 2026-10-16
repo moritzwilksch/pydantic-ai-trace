@@ -339,6 +339,24 @@ class TestJsonCommand:
         )
         assert captured.err == ""
 
+    def test_all_renders_trajectory_lines_alongside_message_lists(
+        self,
+        fixtures_copy: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+    ):
+        trajectory = json.dumps(json.loads((fixtures_copy / "trajectory.json").read_text()))
+        source = tmp_path / "mixed.jsonl"
+        source.write_text(f"{trajectory}\n{minimal_trace()}\n", encoding="utf-8")
+
+        assert cli.main(["json", str(source), "--all"]) == 0
+
+        documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [[run["name"] for run in document["runs"]] for document in documents] == [
+            ["planner", "subagent", "worker", "summarizer"],
+            ["mixed.jsonl · trace 2"],
+        ]
+
     def test_all_streams_jsonl_from_stdin(
         self,
         capsys: pytest.CaptureFixture,
