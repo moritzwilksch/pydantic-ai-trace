@@ -139,6 +139,8 @@ function PartView({
         return (
           <OutputCall
             part={part}
+            number={number}
+            result={info.result}
             args={info.args}
             childRuns={run.childRuns(info)}
             onOpenRun={onOpenRun}
@@ -164,10 +166,11 @@ function PartView({
     case "retry-prompt":
       return <RetryPrompt part={part} call={pairedCall(run, messageIndex, partIndex)} />;
     case "tool-return":
-    case "builtin-tool-return":
-      if (run.resultOf(messageIndex, partIndex)?.info.is_output)
-        return <OutputAccepted part={part} />;
-      return <ToolReturn part={part} call={pairedCall(run, messageIndex, partIndex)} />;
+    case "builtin-tool-return": {
+      const call = pairedCall(run, messageIndex, partIndex);
+      if (call?.isOutput) return <OutputAccepted part={part} call={call} />;
+      return <ToolReturn part={part} call={call} />;
+    }
     case "compaction":
       return <CompactionPart part={part} />;
     case "file":

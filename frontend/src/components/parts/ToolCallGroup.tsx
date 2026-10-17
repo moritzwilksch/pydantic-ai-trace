@@ -21,6 +21,8 @@ export interface CallLink {
   number: number;
   ref: PartRef;
   argsPreview: string;
+  /** The call is the run's accepted output call; see `ToolCallInfo.is_output`. */
+  isOutput: boolean;
 }
 
 export function pairedCall(run: RunIndex, message: number, part: number): CallLink | null {
@@ -31,6 +33,7 @@ export function pairedCall(run: RunIndex, message: number, part: number): CallLi
     number: call.number,
     ref: call.info.call,
     argsPreview: callPreview(callPart, call.info.args),
+    isOutput: call.info.is_output,
   };
 }
 
@@ -96,15 +99,20 @@ export function ToolCallGroup({
 
 /**
  * The output tool call Pydantic AI accepted: its arguments are the run's structured
- * output, so they show open, as the answer rather than as a tool invocation.
+ * output, so they show open, as the answer rather than as a tool invocation. It keeps
+ * its call number, linking to the acceptance, so the run's numbering has no gaps.
  */
 export function OutputCall({
   part,
+  number,
+  result,
   args,
   childRuns,
   onOpenRun,
 }: {
   part: AnyToolCallPart;
+  number: number;
+  result: PartRef | null;
   args: unknown;
   childRuns: RunEntry[];
   onOpenRun: (runId: string) => void;
@@ -119,6 +127,11 @@ export function OutputCall({
       tone="assistant"
       badges={<span class="tool-name">{part.tool_name}</span>}
       preview={compactJson(args)}
+      trailing={
+        <span class="pair-end">
+          <PairNumber number={number} to={result} label={`Jump to result of call #${number}`} />
+        </span>
+      }
       defaultOpen
     >
       <ValueView value={args} />
@@ -128,10 +141,11 @@ export function OutputCall({
 }
 
 /** Pydantic AI's fixed status return for the accepted output call; boilerplate, so muted. */
-export function OutputAccepted({ part }: { part: AnyToolReturnPart }) {
+export function OutputAccepted({ part, call }: { part: AnyToolReturnPart; call: CallLink }) {
   return (
     <div class="output-accepted" title={compactJson(part.content)}>
       <Check size={13} /> Output accepted <span class="tool-name">{part.tool_name}</span>
+      <CallEnd call={call} />
     </div>
   );
 }

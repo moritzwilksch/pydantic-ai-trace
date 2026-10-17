@@ -864,9 +864,11 @@ describe("App in exported-trace mode", () => {
     expect(output.open).toBe(true);
     expect(output.querySelector(".tool-name")?.textContent).toBe("answer");
     expect(output.querySelector(".block-body")?.textContent).toContain("Berlin");
-    expect(container.querySelector(".output-accepted")?.textContent?.trim()).toBe(
-      "Output accepted answer",
-    );
+    // Both ends keep the call's number, so the numbering has no gap.
+    expect(output.querySelector(".pair-link")?.ariaLabel).toBe("Jump to result of call #2");
+    const accepted = container.querySelector(".output-accepted")!;
+    expect(accepted.textContent?.trim()).toBe("Output accepted answer#2");
+    expect(accepted.querySelector(".pair-link")?.ariaLabel).toBe("Jump to call #2");
     expect(container.textContent).not.toContain("Tool return");
   });
 
