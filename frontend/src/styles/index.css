@@ -1135,7 +1135,7 @@ details.collapsible > summary {
 
 /* ---- tool call/result pairing ---- */
 
-/* `name(args)`: the arguments truncate only once the preview after them is gone. */
+/* `name(args)`: the arguments truncate only once the preview after them is short. */
 .tool-signature {
   display: inline-flex;
   min-width: 0;
@@ -1158,6 +1158,11 @@ details.collapsible > summary {
 .pair-arrow {
   flex-shrink: 0;
   color: var(--text-dim);
+}
+
+/* Long arguments must not squeeze the result preview after the arrow to nothing. */
+.pair-arrow + .block-preview {
+  min-width: min(14ch, 25%);
 }
 
 /* The call's number (a link to the other end of the pair) at the header's right edge. */
