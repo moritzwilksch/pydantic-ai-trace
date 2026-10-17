@@ -13,7 +13,7 @@ Keep the description concise.
 
 [image] https://example.com/cat.png
 
-[binary: text/plain, 11 B, payload omitted]
+[binary: 2aae6c, text/plain, 11 B, payload omitted]
 
 [document] https://example.com/report.pdf
 
@@ -36,7 +36,7 @@ It is a picture of a cat sitting on a windowsill.
 
 --- FILE ---
 
-[binary: image/png, 16 B, payload omitted]
+[binary: 22f545, image/png, 16 B, payload omitted]
 
 ========== REQUEST 2 [INTERRUPTED] ==========
 

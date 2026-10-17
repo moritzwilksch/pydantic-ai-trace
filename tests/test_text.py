@@ -211,3 +211,27 @@ def test_a_single_run_keeps_its_outcome_and_parent(fields: dict, expected: str):
 
     assert "RUN:" not in text
     assert expected in text.split("========== REQUEST 1")[0]
+
+
+def test_binary_content_is_named_by_its_identifier():
+    image = {
+        "kind": "binary",
+        "data": "aGk=",
+        "media_type": "image/png",
+        "identifier": "receipt.png",
+    }
+    trace = messages_json(
+        [
+            request(
+                {
+                    "part_kind": "user-prompt",
+                    "content": [image],
+                    "timestamp": "2026-01-01T09:00:00Z",
+                }
+            )
+        ]
+    )
+
+    text = transcript(trace, "receipt.json")
+
+    assert "[binary: receipt.png, image/png, 2 B, payload omitted]" in text
