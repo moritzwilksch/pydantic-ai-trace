@@ -86,11 +86,12 @@ paitrace json trace.json | jq '.stats'
 # Several documents as one JSON array
 paitrace json first.json second.json | jq -s '.'
 
-# Each agent's share of the cost across traces, grouping runs by name
+# Each agent's share of the cost across traces, grouping runs by name. A message list
+# records no agent name, so its run, named after its trace, counts as "(unnamed)".
 paitrace stats ./traces/ --json | jq -s '
-  [.[] | .runs[]?]
-  | group_by(.name)
-  | map({name: .[0].name, cost_usd: (map(.stats.cost_usd // 0) | add)})
+  [.[] | .name as $trace | .runs[]? | .agent = (if .name == $trace then "(unnamed)" else .name end)]
+  | group_by(.agent)
+  | map({agent: .[0].agent, cost_usd: (map(.stats.cost_usd // 0) | add)})
   | (map(.cost_usd) | add) as $total
   | map(.share = (if $total > 0 then 100 * .cost_usd / $total | round else null end))
   | sort_by(-.cost_usd)
@@ -112,7 +113,8 @@ from pathlib import Path
 
 from pydantic_ai_trace import Run, Trajectory
 
-# One top-level run per workflow step, from message lists or their JSON dumps.
+# One top-level run per workflow step. Each value is a list of `ModelMessage`s, or the parsed
+# JSON of a dump (`json.loads(...)`), not the JSON string itself.
 steps = Trajectory.from_named_messages({"planner": planner_messages, "worker": worker_messages})
 worker = next(run for run in steps.runs if run.name == "worker")
 
