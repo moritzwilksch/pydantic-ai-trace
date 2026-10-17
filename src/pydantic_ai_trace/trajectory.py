@@ -132,13 +132,17 @@ class Trajectory(_Frozen):
             if run.id in by_id:
                 raise ValueError(f"duplicate run id {run.id!r}")
             by_id[run.id] = run
+        # Count each parent's calls once; a parent can start thousands of children.
+        call_counts: dict[RunId, Counter[str]] = {}
         for run in self.runs:
             parent = by_id.get(run.parent.run_id) if run.parent is not None else None
             if parent is None or run.parent is None or run.parent.tool_call_id is None:
                 continue
             # Results pair with a reused call ID in order, but a child names the call by
             # ID alone, so it must name exactly one call.
-            calls = _tool_call_counts(parent)[run.parent.tool_call_id]
+            if parent.id not in call_counts:
+                call_counts[parent.id] = _tool_call_counts(parent)
+            calls = call_counts[parent.id][run.parent.tool_call_id]
             if calls != 1:
                 found = "does not contain" if calls == 0 else f"contains {calls} times"
                 raise ValueError(
