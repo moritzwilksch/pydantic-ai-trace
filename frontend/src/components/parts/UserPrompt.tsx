@@ -1,5 +1,5 @@
 import { Bookmark, Paperclip, User } from "lucide-preact";
-import { compactJson, markdownPreview } from "../../format";
+import { markdownPreview } from "../../format";
 import type { UserContentItem, UserPromptPart } from "../../types";
 import { Block } from "../Block";
 import { JsonTree } from "../JsonTree";
@@ -31,13 +31,20 @@ function userContentItems(content: UserPromptPart["content"]): UserContentItem[]
   return Array.isArray(content) ? content : [content];
 }
 
-/** A scalar string and an equivalent one-item sequence get the same preview. */
+/**
+ * Text items as plain text, every other item as a short `[label]`, so a
+ * preview never carries base64. A scalar string and an equivalent one-item
+ * sequence get the same preview.
+ */
 function userContentPreview(items: UserContentItem[]): string {
-  if (items.length === 1) {
-    const text = userContentText(items[0]);
-    if (text !== null) return markdownPreview(text);
-  }
-  return compactJson(items);
+  return items.map(itemPreview).join(" ");
+}
+
+function itemPreview(item: UserContentItem): string {
+  if (typeof item === "string") return markdownPreview(item);
+  if (item.kind === "text-content") return markdownPreview(item.content);
+  if (item.kind === "cache-point") return "[cache point]";
+  return `[${item.media_type}]`;
 }
 
 function userContentText(item: UserContentItem | string): string | null {

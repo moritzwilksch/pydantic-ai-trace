@@ -1108,6 +1108,30 @@ describe("App in exported-trace mode", () => {
     }
   });
 
+  it("previews user media as labels, never as base64", () => {
+    embedMessages([
+      {
+        kind: "request",
+        parts: [
+          {
+            part_kind: "user-prompt",
+            content: [
+              "Does the **receipt** match?",
+              { kind: "binary", data: "iVBORw0KGgo=", media_type: "image/png" },
+              { kind: "document-url", url: "https://x.test/a.pdf", media_type: "application/pdf" },
+              { kind: "cache-point" },
+            ],
+          },
+        ],
+      },
+    ]);
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".tone-user .block-preview")?.textContent).toBe(
+      "Does the receipt match? [image/png] [application/pdf] [cache point]",
+    );
+  });
+
   it("previews markdown as plain text", () => {
     embedMessages([
       {
