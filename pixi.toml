@@ -32,14 +32,16 @@ build = { cmd = "uv build --no-build-logs", depends-on = ["build-frontend"] }
 gen-types = { cmd = "python -c 'import json; from pydantic_ai_trace.payload import payload_json_schema; print(json.dumps(payload_json_schema()))' | node scripts/gen-types.mjs src/generated/payload.ts && npx prettier --log-level warn --write src/generated/payload.ts", cwd = "frontend", depends-on = ["npm-install"] }
 check-types = { cmd = "git diff --exit-code -- frontend/src/generated && git ls-files --error-unmatch frontend/src/generated/payload.ts > /dev/null", depends-on = ["gen-types"] }
 test-py = "pytest"
+# Regenerates examples/traces/ from scripted Pydantic AI agent runs.
+gen-examples = { cmd = "python examples/generate.py", env = { PYDANTIC_AI_NO_BANNER = "1" } }
 # Runs the Python tests against the lowest versions pyproject.toml allows.
 test-lowest = "uv run --isolated --resolution lowest-direct --python 3.12 --with 'pytest>=8' --with 'httpx>=0.27' python -I -m pytest -p no:cacheprovider -q tests"
 test-web = { cmd = "npm test -- --run", cwd = "frontend", depends-on = ["npm-install"] }
 test = { depends-on = ["test-py", "test-web"] }
-lint-py = "ruff check src tests scripts && ruff format --check src tests scripts"
+lint-py = "ruff check src tests scripts examples && ruff format --check src tests scripts examples"
 lint-web = { cmd = "npm run lint", cwd = "frontend", depends-on = ["npm-install"] }
 lint = { depends-on = ["lint-py", "lint-web"] }
-fmt-py = "ruff check --fix src tests scripts; ruff format src tests scripts"
+fmt-py = "ruff check --fix src tests scripts examples; ruff format src tests scripts examples"
 fmt-web = { cmd = "npm run fmt", cwd = "frontend", depends-on = ["npm-install"] }
 fmt = { depends-on = ["fmt-py", "fmt-web"] }
 typecheck-py = "pyright"
