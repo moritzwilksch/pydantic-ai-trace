@@ -105,8 +105,9 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
             event.preventDefault();
             move(event.shiftKey ? -1 : 1);
           } else if (event.key === "Escape") {
+            // Like a browser find bar: leave the search, keep the query and its matches.
             event.preventDefault();
-            clear(event.currentTarget);
+            event.currentTarget.blur();
           }
         }}
       />
@@ -138,7 +139,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
           <button
             type="button"
             aria-label="Clear trace search"
-            title="Clear search (Escape)"
+            title="Clear search"
             onClick={(event) => clear(event.currentTarget.parentElement!.querySelector("input")!)}
           >
             <X size={13} />
