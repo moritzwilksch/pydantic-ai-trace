@@ -60,6 +60,26 @@ class TestServeCommand:
         cli.main([str(fixtures_copy), "--host", host, "--no-open"])
         assert ("without authentication" in capsys.readouterr().err) is warned
 
+    @pytest.mark.parametrize(
+        ("host", "url"),
+        [
+            ("127.0.0.1", "http://127.0.0.1:9999/"),
+            ("0.0.0.0", "http://localhost:9999/"),
+            ("::", "http://localhost:9999/"),
+            ("::1", "http://[::1]:9999/"),
+        ],
+    )
+    def test_prints_a_url_a_browser_can_open(
+        self,
+        fixtures_copy: Path,
+        serve_captures_app: dict,
+        capsys: pytest.CaptureFixture,
+        host: str,
+        url: str,
+    ):
+        cli.main([str(fixtures_copy), "--host", host, "--port", "9999", "--no-open"])
+        assert f" at {url}" in capsys.readouterr().err
+
     def test_missing_path_fails_with_message(self, capsys: pytest.CaptureFixture):
         assert cli.main(["/definitely/not/here"]) == 1
         assert "does not exist" in capsys.readouterr().err

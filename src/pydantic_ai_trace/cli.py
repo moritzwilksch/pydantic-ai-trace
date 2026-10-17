@@ -192,7 +192,7 @@ def _serve_source(
         )
 
     def on_bound(bound_port: int) -> None:
-        url = f"http://{host}:{bound_port}/"
+        url = _browser_url(host, bound_port)
         print(f"paitrace serving {display_name} at {url}", file=sys.stderr)
         if not no_open:
             browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
@@ -211,6 +211,19 @@ def _serve_source(
         hint = "; pick another port with --port" if port is not None else ""
         raise CliError(f"{exc}{hint}") from exc
     return 0
+
+
+def _browser_url(host: str, port: int) -> str:
+    """A URL a local browser can open; a wildcard address is not one."""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:  # a hostname
+        return f"http://{host}:{port}/"
+    if address.is_unspecified:
+        return f"http://localhost:{port}/"
+    if address.version == 6:
+        return f"http://[{host}]:{port}/"
+    return f"http://{host}:{port}/"
 
 
 def _is_loopback(host: str) -> bool:
