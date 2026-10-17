@@ -1,4 +1,6 @@
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -269,3 +271,58 @@ class TestInMemoryTraceData:
     def test_iterating_empty_jsonl_is_rejected(self):
         with pytest.raises(scan.TraceLookupError, match="contains no traces"):
             list(scan.iter_jsonl_traces(["\n", "  \n"], name="runs"))
+
+
+needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+
+
+def git_repo(path: Path, gitignore: str) -> Path:
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    (path / ".gitignore").write_text(gitignore)
+    return path
+
+
+def write_traces(root: Path, *relative_paths: str) -> None:
+    for relative_path in relative_paths:
+        (root / relative_path).parent.mkdir(parents=True, exist_ok=True)
+        (root / relative_path).write_text(minimal_trace())
+
+
+def tree_paths(root: Path) -> list[str]:
+    return [
+        str(file.relative_to(root))
+        for file in scan.iter_trace_files(root, ignored=scan.git_ignored(root))
+    ]
+
+
+class TestScanExclusions:
+    @needs_git
+    def test_skips_what_git_ignores(self, tmp_path: Path):
+        root = git_repo(tmp_path, "out/\n*.tmp.json\n")
+        write_traces(root, "out/a.json", "keep/b.json", "keep/c.tmp.json")
+
+        tree = scan.build_tree(root, ignored=scan.git_ignored(root))
+
+        assert [child["path"] for child in tree["children"]] == ["keep"]
+        assert tree_paths(root) == ["keep/b.json"]
+
+    def test_skips_vendored_and_build_directories_without_git(self, tmp_path: Path):
+        write_traces(tmp_path, "node_modules/pkg/a.json", "build/b.json", ".venv/c.json", "d.json")
+
+        assert scan.git_ignored(tmp_path) == frozenset()
+        assert tree_paths(tmp_path) == ["d.json"]
+
+    @needs_git
+    def test_skips_vendored_directories_that_git_does_not_ignore(self, tmp_path: Path):
+        root = git_repo(tmp_path, "")
+        write_traces(root, "node_modules/a.json", "b.json")
+
+        assert tree_paths(root) == ["b.json"]
+
+    @needs_git
+    def test_reads_an_explicitly_named_ignored_directory(self, tmp_path: Path):
+        root = git_repo(tmp_path, "out/\n")
+        write_traces(root, "out/a.json", "node_modules/pkg/b.json")
+
+        assert tree_paths(root / "out") == ["a.json"]
+        assert tree_paths(root / "node_modules" / "pkg") == ["b.json"]

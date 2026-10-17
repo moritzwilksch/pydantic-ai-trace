@@ -417,9 +417,10 @@ Print one summary row per trace: runs, LLM calls, input, cached, and output
 tokens, cost, and wall time, with a totals row for several traces. A trace
 with several runs gets one indented row per run, counting only that run's own
 calls, tokens, and cost. A directory is searched like the viewer's sidebar,
-which passes over JSON that is not a trace. Traces that do not validate, and
-named files that are not traces, are listed with their error after the table,
-and the exit status is 1.
+which skips git-ignored, hidden, and dependency or build directories such as
+node_modules, and passes over JSON that is not a trace. Traces that do not
+validate, and named files that are not traces, are listed with their error
+after the table, and the exit status is 1.
 
 {_TRACE_FORMATS}""",
         epilog="""\
@@ -479,7 +480,8 @@ def _stats_files(path: Path, *, prefix: bool) -> list[tuple[Path, str]]:
     if not path.is_dir():
         return [(path, path.as_posix())]
     base = path.parent if prefix else path
-    return [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
+    files = scan.iter_trace_files(path, ignored=scan.git_ignored(path))
+    return [(file, file.relative_to(base).as_posix()) for file in files]
 
 
 def _load_trace(

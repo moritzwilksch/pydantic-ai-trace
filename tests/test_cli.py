@@ -769,6 +769,21 @@ class TestStatsCommand:
         assert "package.json" not in out
         assert "events.jsonl" not in out
 
+    def test_reads_a_named_path_inside_a_skipped_directory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        vendored = tmp_path / "node_modules" / "pkg"
+        vendored.mkdir(parents=True)
+        (vendored / "a.json").write_text(minimal_trace())
+        (vendored / "b.json").write_text(minimal_trace())
+
+        assert cli.main(["stats", str(tmp_path), "--json"]) == 0
+        assert capsys.readouterr().out == ""
+
+        assert cli.main(["stats", str(vendored), str(vendored / "b.json"), "--json"]) == 0
+        names = [json.loads(line)["name"] for line in capsys.readouterr().out.splitlines()]
+        assert names == ["pkg/a.json", "pkg/b.json", (vendored / "b.json").as_posix()]
+
     def test_reports_a_named_file_that_is_not_a_trace(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
     ):

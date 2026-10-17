@@ -1,6 +1,8 @@
 import asyncio
 import json
+import shutil
 import socket
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -43,6 +45,18 @@ class TestTree:
         assert tree["type"] == "dir"
         child_names = {child["name"] for child in tree["children"]}
         assert {"full_trace.json", "broken.json", "runs"} <= child_names
+
+    @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+    def test_reads_gitignore_on_each_listing(self, tmp_path: Path):
+        subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+        (tmp_path / "out").mkdir()
+        (tmp_path / "out" / "a.json").write_text(minimal_trace())
+        client = client_for(tmp_path)
+        assert [child["path"] for child in client.get("/api/tree").json()["children"]] == ["out"]
+
+        (tmp_path / ".gitignore").write_text("out/\n")
+
+        assert client.get("/api/tree").json()["children"] == []
 
     def test_returns_single_node_for_file(self, fixtures_copy: Path):
         tree = client_for(fixtures_copy / "full_trace.json").get("/api/tree").json()
