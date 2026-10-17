@@ -1117,7 +1117,12 @@ describe("App in exported-trace mode", () => {
             part_kind: "user-prompt",
             content: [
               "Does the **receipt** match?",
-              { kind: "binary", data: "iVBORw0KGgo=", media_type: "image/png" },
+              {
+                kind: "binary",
+                data: "iVBORw0KGgo=",
+                media_type: "image/png",
+                identifier: "receipt.png",
+              },
               { kind: "document-url", url: "https://x.test/a.pdf", media_type: "application/pdf" },
               { kind: "cache-point" },
             ],
@@ -1128,7 +1133,7 @@ describe("App in exported-trace mode", () => {
     const { container } = render(<App />);
 
     expect(container.querySelector(".tone-user .block-preview")?.textContent).toBe(
-      "Does the receipt match? [image/png] [application/pdf] [cache point]",
+      "Does the receipt match? [receipt.png · image/png] [application/pdf] [cache point]",
     );
   });
 

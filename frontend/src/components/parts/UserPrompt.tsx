@@ -44,6 +44,8 @@ function itemPreview(item: UserContentItem): string {
   if (typeof item === "string") return markdownPreview(item);
   if (item.kind === "text-content") return markdownPreview(item.content);
   if (item.kind === "cache-point") return "[cache point]";
+  // Like the media chip, a binary is named by its identifier.
+  if (item.kind === "binary") return `[${item.identifier} · ${item.media_type}]`;
   return `[${item.media_type}]`;
 }
 
