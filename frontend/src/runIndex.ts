@@ -1,24 +1,29 @@
 // Lookups that join a run's analysis (computed in Python) to its message and part
 // positions, plus the run tree in display order.
 
-import type { Part, Run, RunAnalysis, ToolCallInfo, TracePayload } from "./types";
+import type { Part, PartRef, Run, RunAnalysis, ToolCallInfo, TracePayload } from "./types";
 
 export interface RunEntry {
   run: Run;
   analysis: RunAnalysis;
 }
 
+/** A tool call with its 1-based position among the run's calls, shown on both ends of the pair. */
+export interface NumberedToolCall {
+  number: number;
+  info: ToolCallInfo;
+}
+
 export interface RunIndex {
   entry: RunEntry;
-  toolCall(message: number, part: number): ToolCallInfo | undefined;
-  toolResult(info: ToolCallInfo): Part | null;
+  part(ref: PartRef): Part | null;
+  toolCall(message: number, part: number): NumberedToolCall | undefined;
+  /** The call a tool return or retry prompt answers, or undefined when unpaired. */
+  resultOf(message: number, part: number): NumberedToolCall | undefined;
   /** The recorded runs a tool call started. */
   childRuns(info: ToolCallInfo): RunEntry[];
   /** The recorded runs this run started outside a tool call. */
   nestedRuns: RunEntry[];
-  isMatchedResult(message: number, part: number): boolean;
-  /** The return that accepted the run's output call; see `ToolCallInfo.is_output`. */
-  isOutputResult(message: number, part: number): boolean;
   responseCost(message: number): string | null;
 }
 
@@ -61,27 +66,26 @@ export function indexTrajectory(payload: TracePayload): TrajectoryIndex {
 
 export function indexRun(entry: RunEntry, trajectory: TrajectoryIndex): RunIndex {
   const key = (message: number, part: number) => `${message}:${part}`;
+  const numbered = entry.analysis.tool_calls.map((info, i) => ({ number: i + 1, info }));
   const toolCalls = new Map(
-    entry.analysis.tool_calls.map((info) => [key(info.call.message, info.call.part), info]),
+    numbered.map((call) => [key(call.info.call.message, call.info.call.part), call]),
   );
-  const matched = new Set(entry.analysis.matched_results.map((ref) => key(ref.message, ref.part)));
-  const outputResults = new Set(
-    entry.analysis.tool_calls.flatMap(({ is_output, result }) =>
-      is_output && result !== null ? [key(result.message, result.part)] : [],
-    ),
+  const byResult = new Map(
+    numbered.flatMap((call) => {
+      const result = call.info.result;
+      return result === null ? [] : [[key(result.message, result.part), call] as const];
+    }),
   );
   const costs = new Map(entry.analysis.responses.map((info) => [info.message, info.cost_usd]));
   const recorded = (ids: readonly string[]) =>
     ids.map((id) => trajectory.entries.get(id)).filter((run) => run !== undefined);
   return {
     entry,
+    part: (ref) => entry.run.messages[ref.message]?.parts[ref.part] ?? null,
     toolCall: (message, part) => toolCalls.get(key(message, part)),
-    toolResult: ({ result }) =>
-      result === null ? null : (entry.run.messages[result.message]?.parts[result.part] ?? null),
+    resultOf: (message, part) => byResult.get(key(message, part)),
     childRuns: (info) => recorded(info.child_run_ids),
     nestedRuns: recorded(entry.analysis.nested_run_ids),
-    isMatchedResult: (message, part) => matched.has(key(message, part)),
-    isOutputResult: (message, part) => outputResults.has(key(message, part)),
     responseCost: (message) => costs.get(message) ?? null,
   };
 }

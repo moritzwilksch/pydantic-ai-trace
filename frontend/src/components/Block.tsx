@@ -14,6 +14,7 @@ export function Block({
   tone,
   badges,
   preview,
+  trailing,
   defaultOpen = false,
   children,
 }: {
@@ -22,6 +23,8 @@ export function Block({
   badges?: ComponentChildren;
   /** Dimmed one-line teaser shown while collapsed. */
   preview?: string;
+  /** Shown at the right edge of the header. */
+  trailing?: ComponentChildren;
   defaultOpen?: boolean;
   children: ComponentChildren;
 }) {
@@ -45,6 +48,7 @@ export function Block({
             more
           </span>
         ) : null}
+        {trailing}
       </summary>
       <div class="block-body">{children}</div>
     </details>

@@ -10,6 +10,7 @@
 // jumps when heights above it change.
 
 import { useEffect, useState } from "preact/hooks";
+import type { PartRef } from "../types";
 
 const FOCUS_CLASS = "kb-focus";
 
@@ -33,6 +34,13 @@ export function focusTraceTarget(
   if (!element) return;
   element.classList.add(FOCUS_CLASS);
   if (scrollBlock) element.scrollIntoView({ block: scrollBlock });
+}
+
+/** Focus the rendered part at `ref`, e.g. the other end of a tool call/return pair. */
+export function focusPart(ref: PartRef): void {
+  const selector = `.trace-body [data-part="${ref.message}:${ref.part}"]`;
+  const target = document.querySelector<HTMLElement>(selector);
+  if (target) focusTraceTarget(target, "center");
 }
 
 function moveFocus(delta: number): void {

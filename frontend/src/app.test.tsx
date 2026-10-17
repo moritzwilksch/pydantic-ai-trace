@@ -789,7 +789,7 @@ describe("App in exported-trace mode", () => {
     expect(details.every((block) => !block.open)).toBe(true);
   });
 
-  it("shows a compact args preview on tool call summaries", () => {
+  it("shows tool call arguments signature-style on the summary", () => {
     embedMessages([
       {
         kind: "response",
@@ -804,8 +804,8 @@ describe("App in exported-trace mode", () => {
       },
     ]);
     const { container } = render(<App />);
-    const preview = container.querySelector(".tool-group .block-preview");
-    expect(preview?.textContent).toBe('path: "src/app.py"');
+    const signature = container.querySelector(".tool-group .tool-signature");
+    expect(signature?.textContent).toBe('read_file(path: "src/app.py")');
     // everything starts collapsed; the summary preview carries the skim info
     expect(container.querySelector<HTMLDetailsElement>(".tool-group")?.open).toBe(false);
     // no per-node JSON toggles: args render as plain nodes once expanded
