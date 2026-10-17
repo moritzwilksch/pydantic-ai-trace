@@ -7,6 +7,7 @@ here, so it stays in the canonical wire shape.
 
 from __future__ import annotations
 
+import re
 import socket
 import subprocess
 import sys
@@ -197,11 +198,12 @@ def wait_until_up(url: str, process: subprocess.Popen[bytes]) -> None:
 def capture(page: Page, url: str, out: Path) -> None:
     page.goto(f"{url}/#/research.json")
     # Select the run explicitly instead of relying on the default selection.
-    page.locator(".run-node", has_text="research_agent").click()
-    page.locator(".child-run").wait_for(state="attached")
-    # Expand the tool call that started the subagent, and the structured output.
-    for tool in ("verify_claims", "final_result"):
-        page.locator(f"details.tool-group:has(.tool-name:text-is('{tool}')) > summary").click()
+    runs = page.get_by_role("group", name="Runs")
+    runs.get_by_role("button", name=re.compile(r"^research_agent")).click()
+    page.get_by_title("Open run fact_checker").wait_for()
+    # Open the call that started the subagent (message 3) and the output (message 5).
+    for part in ("3:0", "5:0"):
+        page.locator(f'[data-part="{part}"] > details').evaluate("d => { d.open = true; }")
     page.locator(".trace-body").evaluate("body => { body.scrollTop = 0; }")
     # No focus ring, caret, or hover state; the pointer rests on empty sidebar space.
     page.evaluate("document.activeElement?.blur()")
