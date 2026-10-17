@@ -1,4 +1,4 @@
-"""Facts the viewer derives from a trajectory: tool pairing, cost, and totals.
+"""Facts the viewer derives from a trajectory: tool pairing, output calls, cost, and totals.
 
 Everything is keyed by position (`PartRef`) into the trajectory's own messages, so
 renderers read the canonical messages and join these facts by index.
@@ -17,10 +17,17 @@ from pydantic_ai.messages import (
     BaseToolReturnPart,
     ModelResponse,
     RetryPromptPart,
+    ToolReturnPart,
 )
 
 from ._json import loads_finite
 from .trajectory import Run, RunId, Trajectory
+
+# Message history does not mark output tools: their name is configurable
+# (`ToolOutput(name=...)`, default `final_result`) and `tool_kind` stays unset. Pydantic AI
+# answers the call whose arguments became the run's output with this fixed status return
+# (`_FINAL_RESULT_PROCESSED` in `pydantic_ai._tool_execution`), so it identifies the output call.
+FINAL_RESULT_STATUS = "Final result processed."
 
 
 class _Frozen(BaseModel):
@@ -37,6 +44,7 @@ class ToolCallInfo(_Frozen):
     args: JsonValue  # Parsed from a JSON string when possible.
     result: PartRef | None  # The next chronological return or retry with the same id.
     child_run_ids: tuple[RunId, ...]
+    is_output: bool  # Its args are the run's output; see `FINAL_RESULT_STATUS`.
 
 
 class Tokens(_Frozen):
@@ -143,6 +151,7 @@ def _pair_tool_calls(
     calls: list[tuple[PartRef, BaseToolCallPart]] = []
     pending: dict[str, deque[int]] = defaultdict(deque)
     results: dict[int, PartRef] = {}
+    outputs: set[int] = set()
     for message_index, message in enumerate(run.messages):
         for part_index, part in enumerate(message.parts):
             ref = PartRef(message=message_index, part=part_index)
@@ -152,7 +161,10 @@ def _pair_tool_calls(
             elif isinstance(part, BaseToolReturnPart | RetryPromptPart):
                 waiting = pending.get(part.tool_call_id)
                 if waiting:
-                    results[waiting.popleft()] = ref
+                    index = waiting.popleft()
+                    results[index] = ref
+                    if _is_final_result_status(part):
+                        outputs.add(index)
 
     infos = tuple(
         ToolCallInfo(
@@ -160,10 +172,15 @@ def _pair_tool_calls(
             args=parse_tool_args(part.args),
             result=results.get(index),
             child_run_ids=tuple(children_by_call.get(part.tool_call_id, ())),
+            is_output=index in outputs,
         )
         for index, (ref, part) in enumerate(calls)
     )
     return infos, tuple(sorted(results.values(), key=lambda ref: (ref.message, ref.part)))
+
+
+def _is_final_result_status(part: BaseToolReturnPart | RetryPromptPart) -> bool:
+    return isinstance(part, ToolReturnPart) and part.content == FINAL_RESULT_STATUS
 
 
 def parse_tool_args(args: str | dict[str, object] | None) -> JsonValue:

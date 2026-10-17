@@ -1,10 +1,14 @@
+import asyncio
 import json
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
+from pydantic_ai import Agent, ToolOutput
 from pydantic_ai.messages import (
+    ModelMessage,
     ModelRequest,
     ModelResponse,
     RetryPromptPart,
@@ -12,6 +16,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.usage import RequestUsage
 
 from pydantic_ai_trace import Completed, Parent, Run, RunId, ToolCallId, Trajectory
@@ -99,6 +104,36 @@ class TestToolPairing:
         [run] = analyze(Trajectory(runs=(single_run(call("a")),))).runs
 
         assert run.tool_calls[0].args == {"a": 1}
+
+
+class Answer(BaseModel):
+    city: str
+
+
+class TestOutputCalls:
+    def test_the_accepted_output_call_is_marked_whatever_its_name(self):
+        """A real run: the model's first output fails validation, the second is accepted."""
+        outputs = iter(['{"city": 1}', '{"city": "Berlin"}'])
+
+        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(tool_name="search", args="{}", tool_call_id=f"s{len(messages)}"),
+                    ToolCallPart(tool_name="answer", args=next(outputs)),
+                ]
+            )
+
+        agent = Agent(FunctionModel(model), output_type=ToolOutput(Answer, name="answer"))
+
+        @agent.tool_plain
+        def search() -> str:
+            return "Berlin"
+
+        messages = asyncio.run(agent.run("Where?")).all_messages()
+
+        [run] = analyze(Trajectory(runs=(single_run(*messages),))).runs
+        accepted = PartRef(message=3, part=1)  # The second response's `answer` call.
+        assert [info.call for info in run.tool_calls if info.is_output] == [accepted]
 
 
 class TestTree:

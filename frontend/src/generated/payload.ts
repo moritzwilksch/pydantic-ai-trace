@@ -900,6 +900,7 @@ export interface ToolCallInfo {
   args: JsonValue;
   result: PartRef | null;
   child_run_ids: string[];
+  is_output: boolean;
 }
 export interface PartRef {
   message: number;

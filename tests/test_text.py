@@ -1,8 +1,17 @@
+import asyncio
 import json
 from pathlib import Path
 
 import pytest
-from pydantic_ai.messages import ModelMessagesTypeAdapter
+from pydantic import BaseModel
+from pydantic_ai import Agent, ToolOutput
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelResponse,
+    ToolCallPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from pydantic_ai_trace.load import load_trajectory
 from pydantic_ai_trace.payload import build_payload
@@ -159,6 +168,24 @@ def test_structured_tool_returns_print_one_scalar_per_line():
         "meta: {}\n"
         "note: null\n"
     ) in text
+
+
+def test_the_accepted_output_call_renders_as_the_run_output():
+    class Answer(BaseModel):
+        city: str
+
+    def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[ToolCallPart(tool_name="answer", args={"city": "Berlin"})])
+
+    agent = Agent(FunctionModel(model), output_type=ToolOutput(Answer, name="answer"))
+    trace = asyncio.run(agent.run("Where?")).all_messages_json().decode()
+
+    text = transcript(trace, "output.json")
+
+    assert '--- OUTPUT: answer ---\n\ncity: "Berlin"' in text
+    assert "--- OUTPUT ACCEPTED: answer ---" in text
+    assert "TOOL CALL" not in text
+    assert "Final result processed." not in text
 
 
 def test_a_trajectory_renders_each_run_in_tree_order():
