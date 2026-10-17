@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   cacheHitRate,
   compactJson,
+  formatBytes,
   formatCost,
+  formatCount,
+  formatDuration,
   formatTotalsCost,
   parseJsonContainer,
 } from "./format";
@@ -78,5 +81,35 @@ describe("formatTotalsCost", () => {
     expect(formatTotalsCost(totals("0.01", 1))).toBe("$0.0100 (+1 unpriced)");
     expect(formatTotalsCost(totals(null, 2))).toBe("cost unknown");
     expect(formatTotalsCost(totals(null, 0))).toBeNull();
+  });
+});
+
+describe("formatCount", () => {
+  it("groups digits below 10,000 and abbreviates above", () => {
+    expect([999, 1000, 9999, 10_000, 20_459_704].map(formatCount)).toEqual([
+      "999",
+      "1,000",
+      "9,999",
+      "10.0k",
+      "20.46M",
+    ]);
+  });
+});
+
+describe("formatDuration", () => {
+  it.each([
+    [0, "0.0s"],
+    [59.94, "59.9s"],
+    [59.96, "1m 0s"],
+    [863.2, "14m 23s"],
+    [7325.6, "2h 2m 6s"],
+  ])("formats %s seconds as %s", (seconds, expected) => {
+    expect(formatDuration(seconds)).toBe(expected);
+  });
+});
+
+describe("formatBytes", () => {
+  it("picks the unit by size", () => {
+    expect([512, 1536, 3 * 1024 * 1024].map(formatBytes)).toEqual(["512 B", "1.5 KB", "3.0 MB"]);
   });
 });

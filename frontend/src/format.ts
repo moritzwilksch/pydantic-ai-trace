@@ -64,6 +64,35 @@ export function cacheHitRate(inputTokens: number, cacheReadTokens: number): numb
   return (cacheReadTokens / denominator) * 100;
 }
 
+/** A token or call count: exact with digit grouping below 10,000, else abbreviated (`20.46M`). */
+export function formatCount(count: number): string {
+  if (count < 10_000) return count.toLocaleString("en-US");
+  if (count < 1_000_000) return `${(count / 1000).toFixed(1)}k`;
+  return `${(count / 1_000_000).toFixed(2)}M`;
+}
+
+/** Tenths of a second below a minute (`6.0s`), else whole units (`14m 23s`, `2h 5m 0s`). */
+export function formatDuration(seconds: number): string {
+  if (Math.round(seconds * 10) < 600) return `${seconds.toFixed(1)}s`;
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return hours > 0 ? `${hours}h ${minutes}m ${secs}s` : `${minutes}m ${secs}s`;
+}
+
+/** A percentage to one decimal, e.g. `42.5%`. */
+export function formatPercent(percent: number): string {
+  return `${percent.toFixed(1)}%`;
+}
+
+/** A byte size in B, KB, or MB, e.g. `1.5 KB`. */
+export function formatBytes(length: number): string {
+  if (length < 1024) return `${length} B`;
+  if (length < 1024 * 1024) return `${(length / 1024).toFixed(1)} KB`;
+  return `${(length / 1024 / 1024).toFixed(1)} MB`;
+}
+
 /** A cost in USD from its exact decimal string, e.g. `$0.0028`. */
 export function formatCost(costUsd: string): string {
   return `$${Number(costUsd).toFixed(4)}`;

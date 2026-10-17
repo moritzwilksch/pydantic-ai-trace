@@ -228,6 +228,32 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".child-run")!.textContent).toContain("cost unknown");
   });
 
+  it("shows long wall times in minutes and groups token digits", () => {
+    const payload = payloadFromRuns([
+      {
+        id: "a",
+        name: "batch",
+        messages: [
+          {
+            kind: "response",
+            parts: [{ part_kind: "text", content: "done" }],
+            usage: { input_tokens: 9999, output_tokens: 7 },
+          },
+        ],
+      },
+    ]);
+    const [run] = payload.analysis.runs;
+    run.totals = { ...run.totals, duration_seconds: 863.2 };
+    run.subtree_totals = run.totals;
+    embed(payload);
+
+    const { container } = render(<App />);
+
+    const stats = container.querySelector(".trace-stats")!.textContent;
+    expect(stats).toContain("9,999 in");
+    expect(stats).toContain("14m 23s wall time");
+  });
+
   it("opens another run at its top", () => {
     embed(
       payloadFromRuns([

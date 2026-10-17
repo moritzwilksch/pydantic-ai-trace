@@ -1,5 +1,5 @@
 import { Bot } from "lucide-preact";
-import { formatTotalsCost } from "../format";
+import { formatCount, formatTotalsCost } from "../format";
 import type { RunEntry } from "../runIndex";
 
 /** A run started from here, summarized; opening it shows its own messages. */
@@ -18,7 +18,7 @@ export function ChildRunCard({
       <span class="tool-name">{entry.run.name}</span>
       <OutcomeBadge status={entry.run.outcome.status} />
       <span class="child-run-stats">
-        {totals.llm_calls} calls
+        {formatCount(totals.llm_calls)} calls
         {cost !== null ? ` · ${cost}` : ""}
       </span>
       <span class="preview-more">open</span>
