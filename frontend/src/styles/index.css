@@ -1021,6 +1021,11 @@ details.collapsible > summary {
   border: 1px solid var(--border);
 }
 
+.media-caption {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 .media-chip {
   display: inline-flex;
   align-items: center;
