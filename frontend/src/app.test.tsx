@@ -774,6 +774,64 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".json-tree details")).toBeNull();
   });
 
+  it("shows the accepted output call as the run's output", () => {
+    embedMessages([
+      {
+        kind: "response",
+        parts: [
+          { part_kind: "tool-call", tool_name: "answer", args: '{"city": 1}', tool_call_id: "o1" },
+        ],
+      },
+      {
+        kind: "request",
+        parts: [
+          {
+            part_kind: "retry-prompt",
+            tool_name: "answer",
+            content: "city: Input should be a valid string",
+            tool_call_id: "o1",
+          },
+        ],
+      },
+      {
+        kind: "response",
+        parts: [
+          {
+            part_kind: "tool-call",
+            tool_name: "answer",
+            args: '{"city": "Berlin"}',
+            tool_call_id: "o2",
+          },
+        ],
+      },
+      {
+        kind: "request",
+        parts: [
+          {
+            part_kind: "tool-return",
+            tool_name: "answer",
+            content: "Final result processed.",
+            tool_call_id: "o2",
+          },
+        ],
+      },
+    ]);
+    const { container } = render(<App />);
+
+    // The rejected attempt stays an ordinary tool call.
+    expect(container.querySelectorAll(".tool-group")).toHaveLength(1);
+    const output = [...container.querySelectorAll<HTMLDetailsElement>(".content-block")].find(
+      (block) => block.querySelector(".block-label")?.textContent?.includes("Output"),
+    )!;
+    expect(output.open).toBe(true);
+    expect(output.querySelector(".tool-name")?.textContent).toBe("answer");
+    expect(output.querySelector(".block-body")?.textContent).toContain("Berlin");
+    expect(container.querySelector(".output-accepted")?.textContent?.trim()).toBe(
+      "Output accepted answer",
+    );
+    expect(container.textContent).not.toContain("Tool return");
+  });
+
   it("renders JSON keys in their source order", () => {
     const payload = payloadFromRuns([
       {

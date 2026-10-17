@@ -1,4 +1,4 @@
-import { SquarePlay, Wrench } from "lucide-preact";
+import { Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
 import { compactJson } from "../../format";
 import type { RunEntry } from "../../runIndex";
 import {
@@ -63,15 +63,68 @@ export function ToolCallGroup({
         <div class="part-label">arguments</div>
         <ToolCallArgs part={part} args={args} />
       </div>
-      {childRuns.length > 0 ? (
-        <div class="tool-group-section">
-          <div class="part-label">started</div>
-          {childRuns.map((child) => (
-            <ChildRunCard key={child.run.id} entry={child} onOpen={onOpenRun} />
-          ))}
-        </div>
-      ) : null}
+      <StartedRuns childRuns={childRuns} onOpenRun={onOpenRun} />
     </details>
+  );
+}
+
+/**
+ * The output tool call Pydantic AI accepted: its arguments are the run's structured
+ * output, so they show open, as the answer rather than as a tool invocation.
+ */
+export function OutputCall({
+  part,
+  args,
+  childRuns,
+  onOpenRun,
+}: {
+  part: AnyToolCallPart;
+  args: unknown;
+  childRuns: RunEntry[];
+  onOpenRun: (runId: string) => void;
+}) {
+  return (
+    <Block
+      label={
+        <>
+          <PackageCheck size={13} /> Output
+        </>
+      }
+      tone="assistant"
+      badges={<span class="tool-name">{part.tool_name}</span>}
+      preview={compactJson(args)}
+      defaultOpen
+    >
+      <ValueView value={args} />
+      <StartedRuns childRuns={childRuns} onOpenRun={onOpenRun} />
+    </Block>
+  );
+}
+
+/** Pydantic AI's fixed status return for the accepted output call; boilerplate, so muted. */
+export function OutputAccepted({ part }: { part: AnyToolReturnPart }) {
+  return (
+    <div class="output-accepted" title={compactJson(part.content)}>
+      <Check size={13} /> Output accepted <span class="tool-name">{part.tool_name}</span>
+    </div>
+  );
+}
+
+function StartedRuns({
+  childRuns,
+  onOpenRun,
+}: {
+  childRuns: RunEntry[];
+  onOpenRun: (runId: string) => void;
+}) {
+  if (childRuns.length === 0) return null;
+  return (
+    <div class="tool-group-section">
+      <div class="part-label">started</div>
+      {childRuns.map((child) => (
+        <ChildRunCard key={child.run.id} entry={child} onOpen={onOpenRun} />
+      ))}
+    </div>
   );
 }
 

@@ -17,6 +17,8 @@ export interface RunIndex {
   /** The recorded runs this run started outside a tool call. */
   nestedRuns: RunEntry[];
   isMatchedResult(message: number, part: number): boolean;
+  /** The return that accepted the run's output call; see `ToolCallInfo.is_output`. */
+  isOutputResult(message: number, part: number): boolean;
   responseCost(message: number): string | null;
 }
 
@@ -70,6 +72,11 @@ export function indexRun(entry: RunEntry, trajectory: TrajectoryIndex): RunIndex
     entry.analysis.tool_calls.map((info) => [key(info.call.message, info.call.part), info]),
   );
   const matched = new Set(entry.analysis.matched_results.map((ref) => key(ref.message, ref.part)));
+  const outputResults = new Set(
+    entry.analysis.tool_calls.flatMap(({ is_output, result }) =>
+      is_output && result !== null ? [key(result.message, result.part)] : [],
+    ),
+  );
   const costs = new Map(entry.analysis.responses.map((info) => [info.message, info.cost_usd]));
   const recorded = (ids: readonly string[]) =>
     ids.map((id) => trajectory.entries.get(id)).filter((run) => run !== undefined);
@@ -81,6 +88,7 @@ export function indexRun(entry: RunEntry, trajectory: TrajectoryIndex): RunIndex
     childRuns: (info) => recorded(info.child_run_ids),
     nestedRuns: recorded(entry.analysis.nested_run_ids),
     isMatchedResult: (message, part) => matched.has(key(message, part)),
+    isOutputResult: (message, part) => outputResults.has(key(message, part)),
     responseCost: (message) => costs.get(message) ?? null,
   };
 }

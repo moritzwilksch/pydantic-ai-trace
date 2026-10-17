@@ -107,6 +107,7 @@ function analyzeRun(run: Run, runs: Run[]): RunAnalysis {
           call: { message: m, part: p },
           args: typeof args === "string" ? parseOr(args) : (args ?? null),
           result: null,
+          is_output: false,
           child_run_ids: runs
             .filter(
               (child) => child.parent?.run_id === run.id && child.parent.tool_call_id === callId,
@@ -117,7 +118,12 @@ function analyzeRun(run: Run, runs: Run[]): RunAnalysis {
       } else if (callId !== undefined && callId !== null) {
         const waiting = pending.get(callId);
         if (!waiting?.length) return;
-        calls[waiting.shift()!].result = { message: m, part: p };
+        const info = calls[waiting.shift()!];
+        info.result = { message: m, part: p };
+        // Mirrors `FINAL_RESULT_STATUS` in `analysis.py`.
+        info.is_output =
+          part.part_kind === "tool-return" &&
+          (part as { content?: unknown }).content === "Final result processed.";
         matched.push({ message: m, part: p });
       }
     }),

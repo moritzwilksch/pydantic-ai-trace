@@ -90,6 +90,9 @@ def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
         list(run.messages), mode="json"
     )
     costs = {response.message: response.cost_usd for response in analysis.responses}
+    outputs = [info for info in analysis.tool_calls if info.is_output]
+    output_calls = {(info.call.message, info.call.part) for info in outputs}
+    output_returns = {(info.result.message, info.result.part) for info in outputs if info.result}
     sections: list[str] = []
     request_number = 0
     response_number = 0
@@ -99,8 +102,14 @@ def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
         parts: list[str] = []
         if instructions is not None:
             parts.append(_part_section("INSTRUCTIONS", _js_string(instructions)))
-        for part in message["parts"]:
-            formatted = _format_part(part)
+        for part_index, part in enumerate(message["parts"]):
+            position = (index, part_index)
+            if position in output_calls:
+                formatted = _format_output_call(part)
+            elif position in output_returns:
+                formatted = _format_output_return(part)
+            else:
+                formatted = _format_part(part)
             if formatted:
                 parts.append(formatted)
 
@@ -189,6 +198,19 @@ def _format_tool_call(part: dict[str, Any]) -> str:
         f"{kind}: {_inline(part.get('tool_name'))}{tool_kind}",
         _format_tool_call_args(part),
     )
+
+
+def _format_output_call(part: dict[str, Any]) -> str:
+    """The call whose arguments are the run's output; see `FINAL_RESULT_STATUS`."""
+    return _part_section(
+        f"OUTPUT: {_inline(part.get('tool_name'))}",
+        _format_value(parse_tool_args(part.get("args"))),
+    )
+
+
+def _format_output_return(part: dict[str, Any]) -> str:
+    """Pydantic AI's fixed status reply to the output call; its heading says enough."""
+    return f"--- OUTPUT ACCEPTED: {_inline(part.get('tool_name'))} ---"
 
 
 def _format_tool_call_args(part: dict[str, Any]) -> str:
