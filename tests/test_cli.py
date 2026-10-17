@@ -78,7 +78,7 @@ class TestServeCommand:
         url: str,
     ):
         cli.main([str(fixtures_copy), "--host", host, "--port", "9999", "--no-open"])
-        assert f" at {url}" in capsys.readouterr().err
+        assert f" at {url} (Ctrl-C to stop)\n" in capsys.readouterr().err
 
     def test_missing_path_fails_with_message(self, capsys: pytest.CaptureFixture):
         assert cli.main(["/definitely/not/here"]) == 1

@@ -193,7 +193,7 @@ def _serve_source(
 
     def on_bound(bound_port: int) -> None:
         url = _browser_url(host, bound_port)
-        print(f"paitrace serving {display_name} at {url}", file=sys.stderr)
+        print(f"paitrace serving {display_name} at {url} (Ctrl-C to stop)", file=sys.stderr)
         if not no_open:
             browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
             browser_timer.daemon = True  # never keep the process alive
