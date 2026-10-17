@@ -1,6 +1,7 @@
 import io
 import json
 import socket
+import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -830,3 +831,27 @@ class TestStatsCommand:
         assert rows["long.json"].endswith("14m 23s")
         # Each wide character fills two columns, so equal widths need two fewer characters.
         assert len(rows["配達.json"]) == len(rows["long.json"]) - 2
+
+
+class TestClosedStdout:
+    @pytest.mark.parametrize(
+        "command",
+        [["text", "big.json"], ["json", "big.json"], ["json", "big.jsonl", "--all"]],
+    )
+    def test_reader_closing_the_pipe_exits_quietly(self, tmp_path: Path, command: list[str]):
+        trace = minimal_trace("x" * 1_000_000)  # far beyond a pipe buffer
+        (tmp_path / "big.json").write_text(trace)
+        (tmp_path / "big.jsonl").write_text(f"{trace}\n{trace}\n")
+        process = subprocess.Popen(
+            [sys.executable, "-m", "pydantic_ai_trace.cli", *command],
+            cwd=tmp_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert process.stdout is not None and process.stderr is not None
+        process.stdout.read(1)  # like `| head -c 1`
+        process.stdout.close()
+
+        stderr = process.stderr.read()
+        assert process.wait(timeout=30) == 1
+        assert stderr == b""

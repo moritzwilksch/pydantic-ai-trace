@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import ipaddress
+import os
 import sys
 import tempfile
 import threading
@@ -37,18 +38,30 @@ _LINE_HELP = "which trace of a multi-trace .jsonl input to use, counting from 1"
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     try:
-        if argv and argv[0] == "export" and not Path("export").exists():
-            return _run_export(argv[1:])
-        if argv and argv[0] == "text" and not Path("text").exists():
-            return _run_text(argv[1:])
-        if argv and argv[0] == "json" and not Path("json").exists():
-            return _run_json(argv[1:])
-        if argv and argv[0] == "stats" and not Path("stats").exists():
-            return _run_stats(argv[1:])
-        return _run_serve(argv)
+        status = _run(argv)
+        sys.stdout.flush()  # Surface a closed pipe here, not at interpreter exit.
+        return status
+    except BrokenPipeError:
+        # The reader, such as `head` or `less`, stopped reading. Point stdout at devnull so
+        # the interpreter's final flush cannot fail too.
+        # https://docs.python.org/3/library/signal.html#note-on-sigpipe
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 1
     except CliError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+
+def _run(argv: list[str]) -> int:
+    if argv and argv[0] == "export" and not Path("export").exists():
+        return _run_export(argv[1:])
+    if argv and argv[0] == "text" and not Path("text").exists():
+        return _run_text(argv[1:])
+    if argv and argv[0] == "json" and not Path("json").exists():
+        return _run_json(argv[1:])
+    if argv and argv[0] == "stats" and not Path("stats").exists():
+        return _run_stats(argv[1:])
+    return _run_serve(argv)
 
 
 class CliError(Exception):
@@ -295,6 +308,8 @@ examples:
     try:
         loaded = _load_trace(args.input, args.line, parser)
         _write_output(loaded.payload().transcript, args.output)
+    except BrokenPipeError:
+        raise  # stdout closed; `main` handles it
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     return 0
@@ -375,6 +390,8 @@ examples:
 
         rendered = format_compact_json(loaded.payload(), indent=2 if args.pretty else None)
         _write_output(rendered, args.output)
+    except BrokenPipeError:
+        raise  # stdout closed; `main` handles it
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     return 0
