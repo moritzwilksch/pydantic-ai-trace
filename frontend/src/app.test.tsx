@@ -228,6 +228,40 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".child-run")!.textContent).toContain("cost unknown");
   });
 
+  it("lists the run summary before the token breakdown, which a narrow header drops first", () => {
+    const payload = payloadFromRuns([
+      {
+        id: "worker",
+        name: "worker",
+        messages: [
+          {
+            kind: "response",
+            parts: [{ part_kind: "tool-call", tool_name: "ask", args: "{}", tool_call_id: "c" }],
+            usage: { input_tokens: 10, output_tokens: 2 },
+          },
+        ],
+      },
+      {
+        id: "helper",
+        name: "helper",
+        parent: { run_id: "worker", tool_call_id: "c" },
+        messages: [{ kind: "response", parts: [{ part_kind: "text", content: "x" }] }],
+      },
+    ]);
+    const [worker] = payload.analysis.runs;
+    worker.subtree_totals = { ...worker.totals, llm_calls: 2 };
+    embed(payload);
+
+    const { container } = render(<App />);
+
+    // Stats that do not fit drop from the end of the row.
+    const stats = [...container.querySelector(".trace-stats")!.children].map((s) => s.textContent);
+    const summary = stats.findIndex((s) => s!.startsWith("with subruns"));
+    const tokens = stats.findIndex((s) => s!.endsWith(" in"));
+    expect(summary).toBeGreaterThan(-1);
+    expect(tokens).toBeGreaterThan(summary);
+  });
+
   it("shows long wall times in minutes and groups token digits", () => {
     const payload = payloadFromRuns([
       {

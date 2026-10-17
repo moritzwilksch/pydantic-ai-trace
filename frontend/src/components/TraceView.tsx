@@ -81,20 +81,12 @@ export function TraceStatsBar({
   const cost = formatTotalsCost(totals);
   const withSubruns = subtreeTotals.llm_calls !== totals.llm_calls ? subtreeTotals : null;
   const subtreeCost = withSubruns ? formatTotalsCost(withSubruns) : null;
+  // When the header runs out of room, stats drop from the end: the token
+  // breakdown goes before the run's calls, cost, and wall time.
   return (
     <div class="trace-stats">
       <span>
         <b>{formatCount(totals.llm_calls)}</b> LLM calls
-      </span>
-      <span class="trace-token-summary" aria-label="Token usage">
-        <b>{formatCount(tokens.input)}</b> in
-      </span>
-      <span class="trace-token-summary">
-        <b>{formatCount(tokens.cache_read)}</b> cached
-        {hitRate !== null ? ` (${formatPercent(hitRate)})` : ""}
-      </span>
-      <span class="trace-token-summary">
-        <b>{formatCount(tokens.output)}</b> out
       </span>
       {cost !== null ? (
         <span>
@@ -114,6 +106,16 @@ export function TraceStatsBar({
           ) : null}
         </span>
       ) : null}
+      <span class="trace-token-summary" aria-label="Token usage">
+        <b>{formatCount(tokens.input)}</b> in
+      </span>
+      <span class="trace-token-summary">
+        <b>{formatCount(tokens.cache_read)}</b> cached
+        {hitRate !== null ? ` (${formatPercent(hitRate)})` : ""}
+      </span>
+      <span class="trace-token-summary">
+        <b>{formatCount(tokens.output)}</b> out
+      </span>
     </div>
   );
 }
