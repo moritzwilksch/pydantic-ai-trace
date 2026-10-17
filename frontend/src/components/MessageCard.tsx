@@ -12,7 +12,7 @@ import { SystemPrompt } from "./parts/SystemPrompt";
 import { TextPart } from "./parts/TextPart";
 import { ThinkingPart } from "./parts/ThinkingPart";
 import { ToolAvailabilityDelta } from "./parts/ToolAvailabilityDelta";
-import { ToolCallGroup, ToolReturn } from "./parts/ToolCallGroup";
+import { OutputAccepted, OutputCall, ToolCallGroup, ToolReturn } from "./parts/ToolCallGroup";
 import { UserPrompt } from "./parts/UserPrompt";
 
 /**
@@ -126,6 +126,16 @@ function PartView({
     case "tool-call":
     case "builtin-tool-call": {
       const info = run.toolCall(messageIndex, partIndex);
+      if (info?.is_output) {
+        return (
+          <OutputCall
+            part={part}
+            args={info.args}
+            childRuns={run.childRuns(info)}
+            onOpenRun={onOpenRun}
+          />
+        );
+      }
       return (
         <ToolCallGroup
           part={part}
@@ -140,6 +150,7 @@ function PartView({
       return <RetryPrompt part={part} />;
     case "tool-return":
     case "builtin-tool-return":
+      if (run.isOutputResult(messageIndex, partIndex)) return <OutputAccepted part={part} />;
       return (
         <ToolReturn part={part} hasMatchingCall={run.isMatchedResult(messageIndex, partIndex)} />
       );
