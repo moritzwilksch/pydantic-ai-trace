@@ -87,4 +87,3 @@ function JsonString({ value }: { value: string }) {
   if (value.includes("\n")) return <div class="json-string json-block">{value}</div>;
   return <span class="json-string">{JSON.stringify(value)}</span>;
 }
-

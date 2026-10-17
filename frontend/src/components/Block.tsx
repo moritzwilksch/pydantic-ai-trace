@@ -67,7 +67,7 @@ export function BlockPreview({ text }: { text: string | undefined }) {
 export function MoreHint({ text }: { text: string }) {
   if (!isCutOff(text)) return null;
   return (
-    <span class="preview-more" title={EXPAND_HINT}>
+    <span class="preview-more" title={EXPAND_HINT} data-search-ignore>
       more
     </span>
   );
