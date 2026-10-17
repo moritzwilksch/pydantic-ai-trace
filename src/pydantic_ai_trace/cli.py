@@ -109,7 +109,9 @@ examples:
         "(default: stdin when piped)",
     )
     parser.add_argument(
-        "--port", type=int, default=DEFAULT_PORT, help="port to listen on (default: %(default)s)"
+        "--port",
+        type=int,
+        help=f"port to listen on (default: {DEFAULT_PORT}, or a free port when it is busy)",
     )
     parser.add_argument(
         "--host",
@@ -179,10 +181,9 @@ def _serve_source(
     *,
     display_name: str,
     host: str,
-    port: int,
+    port: int | None,
     no_open: bool,
 ) -> int:
-    url = f"http://{host}:{port}/"
     if not _is_loopback(host):
         print(
             f"warning: serving on {host} without authentication; "
@@ -190,7 +191,8 @@ def _serve_source(
             file=sys.stderr,
         )
 
-    def on_bound() -> None:
+    def on_bound(bound_port: int) -> None:
+        url = f"http://{host}:{bound_port}/"
         print(f"paitrace serving {display_name} at {url}")
         if not no_open:
             browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
@@ -199,10 +201,15 @@ def _serve_source(
 
     from .server import ServerStartError, serve
 
+    if port is None:
+        ports = [DEFAULT_PORT, 0]  # 0: any free port
+    else:
+        ports = [port]
     try:
-        serve(source, host=host, port=port, on_bound=on_bound)
+        serve(source, host=host, ports=ports, on_bound=on_bound)
     except ServerStartError as exc:
-        raise CliError(f"{exc}; pick another port with --port") from exc
+        hint = "; pick another port with --port" if port is not None else ""
+        raise CliError(f"{exc}{hint}") from exc
     return 0
 
 

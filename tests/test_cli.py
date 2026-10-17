@@ -1,6 +1,8 @@
 import io
 import json
+import socket
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -14,11 +16,11 @@ def serve_captures_app(monkeypatch: pytest.MonkeyPatch) -> dict:
     """Stub the server and the browser so `paitrace PATH` returns immediately."""
     captured: dict = {}
 
-    def fake_serve(root, host, port, on_bound):
-        captured.update({"app": root, "root": root, "host": host, "port": port})
+    def fake_serve(root, host, ports, on_bound):
+        captured.update({"app": root, "root": root, "host": host, "ports": ports})
         if isinstance(root, Path) and root.is_file():
             captured["trace_text"] = root.read_text(encoding="utf-8")
-        on_bound()
+        on_bound(ports[0])
 
     monkeypatch.setattr("pydantic_ai_trace.server.serve", fake_serve)
     monkeypatch.setattr(
@@ -27,14 +29,23 @@ def serve_captures_app(monkeypatch: pytest.MonkeyPatch) -> dict:
     return captured
 
 
+@pytest.fixture
+def busy_port() -> Iterator[int]:
+    """A loopback port another socket is listening on."""
+    with socket.socket() as blocker:
+        blocker.bind(("127.0.0.1", 0))
+        blocker.listen()
+        yield blocker.getsockname()[1]
+
+
 class TestServeCommand:
     def test_serves_existing_directory(self, fixtures_copy: Path, serve_captures_app: dict):
         assert cli.main([str(fixtures_copy), "--no-open"]) == 0
-        assert serve_captures_app["port"] == cli.DEFAULT_PORT
+        assert serve_captures_app["ports"] == [cli.DEFAULT_PORT, 0]
 
     def test_port_and_host_flags_are_forwarded(self, fixtures_copy: Path, serve_captures_app: dict):
         cli.main([str(fixtures_copy), "--port", "9999", "--host", "0.0.0.0", "--no-open"])
-        assert serve_captures_app["port"] == 9999
+        assert serve_captures_app["ports"] == [9999]
         assert serve_captures_app["host"] == "0.0.0.0"
 
     @pytest.mark.parametrize(("host", "warned"), [("0.0.0.0", True), ("127.0.0.1", False)])
@@ -59,21 +70,41 @@ class TestServeCommand:
         assert cli.main([str(target)]) == 1
         assert "expected .json or .jsonl" in capsys.readouterr().err
 
-    def test_busy_port_fails_with_suggestion(
+    def test_busy_explicit_port_fails_with_one_line_error(
         self,
         fixtures_copy: Path,
+        busy_port: int,
+        capsys: pytest.CaptureFixture,
+    ):
+        assert cli.main([str(fixtures_copy), "--port", str(busy_port), "--no-open"]) == 1
+        captured = capsys.readouterr()
+        assert captured.err == (
+            f"error: cannot bind 127.0.0.1:{busy_port}: Address already in use; "
+            "pick another port with --port\n"
+        )
+
+    def test_busy_default_port_falls_back_to_a_free_port(
+        self,
+        fixtures_copy: Path,
+        busy_port: int,
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        from pydantic_ai_trace.server import ServerStartError
+        import uvicorn
 
-        def fail_to_bind(root, host, port, on_bound):
-            raise ServerStartError(f"cannot bind {host}:{port}")
+        bound: list[int] = []
 
-        monkeypatch.setattr("pydantic_ai_trace.server.serve", fail_to_bind)
+        def record_port(server: uvicorn.Server, sockets: list[socket.socket]) -> None:
+            bound.append(sockets[0].getsockname()[1])
+            sockets[0].close()
 
-        assert cli.main([str(fixtures_copy), "--port", "9999", "--no-open"]) == 1
-        assert "--port" in capsys.readouterr().err
+        monkeypatch.setattr(cli, "DEFAULT_PORT", busy_port)
+        monkeypatch.setattr(uvicorn.Server, "run", record_port)
+
+        assert cli.main([str(fixtures_copy), "--no-open"]) == 0
+        [port] = bound
+        assert port != busy_port
+        assert f"http://127.0.0.1:{port}/" in capsys.readouterr().out
 
     def test_bare_command_on_a_terminal_prints_help(
         self,
