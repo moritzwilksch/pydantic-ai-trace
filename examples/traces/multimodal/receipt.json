@@ -1,0 +1,80 @@
+[
+  {
+    "parts": [
+      {
+        "content": [
+          "Here is my receipt and the invoice. Do they match?",
+          {
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAIAAAAuKetIAAAYZUlEQVR4nBXYsUsyARjHcQeFEEGHGxJEBB1uSAgJdLhBISSw4QYFkcCGGxREBBtuUBAJbPgOCiGBDTcoiAg63JAQEthwQ4JIoMMNCSKCDQ0NDQ1v7_MffODhx-95LBYLVgtHFhwWXBYEC8cWPBZ8FgIWRAsnFk4tnFmIWJAsRC2cW7iwcGlBtpC0kLZwZeHagmIhZ6FgoWThxoJqoWKhZuHWwp0FLDQt3Ft4sPBoQbPQtdC3MLQwtqBbeLLwbOHFwqsFw8KbhYWFdwtrC6aFDwtbC3sLnxa-LHxb-LHwa8FisWG1cWTDYcNlQ7BxbMNjw2cjYEO0cWLj1MaZjYgNyUbUxrmNCxuXNmQbSRtpG1c2rm0oNnI2CjZKNm5sqDYqNmo2bm3c2cBG08a9jQcbjzY0G10bfRtDG2Mbuo0nG882Xmy82jBsvNlY2Hi3sbZh2viwsbWxt_Fp48vGt40fG7-2P4Adq50jOw47LjuCnWM7Hjs-OwE7op0TO6d2zuxE7Eh2onbO7VzYubQj20naSdu5snNtR7GTs1OwU7JzY0e1U7FTs3Nr584Odpp27u082Hm0o9np2unbGdoZ29HtPNl5tvNi59WOYefNzsLOu521HdPOh52tnb2dTztfdr7t_Nj5tf8BnFidHDlxOHE5EZwcO_E48TkJOBGdnDg5dXLmJOJEchJ1cu7kwsmlE9lJ0knayZWTayeKk5yTgpOSkxsnqpOKk5qTWyd3TnDSdHLv5MHJoxPNSddJ38nQydiJ7uTJybOTFyevTgwnb04WTt6drJ2YTj6cbJ3snXw6-XLy7eTHya_zDyBgFTgScAi4BASBYwGPgE8gICAKnAicCpwJRAQkgajAucCFwKWALJAUSAtcCVwLKAI5gYJASeBGQBWoCNQEbgXuBBBoCtwLPAg8CmgCXYG-wFBgLKALPAk8C7wIvAoYAm8CC4F3gbWAKfAhsBXYC3wKfAl8C_wI_Ap_ADdWN0duHG5cbgQ3x248bnxuAm5ENyduTt2cuYm4kdxE3Zy7uXBz6UZ2k3STdnPl5tqN4ibnpuCm5ObGjeqm4qbm5tbNnRvcNN3cu3lw8-hGc9N103czdDN2o7t5cvPs5sXNqxvDzZubhZt3N2s3ppsPN1s3ezefbr7cfLv5cfPr_gN4sXo58uLw4vIieDn24vHi8xLwIno58XLq5cxLxIvkJerl3MuFl0svspekl7SXKy_XXhQvOS8FLyUvN15ULxUvNS-3Xu684KXp5d7Lg5dHL5qXrpe-l6GXsRfdy5OXZy8vXl69GF7evCy8vHtZezG9fHjZetl7-fTy5eXby4-XX-8fwI_Vz5Efhx-XH8HPsR-PH5-fgB_Rz4mfUz9nfiJ-JD9RP-d-Lvxc-pH9JP2k_Vz5ufaj-Mn5Kfgp-bnxo_qp-Kn5ufVz5wc_TT_3fh78PPrR_HT99P0M_Yz96H6e_Dz7efHz6sfw8-Zn4efdz9qP6efDz9bP3s-nny8_335-_Pz6_wAiVpEjEYeIS0QQORbxiPhEAiKiyInIqciZSEREEomKnItciFyKyCJJkbTIlci1iCKSEymIlERuRFSRikhN5FbkTgSRpsi9yIPIo4gm0hXpiwxFxiK6yJPIs8iLyKuIIfImshB5F1mLmCIfIluRvcinyJfIt8iPyK_4BwhiDXIUxBHEFUQIchzEE8QXJBBEDHIS5DTIWZBIEClINMh5kIsgl0HkIMkg6SBXQa6DKEFyQQpBSkFugqhBKkFqQW6D3AUhSDPIfZCHII9BtCDdIP0gwyDjIHqQpyDPQV6CvAYxgrwFWQR5D7IOYgb5CLINsg_yGeQryHeQnyC_wT9ACGuIoxCOEK4QQojjEJ4QvhCBEGKIkxCnIc5CREJIIaIhzkNchLgMIYdIhkiHuApxHUIJkQtRCFEKcRNCDVEJUQtxG-IuBCGaIe5DPIR4DKGF6IbohxiGGIfQQzyFeA7xEuI1hBHiLcQixHuIdQgzxEeIbYh9iM8QXyG-Q_yE-A39AcJYwxyFcYRxhRHCHIfxhPGFCYQRw5yEOQ1zFiYSRgoTDXMe5iLMZRg5TDJMOsxVmOswSphcmEKYUpibMGqYSphamNswd2EI0wxzH-YhzGMYLUw3TD_MMMw4jB7mKcxzmJcwr2GMMG9hFmHew6zDmGE-wmzD7MN8hvkK8x3mJ8xv-A8gYZU4knBIuCQEiWMJj4RPIiAhSpxInEqcSUQkJImoxLnEhcSlhCyRlEhLXElcSygSOYmCREniRkKVqEjUJG4l7iSQaErcSzxIPEpoEl2JvsRQYiyhSzxJPEu8SLxKGBJvEguJd4m1hCnxIbGV2Et8SnxJfEv8SPxKf4AY1hhHMRwxXDGEGMcxPDF8MQIxxBgnMU5jnMWIxJBiRGOcx7iIcRlDjpGMkY5xFeM6hhIjF6MQoxTjJoYaoxKjFuM2xl0MYjRj3Md4iPEYQ4vRjdGPMYwxjqHHeIrxHOMlxmsMI8ZbjEWM9xjrGGaMjxjbGPsYnzG-YnzH-InxG_sDxLHGOYrjiOOKI8Q5juOJ44sTiCPGOYlzGucsTiSOFCca5zzORZzLOHKcZJx0nKs413GUOLk4hTilODdx1DiVOLU4t3Hu4hCnGec-zkOcxzhanG6cfpxhnHEcPc5TnOc4L3Fe4xhx3uIs4rzHWccx43zE2cbZx_mM8xXnO85PnN_4HyCBNcFRAkcCVwIhwXECTwJfgkACMcFJgtMEZwkiCaQE0QTnCS4SXCaQEyQTpBNcJbhOoCTIJSgkKCW4SaAmqCSoJbhNcJeABM0E9wkeEjwm0BJ0E_QTDBOME-gJnhI8J3hJ8JrASPCWYJHgPcE6gZngI8E2wT7BZ4KvBN8JfhL8Jv4AMlaZIxmHjEtGkDmW8cj4ZAIyosyJzKnMmUxERpKJypzLXMhcysgySZm0zJXMtYwik5MpyJRkbmRUmYpMTeZW5k4GmabMvcyDzKOMJtOV6csMZcYyusyTzLPMi8yrjCHzJrOQeZdZy5gyHzJbmb3Mp8yXzLfMj8yv_AdIYU1xlMKRwpVCSHGcwpPClyKQQkxxkuI0xVmKSAopRTTFeYqLFJcp5BTJFOkUVymuUygpcikKKUopblKoKSopailuU9ylIEUzxX2KhxSPKbQU3RT9FMMU4xR6iqcUzyleUrymMFK8pVikeE-xTmGm-EixTbFP8ZniK8V3ip8Uv6k_QAZrhqMMjgyuDEKG4wyeDL4MgQxihpMMpxnOMkQySBmiGc4zXGS4zCBnSGZIZ7jKcJ1ByZDLUMhQynCTQc1QyVDLcJvhLgMZmhnuMzxkeMygZehm6GcYZhhn0DM8ZXjO8JLhNYOR4S3DIsN7hnUGM8NHhm2GfYbPDF8ZvjP8ZPjN_AGyWLMcZXFkcWURshxn8WTxZQlkEbOcZDnNcpYlkkXKEs1ynuUiy2UWOUsySzrLVZbrLEqWXJZCllKWmyxqlkqWWpbbLHdZyNLMcp_lIctjFi1LN0s_yzDLOIue5SnLc5aXLK9ZjCxvWRZZ3rOss5hZPrJss-yzfGb5yvKd5SfLb_YPoGBVOFJwKLgUBIVjBY-CTyGgICqcKJwqnClEFCSFqMK5woXCpYKskFRIK1wpXCsoCjmFgkJJ4UZBVago1BRuFe4UUGgq3Cs8KDwqaApdhb7CUGGsoCs8KTwrvCi8KhgKbwoLhXeFtYKp8KGwVdgrfCp8KXwr_Cj8Kn-APNY8R3kceVx5hDzHeTx5fHkCecQ8J3lO85zlieSR8kTznOe5yHOZR86TzJPOc5XnOo-SJ5enkKeU5yaPmqeSp5bnNs9dHvI089znecjzmEfL083TzzPMM86j53nK85znJc9rHiPPW55Fnvc86zxmno882zz7PJ95vvJ85_nJ85v_AxSxFjkq4ijiKiIUOS7iKeIrEigiFjkpclrkrEikiFQkWuS8yEWRyyJykWSRdJGrItdFlCK5IoUipSI3RdQilSK1IrdF7opQpFnkvshDkcciWpFukX6RYZFxEb3IU5HnIi9FXosYRd6KLIq8F1kXMYt8FNkW2Rf5LPJV5LvIT5Hf4h-gjLXMURlHGVcZocxxGU8ZX5lAGbHMSZnTMmdlImWkMtEy52UuylyWkcsky6TLXJW5LqOUyZUplCmVuSmjlqmUqZW5LXNXhjLNMvdlHso8ltHKdMv0ywzLjMvoZZ7KPJd5KfNaxijzVmZR5r3MuoxZ5qPMtsy-zGeZrzLfZX7K_Jb_ACpWlSMVh4pLRVA5VvGo-FQCKqLKicqpyplKREVSiaqcq1yoXKrIKkmVtMqVyrWKopJTKaiUVG5UVJWKSk3lVuVOBZWmyr3Kg8qjiqbSVemrDFXGKrrKk8qzyovKq4qh8qayUHlXWauYKh8qW5W9yqfKl8q3yo_Kr_oHqGKtclTFUcVVRahyXMVTxVclUEWsclLltMpZlUgVqUq0ynmViyqXVeQqySrpKldVrqsoVXJVClVKVW6qqFUqVWpVbqvcVaFKs8p9lYcqj1W0Kt0q_SrDKuMqepWnKs9VXqq8VjGqvFVZVHmvsq5iVvmosq2yr_JZ5avKd5WfKr_VP0Ada52jOo46rjpCneM6njq-OoE6Yp2TOqd1zupE6kh1onXO61zUuawj10nWSde5qnNdR6mTq1OoU6pzU0etU6lTq3Nb564OdZp17us81Hmso9Xp1unXGdYZ19HrPNV5rvNS57WOUeetzqLOe511HbPOR51tnX2dzzpfdb7r_NT5rf8BGlgbHDVwNHA1EBocN_A08DUINBAbnDQ4bXDWINJAahBtcN7gosFlA7lBskG6wVWD6wZKg1yDQoNSg5sGaoNKg1qD2wZ3DWjQbHDf4KHBYwOtQbdBv8GwwbiB3uCpwXODlwavDYwGbw0WDd4brBuYDT4abBvsG3w2-Grw3eCnwW_jDwBWOAIHuP4_bzgGD_gg8P-O5QRO4Qwi_ys9UTiHC7j8325IQhqu4Pp_0JODApTg5v_OU4Ea3MId_6cJ9_AAj6BBF_owhDHo8ATP8AKvYMAbLOAd1mDCB2xhD5_wBd_wA7_8AVpYWxy1cLRwtRBaHLfwtPC1CLQQW5y0OG1x1iLSQmoRbXHe4qLFZQu5RbJFusVVi-sWSotci0KLUoubFmqLSotai9sWdy1o0Wxx3-KhxWMLrUW3Rb_FsMW4hd7iqcVzi5cWry2MFm8tFi3eW6xbmC0-Wmxb7Ft8tvhq8d3ip8Vv6w_QxtrmqI2jjauN0Oa4jaeNr02gjdjmpM1pm7M2kTZSm2ib8zYXbS7byG2SbdJtrtpct1Ha5NoU2pTa3LRR21Ta1NrctrlrQ5tmm_s2D20e22htum36bYZtxm30Nk9tntu8tHltY7R5a7No895m3cZs89Fm22bf5rPNV5vvNj9tftt_gA7WDkcdHB1cHYQOxx08HXwdAh3EDicdTjucdYh0kDpEO5x3uOhw2UHukOyQ7nDV4bqD0iHXodCh1OGmg9qh0qHW4bbDXQc6NDvcd3jo8NhB69Dt0O8w7DDuoHd46vDc4aXDawejw1uHRYf3DusOZoePDtsO-w6fHb46fHf46fDb-QNoWDWONBwaLg1B41jDo-HTCGiIGicapxpnGhENSSOqca5xoXGpIWskNdIaVxrXGopGTqOgUdK40VA1Kho1jVuNO-3_1jc17jUeNB41NI2uRl9jqDHW0DWeNJ41XjReNQyNN42FxrvGWsPU-NDYauw1PjW-NL41fjR-tT9AD2uPox6OHq4eQo_jHp4evh6BHmKPkx6nPc56RHpIPaI9zntc9LjsIfdI9kj3uOpx3UPpketR6FHqcdND7VHpUetx2-OuBz2aPe57PPR47KH16Pbo9xj2GPfQezz1eO7x0uO1h9Hjrceix3uPdQ-zx0ePbY99j88eXz2-e_z0-O39AQZYBxwNcAxwDRAGHA_wDPANCAwQB5wMOB1wNiAyQBoQHXA-4GLA5QB5QHJAesDVgOsByoDcgMKA0oCbAeqAyoDagNsBdwMY0BxwP-BhwOMAbUB3QH_AcMB4gD7gacDzgJcBrwOMAW8DFgPeB6wHmAM-BmwH7Ad8Dvga8D3gZ8Dv4A8wwjriaIRjhGuEMOJ4hGeEb0RghDjiZMTpiLMRkRHSiOiI8xEXIy5HyCOSI9IjrkZcj1BG5EYURpRG3IxQR1RG1EbcjrgbwYjmiPsRDyMeR2gjuiP6I4YjxiP0EU8jnke8jHgdYYx4G7EY8T5iPcIc8TFiO2I_4nPE14jvET8jfkd_AB2rzpGOQ8elI-gc63h0fDoBHVHnROdU50wnoiPpRHXOdS50LnVknaROWudK51pH0cnpFHRKOjc6qk5Fp6Zzq3On_4_6ps69zoPOo46m09Xp6wx1xjq6zpPOs86LzquOofOms9B511nrmDofOludvc6nzpfOt86Pzq_-B5hgnXA0wTHBNUGYcDzBM8E3ITBBnHAy4XTC2YTIBGlCdML5hIsJlxPkCckJ6QlXE64nKBNyEwoTShNuJqgTKhNqE24n3E1gQnPC_YSHCY8TtAndCf0JwwnjCfqEpwnPE14mvE4wJrxNWEx4n7CeYE74mLCdsJ_wOeFrwveEnwm_kz_AFOuUoymOKa4pwpTjKZ4pvimBKeKUkymnU86mRKZIU6JTzqdcTLmcIk9JTklPuZpyPUWZkptSmFKacjNFnVKZUptyO-VuClOaU-6nPEx5nKJN6U7pTxlOGU_RpzxNeZ7yMuV1ijHlbcpiyvuU9RRzyseU7ZT9lM8pX1O-p_xM-Z3-AWZYZxzNcMxwzRBmHM_wzPDNCMwQZ5zMOJ1xNiMyQ5oRnXE-42LG5Qx5RnJGesbVjOsZyozcjMKM0oybGeqMyozajNsZdzOY0ZxxP-NhxuMMbUZ3Rn_GcMZ4hj7jacbzjJcZrzOMGW8zFjPeZ6xnmDM-Zmxn7Gd8zvia8T3jZ8bv7A9gYDU4MnAYuAwEg2MDj4HPIGAgGpwYnBqcGUQMJIOowbnBhcGlgWyQNEgbXBlcGygGOYOCQcngxkA1qBjUDG4N7oz__aZpcG_wYPBooBl0DfoGQ4OxgW7wZPBs8GLwamAYvBksDN4N1gamwYfB1mBv8GnwZfBt8GPwa_wB5ljnHM1xzHHNEeYcz_HM8c0JzBHnnMw5nXM2JzJHmhOdcz7nYs7lHHlOck56ztWc6znKnNycwpzSnJs56pzKnNqc2zl3c5jTnHM_52HO4xxtTndOf85wzniOPudpzvOclzmvc4w5b3MWc97nrOeYcz7mbOfs53zO-ZrzPednzu_8D7DEuuRoiWOJa4mw5HiJZ4lvSWCJuORkyemSsyWRJdKS6JLzJRdLLpfIS5JL0kuullwvUZbklhSWlJbcLFGXVJbUltwuuVvCkuaS-yUPSx6XaEu6S_pLhkvGS_QlT0uel7wseV1iLHlbsljyvmS9xFzysWS7ZL_kc8nXku8lP0t-l3-AFdYVRyscK1wrhBXHKzwrfCsCK8QVJytOV5ytiKyQVkRXnK-4WHG5Ql6RXJFecbXieoWyIreisKK04maFuqKyorbidsXdClY0V9yveFjxuEJb0V3RXzFcMV6hr3ha8bziZcXrCmPF24rFivcV6xXmio8V2xX7FZ8rvlZ8r_hZ8bv6A5hYTY5MHCYuE8Hk2MRj4jMJmIgmJyanJmcmERPJJGpybnJhcmkimyRN0iZXJtcmiknOpGBSMrkxUU0qJjWTW5M783-pb5rcmzyYPJpoJl2TvsnQZGyimzyZPJu8mLyaGCZvJguTd5O1iWnyYbI12Zt8mnyZfJv8mPyaf4AN1g1HGxwbXBuEDccbPBt8GwIbxA0nG043nG2IbJA2RDecb7jYcLlB3pDckN5wteF6g7Iht6GwobThZoO6obKhtuF2w90GNjQ33G942PC4QdvQ3dDfMNww3qBveNrwvOFlw-sGY8PbhsWG9w3rDeaGjw3bDfsNnxu-Nnxv-Nnwu_kD7LDuONrh2OHaIew43uHZ4dsR2CHuONlxuuNsR2SHtCO643zHxY7LHfKO5I70jqsd1zuUHbkdhR2lHTc71B2VHbUdtzvudrCjueN-x8OOxx3aju6O_o7hjvEOfcfTjucdLztedxg73nYsdrzvWO8wd3zs2O7Y7_jc8bXje8fPjt_dH-CA9cDRAccB1wHhwPEBzwHfgcAB8cDJgdMDZwciB6QD0QPnBy4OXB6QDyQPpA9cHbg-oBzIHSgcKB24OaAeqByoHbg9cHeAA80D9wceDjwe0A50D_QPDA-MD-gHng48H3g58HrAOPB2YHHg_cD6gHng48D2wP7A54GvA98Hfg78HvgHxSb7AJx3uHMAAAAASUVORK5CYII=",
+            "media_type": "image/png",
+            "vendor_metadata": null,
+            "kind": "binary",
+            "identifier": "receipt.png"
+          },
+          {
+            "url": "https://example.test/receipts/2026-10-12.png",
+            "force_download": false,
+            "vendor_metadata": null,
+            "kind": "image-url",
+            "media_type": "image/png",
+            "identifier": "31857c"
+          },
+          {
+            "url": "https://example.test/invoice-2026-10.pdf",
+            "force_download": false,
+            "vendor_metadata": null,
+            "kind": "document-url",
+            "media_type": "application/pdf",
+            "identifier": "f66615"
+          }
+        ],
+        "timestamp": "2026-10-14T09:30:00.024000Z",
+        "part_kind": "user-prompt"
+      }
+    ],
+    "timestamp": "2026-10-14T09:30:00.024000Z",
+    "instructions": "Extract expense data from receipts.",
+    "kind": "request",
+    "run_id": "7a70f44a-fda5-5fc1-beff-cb337985884c",
+    "conversation_id": "13e737ff-75b9-5bb1-b730-f8ca728aaaa3",
+    "metadata": null,
+    "state": "complete"
+  },
+  {
+    "parts": [
+      {
+        "content": "The receipt shows **3 items** totalling **€42.17**, dated 12 Oct 2026. The invoice matches.",
+        "id": null,
+        "provider_name": null,
+        "provider_details": null,
+        "part_kind": "text"
+      }
+    ],
+    "usage": {
+      "input_tokens": 1342,
+      "cache_write_tokens": 0,
+      "cache_read_tokens": 0,
+      "output_tokens": 509,
+      "input_audio_tokens": 0,
+      "cache_audio_read_tokens": 0,
+      "output_audio_tokens": 0,
+      "audio_seconds": 0.0,
+      "details": {},
+      "cost": null
+    },
+    "model_name": "gpt-5",
+    "timestamp": "2026-10-14T09:30:08.217000Z",
+    "kind": "response",
+    "provider_name": "openai",
+    "provider_url": null,
+    "provider_details": null,
+    "provider_response_id": "resp_39f0016f1426",
+    "finish_reason": "stop",
+    "run_id": "7a70f44a-fda5-5fc1-beff-cb337985884c",
+    "conversation_id": "13e737ff-75b9-5bb1-b730-f8ca728aaaa3",
+    "metadata": null,
+    "workspace_ref": null,
+    "failed_attempts": null,
+    "state": "complete"
+  }
+]

@@ -164,6 +164,10 @@ pixi run dev-api ./trace.json  # API with reload on port 1205
 pixi run dev-web               # Vite with HMR, proxying /api
 ```
 
+`examples/traces/` holds realistic traces from scripted agent runs: tool retries, structured
+output, subagents, a failed run, multimodal input, a 150-step run, and a JSONL eval set. Browse
+them with `pixi run paitrace examples/traces`; regenerate them with `pixi run gen-examples`.
+
 ```bash
 pixi run test        # pytest and vitest
 pixi run test-lowest # pytest against the lowest supported dependency versions
