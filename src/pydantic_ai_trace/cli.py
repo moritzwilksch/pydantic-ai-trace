@@ -193,7 +193,7 @@ def _serve_source(
 
     def on_bound(bound_port: int) -> None:
         url = f"http://{host}:{bound_port}/"
-        print(f"paitrace serving {display_name} at {url}")
+        print(f"paitrace serving {display_name} at {url}", file=sys.stderr)
         if not no_open:
             browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
             browser_timer.daemon = True  # never keep the process alive
@@ -258,7 +258,7 @@ examples:
         output.write_text(payload_document(loaded.payload()), encoding="utf-8")
     except (scan.TraceLookupError, FileNotFoundError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
-    print(f"wrote {output}")
+    print(f"wrote {output}", file=sys.stderr)
     return 0
 
 

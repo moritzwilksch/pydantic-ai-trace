@@ -104,7 +104,7 @@ class TestServeCommand:
         assert cli.main([str(fixtures_copy), "--no-open"]) == 0
         [port] = bound
         assert port != busy_port
-        assert f"http://127.0.0.1:{port}/" in capsys.readouterr().out
+        assert f"http://127.0.0.1:{port}/" in capsys.readouterr().err
 
     def test_bare_command_on_a_terminal_prints_help(
         self,
@@ -212,9 +212,13 @@ class TestExportCommand:
         assert "__TRACE_PAYLOAD__" in document
         assert document.index("__TRACE_PAYLOAD__") < document.index("bundle();")
 
-    def test_default_output_is_input_with_html_suffix(self, fixtures_copy: Path):
+    def test_default_output_is_input_with_html_suffix(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
         cli.main(["export", str(fixtures_copy / "full_trace.json")])
-        assert (fixtures_copy / "full_trace.html").exists()
+        output = fixtures_copy / "full_trace.html"
+        assert output.exists()
+        assert capsys.readouterr() == ("", f"wrote {output}\n")
 
     def test_invalid_trace_is_not_exported(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         source = tmp_path / "nan.json"
