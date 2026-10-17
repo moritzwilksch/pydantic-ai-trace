@@ -84,6 +84,34 @@ class TestBuildTree:
         assert (trace["prompt"], trace["models"]) == ("Plan the task.", ["gpt-4o"])
         assert trace["answer"] == "summary"
 
+    def test_directory_scan_leaves_out_json_that_is_not_a_trace(self, tmp_path: Path):
+        (tmp_path / "app").mkdir()
+        (tmp_path / "app" / "package.json").write_text('{"name": "app"}')
+        (tmp_path / "events.jsonl").write_text('{"event": "start"}\n')
+        (tmp_path / "broken.json").write_text('{"runs": []}')
+        (tmp_path / "good.json").write_text(minimal_trace())
+
+        tree = scan.build_tree(tmp_path)
+
+        assert [child["path"] for child in tree["children"]] == ["broken.json", "good.json"]
+        assert find_node(tree, "broken.json")["error"] is True
+
+    def test_named_file_that_is_not_a_trace_says_so(self, tmp_path: Path):
+        (tmp_path / "package.json").write_text('{"name": "app"}')
+        (tmp_path / "events.jsonl").write_text('{"event": "start"}\n')
+        collection = scan.TraceCollection.from_paths(
+            [tmp_path / "package.json", tmp_path / "events.jsonl"]
+        )
+
+        single = scan.build_tree(tmp_path / "package.json")
+        selected = scan.build_collection_tree(collection)
+
+        assert single["error"] is True
+        assert single["error_message"].startswith("not a trace: ")
+        assert find_node(selected, "events.jsonl")["error_message"].startswith(
+            "line 1: not a trace: "
+        )
+
     def test_single_file_root_yields_single_node(self, fixtures_copy: Path):
         tree = scan.build_tree(fixtures_copy / "full_trace.json")
         assert tree["type"] == "file"

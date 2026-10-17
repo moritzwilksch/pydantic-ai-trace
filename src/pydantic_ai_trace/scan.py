@@ -4,6 +4,8 @@ Reading and selecting only checks that each trace is a JSON array or object;
 `load.load_trajectory` owns validation. Tree nodes run that validation on every
 trace, so the sidebar can explain why a trace cannot be opened and can label and
 filter traces by a short summary.
+A directory scan leaves out JSON that is not a trace at all, such as `package.json`;
+a file named explicitly keeps its node and says why it is not a trace.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from typing import Any, Literal
 
 from pydantic_ai.messages import ModelResponse, TextContent, UserPromptPart
 
-from .load import TraceLoadError, load_trajectory
+from .load import NotATraceError, TraceLoadError, load_trajectory
 from .trajectory import Trajectory
 
 TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
@@ -94,12 +96,12 @@ def resolve_within(root: Path, relative_path: str) -> Path:
 def build_tree(root: Path) -> TreeNode:
     """Build the trace tree for a root directory or a single trace file.
 
-    Directories without any trace files underneath are pruned. Files that are
-    unreadable or not valid JSON array(s) are kept with a concise diagnostic,
-    so the viewer can explain why a trace cannot be opened.
+    Directories without any trace files underneath are pruned, and so is JSON
+    that is not a trace. Broken or unreadable traces are kept with a concise
+    diagnostic, so the viewer can explain why a trace cannot be opened.
     """
     if root.is_file():
-        return _file_node(root, root.name)
+        return _file_node(root, root.name)[0]
     return _dir_node(root, root, name=root.name)
 
 
@@ -125,7 +127,7 @@ def build_collection_tree(collection: TraceCollection) -> TreeNode:
                 parent["children"].append(child)
                 directories[key] = child
             parent = child
-        parent["children"].append(_file_node(selected.path, selected.key))
+        parent["children"].append(_file_node(selected.path, selected.key)[0])
     _sort_tree(root)
     return root
 
@@ -285,7 +287,9 @@ def _dir_node(root: Path, directory: Path, name: str) -> TreeNode:
             if child["children"]:
                 children.append(child)
         elif entry.suffix in TRACE_SUFFIXES:
-            children.append(_file_node(entry, entry.relative_to(root).as_posix()))
+            node, is_trace = _file_node(entry, entry.relative_to(root).as_posix())
+            if is_trace:
+                children.append(node)
     return {
         "name": name,
         "path": directory.relative_to(root).as_posix(),
@@ -294,11 +298,12 @@ def _dir_node(root: Path, directory: Path, name: str) -> TreeNode:
     }
 
 
-def _file_node(path: Path, relative_path: str) -> TreeNode:
-    """A file and a summary of each of its traces.
+def _file_node(path: Path, relative_path: str) -> tuple[TreeNode, bool]:
+    """A file and a summary of each of its traces, and whether the file is a trace.
 
     The file itself is an error when it cannot be read, holds no traces, or holds
     one invalid trace; an invalid trace among several is flagged on its summary only.
+    A file whose first trace is not a trace at all is not a trace file.
     """
     node: TreeNode = {
         "name": path.name,
@@ -311,17 +316,22 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
     }
     try:
         if path.suffix == ".json":
-            traces = [_trace_summary(1, path.read_text(encoding="utf-8"), relative_path)]
+            trajectory = _load(path.read_text(encoding="utf-8"), relative_path)
+            traces = [_trace_summary(1, trajectory)]
+            is_trace = not isinstance(trajectory, NotATraceError)
         else:
+            traces, is_trace = [], True
             with path.open(encoding="utf-8") as stream:
-                traces = [
-                    _trace_summary(number, line, relative_path)
-                    for number, line in enumerate(jsonl_lines(stream), start=1)
-                ]
+                # Summarize while streaming, so only one trajectory is held at a time.
+                for number, line in enumerate(jsonl_lines(stream), start=1):
+                    trajectory = _load(line, relative_path)
+                    if number == 1:
+                        is_trace = not isinstance(trajectory, NotATraceError)
+                    traces.append(_trace_summary(number, trajectory))
     except (OSError, UnicodeDecodeError) as exc:
         node["error"] = True
         node["error_message"] = f"cannot read file: {exc}"
-        return node
+        return node, True
     node["trace_count"] = len(traces)
     node["traces"] = traces
     if not traces:
@@ -331,19 +341,24 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
         node["error"] = True
         message = traces[0]["error_message"]
         node["error_message"] = message if path.suffix == ".json" else f"line 1: {message}"
-    return node
+    return node, is_trace
 
 
-def _trace_summary(line: int, text: str, relative_path: str) -> TraceSummary:
+def _load(text: str, relative_path: str) -> Trajectory | TraceLoadError:
+    try:
+        return load_trajectory(text, name=relative_path)
+    except TraceLoadError as exc:
+        return exc
+
+
+def _trace_summary(line: int, trajectory: Trajectory | TraceLoadError) -> TraceSummary:
     """The 1-based `line` of a trace, previews of its first prompt and final answer,
     and its models; or its error."""
-    try:
-        trajectory = load_trajectory(text, name=relative_path)
-    except TraceLoadError as exc:
+    if isinstance(trajectory, TraceLoadError):
         return {
             "line": line,
             "error": True,
-            "error_message": str(exc),
+            "error_message": str(trajectory),
             "prompt": None,
             "answer": None,
             "models": [],

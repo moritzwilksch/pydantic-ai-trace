@@ -80,7 +80,7 @@ class LoadedTrace:
         try:
             trajectory = load_trajectory(self.text, name=self.name)
         except TraceLoadError as exc:
-            raise TraceLoadError(f"{self.name}: {exc}") from exc
+            raise TraceLoadError(f"{self.name}: {exc}", exc.details) from exc
         return build_payload(trajectory, name=self.name)
 
 
@@ -416,9 +416,10 @@ def _run_stats(argv: list[str]) -> int:
 Print one summary row per trace: runs, LLM calls, input, cached, and output
 tokens, cost, and wall time, with a totals row for several traces. A trace
 with several runs gets one indented row per run, counting only that run's own
-calls, tokens, and cost. A directory is searched like the viewer's sidebar.
-Traces that do not validate are listed with their error after the table, and
-the exit status is 1.
+calls, tokens, and cost. A directory is searched like the viewer's sidebar,
+which passes over JSON that is not a trace. Traces that do not validate, and
+named files that are not traces, are listed with their error after the table,
+and the exit status is 1.
 
 {_TRACE_FORMATS}""",
         epilog="""\
@@ -453,16 +454,21 @@ examples:
         rows.extend(source_rows([text], format=scan.detect_trace_format(text), name="stdin"))
     else:
         for path in paths:
+            found = path.is_dir()  # A named file must be a trace; a found one may not be.
+            rows_before = len(rows)
             for file, name in _stats_files(path, prefix=len(paths) > 1):
                 format = _require_trace_file(file)
                 try:
                     with file.open(encoding="utf-8") as stream:
                         # Stream JSONL so a large evaluation log is never held whole.
                         chunks = [stream.read()] if format == "json" else stream
-                        for row in source_rows(chunks, format=format, name=name):
-                            rows.append(row)
+                        rows.extend(
+                            source_rows(chunks, format=format, name=name, skip_non_trace=found)
+                        )
                 except (OSError, UnicodeDecodeError) as exc:
                     rows.append(InvalidTrace(name=name, error=f"cannot read file: {exc}"))
+            if found and len(rows) == rows_before:
+                raise CliError(f"no .json or .jsonl traces found under {path}")
 
     sys.stdout.write(format_jsonl(rows) if args.json else format_table(rows))
     return 1 if any(isinstance(row, InvalidTrace) for row in rows) else 0
@@ -473,10 +479,7 @@ def _stats_files(path: Path, *, prefix: bool) -> list[tuple[Path, str]]:
     if not path.is_dir():
         return [(path, path.as_posix())]
     base = path.parent if prefix else path
-    files = [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
-    if not files:
-        raise CliError(f"no .json or .jsonl traces found under {path}")
-    return files
+    return [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
 
 
 def _load_trace(

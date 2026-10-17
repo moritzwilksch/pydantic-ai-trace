@@ -140,7 +140,9 @@ def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) ->
         try:
             payload = await asyncio.to_thread(_build_payload, text, name)
         except TraceLoadError as exc:
-            return JSONResponse({"error": f"{name}: {exc}"}, status_code=400)
+            return JSONResponse(
+                {"error": f"{name}: {exc}", "details": list(exc.details)}, status_code=400
+            )
         return Response(payload.to_json(), media_type="application/json")
 
     async def events(_: Request) -> Response:

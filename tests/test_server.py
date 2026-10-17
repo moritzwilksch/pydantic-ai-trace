@@ -118,6 +118,26 @@ class TestTrace:
         assert response.status_code == 400
         assert response.json()["error"].startswith("bad.json: 0: Input tag 'telepathy'")
 
+    def test_invalid_trace_error_lists_every_validation_error(self, tmp_path: Path):
+        (tmp_path / "bad.json").write_text('{"runs": [{"name": "r"}]}')
+
+        response = client_for(tmp_path).get("/api/trace", params={"path": "bad.json"})
+
+        body = response.json()
+        assert response.status_code == 400
+        assert len(body["details"]) > 1
+        assert body["error"] == f"bad.json: {body['details'][0]} (+{len(body['details']) - 1} more)"
+
+    def test_json_that_is_not_a_trace_is_400_in_plain_words(self, tmp_path: Path):
+        (tmp_path / "package.json").write_text('{"name": "app"}')
+
+        response = client_for(tmp_path / "package.json").get(
+            "/api/trace", params={"path": "package.json"}
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"].startswith("package.json: not a trace: ")
+
     def test_invalid_later_jsonl_trace_is_400_when_opened(self, tmp_path: Path):
         (tmp_path / "log.jsonl").write_text(f'{minimal_trace()}\n[{{"kind": "telepathy"}}]\n')
 

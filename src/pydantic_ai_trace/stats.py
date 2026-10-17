@@ -15,9 +15,9 @@ from ._format import display_width, format_count, format_duration, format_usd, l
 from ._json import dumps_readable
 from .analysis import Totals, analyze, combine_totals
 from .compact import compact_totals
-from .load import TraceLoadError, load_trajectory
+from .load import NotATraceError, TraceLoadError, load_trajectory
 from .scan import jsonl_lines
-from .trajectory import RunId
+from .trajectory import RunId, Trajectory
 
 
 @dataclass(frozen=True)
@@ -46,27 +46,38 @@ type StatsRow = TraceStats | InvalidTrace
 
 
 def source_rows(
-    chunks: Iterable[str], *, format: Literal["json", "jsonl"], name: str
+    chunks: Iterable[str],
+    *,
+    format: Literal["json", "jsonl"],
+    name: str,
+    skip_non_trace: bool = False,
 ) -> Iterator[StatsRow]:
     """One row per trace in a source; an empty JSONL source is one invalid row.
 
-    `chunks` is the source text, whole or streamed line by line from a file.
+    `chunks` is the source text, whole or streamed line by line from a file. With
+    `skip_non_trace`, a source whose first trace is not a trace at all, such as a
+    `package.json` found in a directory, yields no rows.
     """
-    if format == "json":
-        yield stats_row("".join(chunks), name=name)
-        return
+    traces = (
+        iter([("".join(chunks), name)])
+        if format == "json"
+        else ((text, f"{name} · trace {n}") for n, text in enumerate(jsonl_lines(chunks), 1))
+    )
     count = 0
-    for count, trace in enumerate(jsonl_lines(chunks), start=1):
-        yield stats_row(trace, name=f"{name} · trace {count}")
+    for count, (text, trace_name) in enumerate(traces, start=1):
+        try:
+            trajectory = load_trajectory(text, name=trace_name)
+        except TraceLoadError as exc:
+            if skip_non_trace and count == 1 and isinstance(exc, NotATraceError):
+                return
+            yield InvalidTrace(name=trace_name, error=str(exc))
+        else:
+            yield _trace_stats(trajectory, name=trace_name)
     if count == 0:
         yield InvalidTrace(name=name, error="contains no traces")
 
 
-def stats_row(text: str, *, name: str) -> StatsRow:
-    try:
-        trajectory = load_trajectory(text, name=name)
-    except TraceLoadError as exc:
-        return InvalidTrace(name=name, error=str(exc))
+def _trace_stats(trajectory: Trajectory, *, name: str) -> TraceStats:
     analysis = analyze(trajectory)
     own = {run.run_id: run.totals for run in analysis.runs}
     runs = tuple(
