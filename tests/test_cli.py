@@ -722,3 +722,40 @@ class TestStatsCommand:
 
         [line] = capfdbinary.readouterr().out.decode("utf-8").splitlines()
         assert json.loads(line)["runs"][0]["name"] == "\ud800"
+
+    def test_table_groups_digits_shows_minutes_and_aligns_wide_names(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from pydantic_ai.messages import (
+            ModelMessagesTypeAdapter,
+            ModelRequest,
+            ModelResponse,
+            TextPart,
+            UserPromptPart,
+        )
+        from pydantic_ai.usage import RequestUsage
+
+        at = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+        long_run = [
+            ModelRequest(parts=[UserPromptPart(content="go", timestamp=at)]),
+            ModelResponse(
+                parts=[TextPart(content="ok")],
+                usage=RequestUsage(input_tokens=20_459_704, output_tokens=7),
+                timestamp=at + timedelta(seconds=863.2),
+            ),
+        ]
+        root = tmp_path / "traces"
+        root.mkdir()
+        (root / "long.json").write_bytes(ModelMessagesTypeAdapter.dump_json(long_run))
+        (root / "配達.json").write_text(minimal_trace())
+
+        assert cli.main(["stats", str(root)]) == 0
+
+        lines = capsys.readouterr().out.splitlines()
+        rows = {line.split()[0]: line for line in lines[1:]}
+        assert "20,459,704" in rows["long.json"].split()
+        assert rows["long.json"].endswith("14m 23s")
+        # Each wide character fills two columns, so equal widths need two fewer characters.
+        assert len(rows["配達.json"]) == len(rows["long.json"]) - 2

@@ -11,12 +11,12 @@ from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from ._format import display_width, format_count, format_duration, format_usd, ljust, rjust
 from ._json import dumps_readable
 from .analysis import Totals, analyze, combine_totals
 from .compact import compact_totals
 from .load import TraceLoadError, load_trajectory
 from .scan import jsonl_lines
-from .text import format_usd
 from .trajectory import RunId
 
 
@@ -94,7 +94,7 @@ def format_table(rows: Sequence[StatsRow]) -> str:
     if valid:
         body: list[tuple[str, ...]] = []
         for row in valid:
-            body.append(_cells(row.name, str(len(row.runs)), row.totals))
+            body.append(_cells(row.name, format_count(len(row.runs)), row.totals))
             if len(row.runs) > 1:
                 body.extend(
                     _cells("  " * (run.depth + 1) + run.name, "", run.totals) for run in row.runs
@@ -105,7 +105,7 @@ def format_table(rows: Sequence[StatsRow]) -> str:
                 (row.totals for row in valid),
                 sum(row.totals.duration_seconds for row in valid),
             )
-            body.append(_cells("total", str(sum(len(row.runs) for row in valid)), total))
+            body.append(_cells("total", format_count(sum(len(row.runs) for row in valid)), total))
         lines.extend(_align([_HEADER, *body]))
         if any(row.totals.unpriced_calls for row in valid):
             lines.append("* includes responses without a known price")
@@ -151,12 +151,12 @@ def _cells(name: str, runs: str, totals: Totals) -> tuple[str, ...]:
     return (
         name,
         runs,
-        str(totals.llm_calls),
-        str(tokens.input),
-        str(tokens.cache_read),
-        str(tokens.output),
+        format_count(totals.llm_calls),
+        format_count(tokens.input),
+        format_count(tokens.cache_read),
+        format_count(tokens.output),
         _cost(totals),
-        f"{totals.duration_seconds:.1f}s",
+        format_duration(totals.duration_seconds),
     )
 
 
@@ -168,10 +168,10 @@ def _cost(totals: Totals) -> str:
 
 def _align(rows: list[tuple[str, ...]]) -> list[str]:
     """Left-align the name column and right-align the numbers."""
-    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
+    widths = [max(display_width(row[i]) for row in rows) for i in range(len(rows[0]))]
     return [
         "  ".join(
-            cell.ljust(width) if i == 0 else cell.rjust(width)
+            ljust(cell, width) if i == 0 else rjust(cell, width)
             for i, (cell, width) in enumerate(zip(row, widths, strict=True))
         ).rstrip()
         for row in rows

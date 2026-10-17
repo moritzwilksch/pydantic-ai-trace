@@ -9,11 +9,12 @@ from __future__ import annotations
 import json
 import math
 import re
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any
 
 from pydantic_ai.messages import ModelMessagesTypeAdapter
 
+from ._format import format_bytes, format_count, format_duration, format_usd
 from .analysis import Analysis, RunAnalysis, Totals, parse_tool_args
 from .trajectory import Run, Trajectory
 
@@ -74,13 +75,13 @@ def _outcome_line(run: Run) -> str:
 def _totals(totals: Totals) -> str:
     tokens = totals.tokens
     summary = [
-        f"LLM CALLS: {totals.llm_calls}",
+        f"LLM CALLS: {format_count(totals.llm_calls)}",
         f"TOKENS: {_token_usage(tokens.input, tokens.output, tokens.cache_read)}",
     ]
     if totals.cost_usd is not None:
         unpriced = f" (+{totals.unpriced_calls} unpriced)" if totals.unpriced_calls else ""
         summary.append(f"COST: {format_usd(totals.cost_usd)}{unpriced}")
-    summary.append(f"WALL TIME: {totals.duration_seconds:.1f}s")
+    summary.append(f"WALL TIME: {format_duration(totals.duration_seconds)}")
     return " | ".join(summary)
 
 
@@ -148,14 +149,9 @@ def _state_label(state: object) -> str:
     return f" [{_inline(state).upper()}]" if state and state != "complete" else ""
 
 
-def format_usd(amount: Decimal) -> str:
-    """A cost rounded half-up to four decimals, e.g. `$0.0028`."""
-    return f"${amount.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)}"
-
-
 def _token_usage(input_tokens: int, output_tokens: int, cached_tokens: int) -> str:
-    cached = f" ({cached_tokens} cached)" if cached_tokens > 0 else ""
-    return f"{input_tokens} in{cached} → {output_tokens} out"
+    cached = f" ({format_count(cached_tokens)} cached)" if cached_tokens > 0 else ""
+    return f"{format_count(input_tokens)} in{cached} → {format_count(output_tokens)} out"
 
 
 def _format_part(part: dict[str, Any]) -> str:
@@ -336,7 +332,7 @@ def _format_media(item: object) -> str:
     if kind == "binary":
         media_type = _js_string(item.get("media_type") or "application/octet-stream")
         size = base64_byte_length(_js_string(item.get("data")))
-        return f"[binary: {media_type}, {_format_bytes(size)}, payload omitted]"
+        return f"[binary: {media_type}, {format_bytes(size)}, payload omitted]"
     return f"[{kind.removesuffix('-url')}] {_js_string(item.get('url'))}"
 
 
@@ -344,14 +340,6 @@ def base64_byte_length(data: str) -> int:
     normalized = re.sub(r"\s", "", data)
     padding = 2 if normalized.endswith("==") else 1 if normalized.endswith("=") else 0
     return max(0, math.floor(len(normalized) * 3 / 4) - padding)
-
-
-def _format_bytes(size: int) -> str:
-    if size < 1024:
-        return f"{size} B"
-    if size < 1024 * 1024:
-        return f"{size / 1024:.1f} KB"
-    return f"{size / 1024 / 1024:.1f} MB"
 
 
 def _json(value: object) -> str:
