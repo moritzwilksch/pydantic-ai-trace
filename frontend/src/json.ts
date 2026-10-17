@@ -5,13 +5,48 @@
  */
 const sourceKeyOrder = new WeakMap<object, readonly string[]>();
 const KEY_PREFIX = "\0";
-const JSON_KEY = /"(?:\\[\s\S]|[^"\\])*"(?=\s*:)/g;
 
 export function parseJson(text: string): unknown {
-  // In valid JSON a string token followed by ":" can only be an object key.
-  // Prefixing those tokens prevents JSON.parse from reordering numeric keys.
-  const prefixed = text.replace(JSON_KEY, (key) => `"\\u0000${key.slice(1)}`);
-  return restoreKeys(JSON.parse(prefixed) as unknown);
+  return restoreKeys(JSON.parse(prefixKeys(text)) as unknown);
+}
+
+/**
+ * Prefixes every object key so JSON.parse cannot reorder integer-like keys.
+ * In valid JSON a string token followed by ":" can only be an object key.
+ * The scan visits each character once; skipping whole strings keeps escaped
+ * quotes inside values from being read as token boundaries.
+ */
+function prefixKeys(text: string): string {
+  const chunks: string[] = [];
+  let copied = 0;
+  let open = text.indexOf('"');
+  while (open !== -1) {
+    const close = stringEnd(text, open);
+    if (close === -1) break;
+    let next = close + 1;
+    while (isJsonWhitespace(text.charCodeAt(next))) next++;
+    if (text[next] === ":") {
+      chunks.push(text.slice(copied, open + 1), "\\u0000");
+      copied = open + 1;
+    }
+    open = text.indexOf('"', close + 1);
+  }
+  chunks.push(text.slice(copied));
+  return chunks.join("");
+}
+
+/** Index of the quote closing the string opened at `open`, or -1 if unterminated. */
+function stringEnd(text: string, open: number): number {
+  for (let i = open + 1; i < text.length; i++) {
+    const char = text[i];
+    if (char === "\\") i++;
+    else if (char === '"') return i;
+  }
+  return -1;
+}
+
+function isJsonWhitespace(code: number): boolean {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
 }
 
 function restoreKeys(value: unknown): unknown {
