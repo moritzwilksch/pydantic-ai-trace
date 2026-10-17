@@ -46,6 +46,7 @@ artifacts = ["src/pydantic_ai_trace/static/**"]
 
 [tool.hatch.build.targets.sdist]
 artifacts = ["src/pydantic_ai_trace/static/**"]
+exclude = ["docs/"]  # README screenshots; the README links them from GitHub
 
 [tool.ruff]
 line-length = 100
