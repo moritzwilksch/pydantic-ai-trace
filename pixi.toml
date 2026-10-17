@@ -36,12 +36,15 @@ test-py = "pytest"
 test-lowest = "uv run --isolated --resolution lowest-direct --python 3.12 --with 'pytest>=8' --with 'httpx>=0.27' python -I -m pytest -p no:cacheprovider -q tests"
 test-web = { cmd = "npm test -- --run", cwd = "frontend", depends-on = ["npm-install"] }
 test = { depends-on = ["test-py", "test-web"] }
-lint-py = "ruff check src tests && ruff format --check src tests"
+lint-py = "ruff check src tests scripts && ruff format --check src tests scripts"
 lint-web = { cmd = "npm run lint", cwd = "frontend", depends-on = ["npm-install"] }
 lint = { depends-on = ["lint-py", "lint-web"] }
-fmt-py = "ruff check --fix src tests; ruff format src tests"
+fmt-py = "ruff check --fix src tests scripts; ruff format src tests scripts"
 fmt-web = { cmd = "npm run fmt", cwd = "frontend", depends-on = ["npm-install"] }
 fmt = { depends-on = ["fmt-py", "fmt-web"] }
 typecheck-py = "pyright"
 typecheck-web = { cmd = "npm run typecheck", cwd = "frontend", depends-on = ["npm-install"] }
 typecheck = { depends-on = ["typecheck-py", "typecheck-web"] }
+# Renders docs/screenshot-{light,dark}.png for the README. Playwright stays out of the
+# project's dependencies: uv installs it into a throwaway environment beside this checkout.
+screenshots = { cmd = "uv run --isolated --no-project --with playwright==1.64.0 --with-editable . python scripts/screenshots.py", depends-on = ["build-frontend"] }
