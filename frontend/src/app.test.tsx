@@ -460,6 +460,29 @@ describe("App in exported-trace mode", () => {
     within(path).getByRole("button", { name: "root" }); // the breadcrumb leads back to the root
   });
 
+  it("names the app atop the runs sidebar, and nowhere without a sidebar", () => {
+    const run = (id: string) => ({
+      id,
+      name: id,
+      messages: [
+        { kind: "response" as const, parts: [{ part_kind: "text" as const, content: "x" }] },
+      ],
+    });
+    embed(
+      payloadFromRuns([
+        run("root"),
+        { ...run("child"), parent: { run_id: "root", tool_call_id: null } },
+      ]),
+    );
+    const { container, unmount } = render(<App />);
+    const sidebar = container.querySelector<HTMLElement>(".tree-pane")!;
+    expect(sidebar.firstElementChild!.textContent).toBe("paitrace");
+    unmount();
+
+    embed(payloadFromRuns([run("only")]));
+    expect(render(<App />).queryByText("paitrace")).toBeNull();
+  });
+
   it.each([
     [
       { outcome: { status: "failed", error_type: "TimeoutError", detail: "slow" } as const },

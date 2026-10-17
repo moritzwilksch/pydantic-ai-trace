@@ -18,6 +18,7 @@ import {
   type ViewLocation,
 } from "./selection";
 import { shownTrace, traceFailed, type TraceState } from "./traceState";
+import { Brand } from "./components/Brand";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { RunBreadcrumb } from "./components/RunBreadcrumb";
@@ -55,6 +56,7 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
     <div class={layoutClass(sidebar)}>
       {runs?.multiRun ? (
         <nav class="tree-pane" id={SIDEBAR_ID}>
+          <Brand />
           <div class="tree-header" title={payload.name}>
             {payload.name}
           </div>

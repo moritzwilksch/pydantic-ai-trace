@@ -29,6 +29,8 @@
   --code-keyword: #7c3aed;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05);
   --radius: 8px;
+  /* The trace header and the sidebar's brand row: one bar across the window. */
+  --header-height: 48px;
   --content-max-height: 320px;
   --font-mono:
     ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -113,6 +115,23 @@ body {
 .tree-pane.collapsed {
   width: 0;
   border-right: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--header-height);
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.brand svg {
+  color: var(--accent);
 }
 
 .tree-header {
@@ -251,7 +270,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  height: 48px;
+  height: var(--header-height);
   flex-shrink: 0;
   padding: 0 18px;
   border-bottom: 1px solid var(--border);
