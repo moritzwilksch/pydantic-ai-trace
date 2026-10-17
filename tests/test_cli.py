@@ -321,7 +321,14 @@ class TestTextCommand:
     ):
         code = cli.main(["text", str(fixtures_copy / "runs" / "multi.jsonl")])
         assert code == 1
-        assert "pass line 1..2" in capsys.readouterr().err
+        assert capsys.readouterr().err == "error: 'multi.jsonl' has 2 traces; pass --line 1..2\n"
+
+    def test_out_of_range_line_names_the_flag(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        code = cli.main(["text", str(fixtures_copy / "runs" / "multi.jsonl"), "--line", "3"])
+        assert code == 1
+        assert "pass --line 1..2" in capsys.readouterr().err
 
     def test_output_file_receives_text_without_polluting_stdout(
         self, fixtures_copy: Path, tmp_path: Path, capsys: pytest.CaptureFixture
@@ -365,6 +372,14 @@ class TestTextCommand:
 
 
 class TestJsonCommand:
+    def test_multitrace_jsonl_offers_line_or_all(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        assert cli.main(["json", str(fixtures_copy / "runs" / "multi.jsonl")]) == 1
+        assert capsys.readouterr().err == (
+            "error: 'multi.jsonl' has 2 traces; pass --line 1..2, or --all for every trace\n"
+        )
+
     def test_writes_compact_json_to_stdout(
         self,
         fixtures_copy: Path,

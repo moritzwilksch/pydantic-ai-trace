@@ -394,7 +394,7 @@ examples:
             return 0
 
         input_path = inputs[0] if inputs else None
-        loaded = _load_trace(input_path, args.line, parser)
+        loaded = _load_trace(input_path, args.line, parser, offer_all=True)
         from .compact import format_compact_json
 
         rendered = format_compact_json(loaded.payload(), indent=2 if args.pretty else None)
@@ -477,15 +477,22 @@ def _load_trace(
     input_path: Path | None,
     line: int | None,
     parser: argparse.ArgumentParser,
+    *,
+    offer_all: bool = False,
 ) -> LoadedTrace:
-    if input_path is None or input_path == Path("-"):
-        text = _read_stdin(parser, explicit=input_path == Path("-"))
-        format = scan.detect_trace_format(text)
-        selected = scan.select_trace(text, format=format, name="stdin", line=line)
-        return LoadedTrace(selected, "stdin")
+    """Load one trace; `offer_all` names `--all` as an alternative to `--line`."""
+    try:
+        if input_path is None or input_path == Path("-"):
+            text = _read_stdin(parser, explicit=input_path == Path("-"))
+            format = scan.detect_trace_format(text)
+            selected = scan.select_trace(text, format=format, name="stdin", line=line)
+            return LoadedTrace(selected, "stdin")
 
-    format = _require_trace_file(input_path)
-    text = scan.read_trace(input_path.parent, input_path.name, line)
+        format = _require_trace_file(input_path)
+        text = scan.read_trace(input_path.parent, input_path.name, line)
+    except scan.LineSelectionError as exc:
+        choices = f"--line 1..{exc.count}" + (", or --all for every trace" if offer_all else "")
+        raise CliError(f"{exc.name!r} has {exc.count} traces; pass {choices}") from exc
     selected_line = (line or 1) if format == "jsonl" else None
     name = (
         f"{input_path.name} · trace {selected_line}"

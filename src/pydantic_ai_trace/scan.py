@@ -69,6 +69,15 @@ class TraceLookupError(Exception):
         self.status_code = status_code
 
 
+class LineSelectionError(TraceLookupError):
+    """A JSONL source needs a line, or has no trace at the requested one."""
+
+    def __init__(self, name: str, count: int) -> None:
+        super().__init__(f"{name!r} has {count} traces; pass line 1..{count}", status_code=400)
+        self.name = name
+        self.count = count
+
+
 def resolve_within(root: Path, relative_path: str) -> Path:
     """Resolve `relative_path` against `root`, rejecting anything that escapes it."""
     if not relative_path or Path(relative_path).is_absolute():
@@ -222,10 +231,7 @@ def _select_jsonl(chunks: Iterable[str], *, name: str, line: int | None) -> str:
     if count == 0:
         raise TraceLookupError(f"{name!r} contains no traces", status_code=400)
     if selected is None or (line is None and count > 1):
-        raise TraceLookupError(
-            f"{name!r} has {count} traces; pass line 1..{count}",
-            status_code=400,
-        )
+        raise LineSelectionError(name, count)
     _ensure_json_container(selected, name)
     return selected
 
