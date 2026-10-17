@@ -24,8 +24,9 @@ export interface RunIndex {
 
 export interface TrajectoryIndex {
   entries: Map<string, RunEntry>;
-  /** Top-level runs, including runs whose parent is not recorded, by start time. */
+  /** Top-level runs, including runs whose parent is not recorded, in tree order. */
   roots: RunEntry[];
+  /** In tree order: by the tool calls that started them, else by start time. */
   children(runId: string): RunEntry[];
   /** The recorded ancestors of a run, outermost first. */
   ancestors(runId: string): RunEntry[];
@@ -36,23 +37,15 @@ export function indexTrajectory(payload: TracePayload): TrajectoryIndex {
   payload.trajectory.runs.forEach((run, i) => {
     entries.set(run.id, { run, analysis: payload.analysis.runs[i] });
   });
-  const byStart = (a: RunEntry, b: RunEntry) =>
-    Date.parse(a.run.started_at) - Date.parse(b.run.started_at);
+  const recorded = (ids: readonly string[]) =>
+    ids.map((id) => entries.get(id)).filter((entry) => entry !== undefined);
   // A run ID may be any string, including "", so an absent parent is `undefined`.
   const parentOf = (entry: RunEntry): RunEntry | undefined =>
     entry.run.parent === null ? undefined : entries.get(entry.run.parent.run_id);
-  const all = [...entries.values()];
-  const childrenOf = new Map<string, RunEntry[]>();
-  for (const entry of all) {
-    const parent = parentOf(entry);
-    if (parent === undefined) continue;
-    childrenOf.set(parent.run.id, [...(childrenOf.get(parent.run.id) ?? []), entry]);
-  }
-  for (const children of childrenOf.values()) children.sort(byStart);
   return {
     entries,
-    roots: all.filter((entry) => parentOf(entry) === undefined).sort(byStart),
-    children: (runId) => childrenOf.get(runId) ?? [],
+    roots: recorded(payload.analysis.root_run_ids),
+    children: (runId) => recorded(entries.get(runId)?.analysis.child_run_ids ?? []),
     ancestors: (runId) => {
       const chain: RunEntry[] = [];
       const start = entries.get(runId);

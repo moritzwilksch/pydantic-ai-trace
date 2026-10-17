@@ -867,6 +867,7 @@ export interface ModelRequestAttempt {
 export interface Analysis {
   totals: Totals;
   runs: RunAnalysis[];
+  root_run_ids: string[];
 }
 export interface Totals {
   llm_calls: number;
@@ -889,6 +890,7 @@ export interface RunAnalysis {
   responses: ResponseInfo[];
   tool_calls: ToolCallInfo[];
   matched_results: PartRef[];
+  child_run_ids: string[];
   nested_run_ids: string[];
 }
 export interface ResponseInfo {
