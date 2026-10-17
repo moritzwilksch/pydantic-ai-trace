@@ -41,6 +41,7 @@ Traces get large. Find the trace, then the run, then the parts, and read only th
 ```text
 {name, stats, runs: [run]}       name: file name, or "evals.jsonl · trace N" for line N
 run      {id, name, parent?, outcome, started_at, ended_at, stats, messages: [message]}
+         in tree order: each run before the runs it started
 parent   {run_id, tool_call_id?}  absent on a top-level run
 outcome  {status: "completed", output} | {status: "failed", error_type, detail}
          | {status: "cancelled"}
@@ -50,18 +51,17 @@ message  {type: "request" | "response", parts: [part]}; a response adds model?, 
           finish_reason?, usage: {input, cache_read?, cache_write?, output}
 part     by type:
   system | user | text | thinking   {content}
-  tool_call     {name, args, id?, builtin?}
-  tool_result   {name, result, id?, outcome?}   outcome: "failed" | "denied" | "interrupted";
-                                                absent means success
-  retry         {content, name?, id?}           the model is asked to fix a call or its output
+  tool_call     {name, args, id?, builtin?, result?, outcome?, retry?, output?, child_runs?}
+                outcome: "failed" | "denied" | "interrupted", absent on success; retry: why
+                the model had to call again; output: true when args are the run's output;
+                child_runs: ids of runs it started; no result, retry, or output: no answer
+  retry         {content, name?, id?}   a retry not tied to a call, such as invalid output
+  tool_result   {name, result, id?}     a result whose call is not in the run
   tools_available | compaction | file | other   rarer kinds; other keeps {original_type, data}
 ```
 
-- Runs are in the order they ended, not tree order. A subagent's `parent.tool_call_id` is the
-  `id` of the tool call that started it.
 - A message-list trace is one run named after the trace, with `outcome.output` null.
-- A tool call's result is the next `tool_result` or `retry` with the same `id` in the same run.
-- An output tool's result is `"Final result processed."`; its call's `args` are the output.
+- A request that only returned tool results is left out; the results sit under their calls.
 - A run's `stats` count only its own calls; the top-level `stats` count every run. `cost_usd` is
   missing when no model has a known price.
 
@@ -83,7 +83,7 @@ paitrace json evals.jsonl --all \
   | jq -c '.name as $trace | .runs[] | select(.outcome.status != "completed") | {trace: $trace, run: .name, outcome}'
 ```
 
-Find failed tool calls and retries:
+Find tool calls that failed or were retried:
 
 ```bash
 paitrace json trace.json | jq -c '
@@ -92,23 +92,22 @@ paitrace json trace.json | jq -c '
   | {run: $run, name, args, outcome, result, retry}'
 ```
 
-Get each call of one tool with its result (`--arg tool final_result` gives the output tool's
-args):
+Get each call of one tool with its result:
 
 ```bash
 paitrace json trace.json | jq -c --arg tool lookup_order '
-  .runs[] | .name as $run | [.messages[].parts[]] as $parts
-  | $parts[] | select(.type == "tool_call" and .name == $tool) | .id as $id
-  | {run: $run, args,
-     result: ([$parts[] | select((.type == "tool_result" or .type == "retry") and .id == $id)] | first)}'
+  .runs[].messages[].parts[] | select(.type == "tool_call" and .name == $tool)
+  | {args, result, outcome, retry}'
 ```
 
-Get each trace's final output, falling back to the last text when no output was recorded:
+Get each trace's final output: the recorded output, else the output call's args, else the last
+text:
 
 ```bash
 paitrace json evals.jsonl --all | jq -c '
-  {trace: .name} + (.runs[] | select(.parent == null)
-  | {run: .name, output: (.outcome.output // ([.messages[].parts[] | select(.type == "text") | .content] | last))})'
+  {trace: .name} + (.runs[] | select(.parent == null) | [.messages[].parts[]] as $parts
+  | {run: .name, output: (.outcome.output // ([$parts[] | select(.output) | .args] | last)
+                          // ([$parts[] | select(.type == "text") | .content] | last))})'
 ```
 
 Sum calls and cost per agent across traces (a message-list run counts as `(unnamed)`):
