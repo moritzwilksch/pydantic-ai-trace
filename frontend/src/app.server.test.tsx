@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, waitFor } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
@@ -63,6 +63,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   location.hash = "";
 });
 
@@ -114,6 +115,27 @@ describe("App in server mode", () => {
 
     const otherFetches = mockedFetchTrace.mock.calls.filter(([s]) => s.path === "other.json");
     expect(otherFetches).toHaveLength(1);
+  });
+
+  it("opens the sidebar from the header and closes it when a trace is selected", async () => {
+    vi.mocked(fetchTree).mockResolvedValueOnce(treeWith("other.json"));
+    mockedFetchTrace.mockResolvedValue(textPayload("hi"));
+    const { getByPlaceholderText, getByRole, getByText } = render(<App />);
+    await waitFor(() => getByText("other.json"));
+    const toggle = getByRole("button", { name: "Show traces" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(getByPlaceholderText("Filter traces…"));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(toggle);
+
+    fireEvent.click(toggle);
+    fireEvent.click(getByText("other.json"));
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("shows loading while the selected trace is pending", async () => {
