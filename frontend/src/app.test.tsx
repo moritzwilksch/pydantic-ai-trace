@@ -110,7 +110,37 @@ const FULL_TRACE = [
 afterEach(() => {
   cleanup();
   delete window.__TRACE_PAYLOAD__;
+  setHash("");
 });
+
+/** Sets the URL hash without a `hashchange` event that could reach a later test. */
+function setHash(hash: string) {
+  history.replaceState(null, "", hash || location.pathname);
+}
+
+/** A worker run whose tool call started a helper run. */
+function embedWorkerWithHelper() {
+  embed(
+    payloadFromRuns([
+      {
+        id: "worker",
+        name: "worker",
+        messages: [
+          {
+            kind: "response",
+            parts: [{ part_kind: "tool-call", tool_name: "ask", args: "{}", tool_call_id: "c" }],
+          },
+        ],
+      },
+      {
+        id: "helper run",
+        name: "helper",
+        parent: { run_id: "worker", tool_call_id: "c" },
+        messages: [{ kind: "response", parts: [{ part_kind: "text", content: "helped" }] }],
+      },
+    ]),
+  );
+}
 
 describe("App in exported-trace mode", () => {
   it("switches between the runs of an embedded trajectory", () => {
@@ -141,6 +171,36 @@ describe("App in exported-trace mode", () => {
     getAllByText("first input");
     fireEvent.click(getByRole("button", { name: /Candidate/ }));
     getAllByText("second output");
+  });
+
+  it("opens the run the URL names", () => {
+    setHash("#?run=helper%20run");
+    embedWorkerWithHelper();
+
+    const { getAllByText } = render(<App />);
+
+    getAllByText("helped");
+  });
+
+  it("opens the root run when the URL names an unknown run", () => {
+    setHash("#?run=gone");
+    embedWorkerWithHelper();
+
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".tool-group .child-run")).not.toBeNull();
+  });
+
+  it("records run switches in the URL and history", async () => {
+    embedWorkerWithHelper();
+    const { container, getAllByText } = render(<App />);
+
+    fireEvent.click(container.querySelector(".tool-group .child-run")!);
+    getAllByText("helped");
+    expect(location.hash).toBe("#?run=helper+run");
+
+    history.back();
+    await waitFor(() => expect(container.querySelector(".tool-group .child-run")).not.toBeNull());
   });
 
   it("opens a subagent from the tool call that started it", () => {

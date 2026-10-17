@@ -2,8 +2,15 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { embeddedPayload, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
 import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
-import { defaultSelection, isMultiTrace } from "./selection";
-import { sameSelection, shownTrace, traceFailed, type TraceState } from "./traceState";
+import {
+  defaultSelection,
+  formatHash,
+  isMultiTrace,
+  parseHash,
+  sameSelection,
+  type ViewLocation,
+} from "./selection";
+import { shownTrace, traceFailed, type TraceState } from "./traceState";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { RunBreadcrumb } from "./components/RunBreadcrumb";
@@ -34,7 +41,8 @@ export function App() {
 
 /** Exported HTML: one embedded payload, with a runs sidebar for a trajectory. */
 function ExportedApp({ payload }: { payload: TracePayload }) {
-  const runs = useRuns(payload, payload.name);
+  const [view, navigate] = useHashLocation();
+  const runs = useRuns(payload, view.run, (run) => navigate({ trace: null, run }));
   const sidebar = useSidebar();
   return (
     <div class={layoutClass(sidebar)}>
@@ -69,20 +77,47 @@ interface Runs {
 }
 
 /**
- * The payload's runs and the selected one. The selection survives live reloads
- * while the run still exists and resets when `traceKey` names another trace.
+ * The payload's runs and the one `runId` names. An absent or unknown run falls back
+ * to the first root run, so a stale link still opens the trace.
  */
-function useRuns(payload: TracePayload | null, traceKey: string): Runs | null {
-  const [choice, setChoice] = useState<{ traceKey: string; runId: string } | null>(null);
+function useRuns(
+  payload: TracePayload | null,
+  runId: string | undefined,
+  select: (runId: string) => void,
+): Runs | null {
   const trajectory = useMemo(() => (payload ? indexTrajectory(payload) : null), [payload]);
   if (trajectory === null) return null;
-  const chosen = choice?.traceKey === traceKey ? trajectory.entries.get(choice.runId) : undefined;
+  const chosen = runId === undefined ? undefined : trajectory.entries.get(runId);
   return {
     trajectory,
     selected: chosen ?? trajectory.roots[0],
-    select: (runId) => setChoice({ traceKey, runId }),
+    select,
     multiRun: trajectory.entries.size > 1,
   };
+}
+
+/**
+ * The view the URL hash names. `navigate` adds a history entry, so Back and Forward
+ * restore earlier traces and runs, and a reload or shared link reopens the view.
+ */
+function useHashLocation(): [ViewLocation, (next: ViewLocation) => void] {
+  const [view, setView] = useState(() => parseHash(location.hash));
+  // Keep the trace object when only the run changes: a new object would refetch the trace.
+  const update = (next: ViewLocation) =>
+    setView((current) => ({
+      trace: sameSelection(current.trace, next.trace) ? current.trace : next.trace,
+      run: next.run,
+    }));
+  useEffect(() => {
+    const onHashChange = () => update(parseHash(location.hash));
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+  const navigate = (next: ViewLocation) => {
+    location.hash = formatHash(next);
+    update(next);
+  };
+  return [view, navigate];
 }
 
 function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }) {
@@ -173,7 +208,8 @@ function TracePane({
 function ServerApp() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [tree, setTree] = useState<TreeNode | null>(null);
-  const [selection, setSelection] = useState<TraceSelection | null>(readHash);
+  const [view, navigate] = useHashLocation();
+  const selection = view.trace;
   const [trace, setTrace] = useState<TraceState>({ status: "unselected" });
   const [appError, setAppError] = useState<string | null>(null);
   const beginTreeRequest = useRequestOrder();
@@ -242,20 +278,8 @@ function ServerApp() {
     });
   }, []);
 
-  useEffect(() => {
-    // select() already set this selection; replacing it with an equal object would refetch.
-    const onHashChange = () => {
-      const next = readHash();
-      setSelection((current) => (sameSelection(current, next) ? current : next));
-    };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
-
   function select(next: TraceSelection) {
-    const encoded = next.path.split("/").map(encodeURIComponent).join("/");
-    location.hash = `#/${encoded}${next.line !== undefined ? `:${next.line}` : ""}`;
-    setSelection(next);
+    navigate({ trace: next });
     sidebar.setOpen(false);
   }
 
@@ -263,7 +287,9 @@ function ServerApp() {
   const shownSelection = shown?.selection ?? selection;
   const title = shownSelection ? selectionTitle(shownSelection) : (meta?.root ?? "");
   const payload = shown?.data ?? null;
-  const runs = useRuns(payload, title);
+  // The run names a run of the selected trace; while that trace loads, the previous
+  // one shows its root run unless it has a run of that ID.
+  const runs = useRuns(payload, view.run, (run) => navigate({ trace: selection, run }));
   // Runs nest under the trace they belong to, not under a newer selection still loading.
   const runsUnderSelection =
     runs?.multiRun &&
@@ -347,19 +373,4 @@ function TraceStatus({ trace }: { trace: TraceState }) {
     case "stale":
       return null;
   }
-}
-
-function readHash(): TraceSelection | null {
-  const hash = location.hash;
-  if (!hash.startsWith("#/") || hash.length <= 2) return null;
-  // Split off the line before decoding so `:` and `%` in file names can't confuse parsing.
-  const match = /^(.*?)(?::(\d+))?$/.exec(hash.slice(2));
-  if (!match) return null;
-  let path = match[1];
-  try {
-    path = decodeURIComponent(path);
-  } catch {
-    // hand-typed hash with a stray '%' — use it verbatim
-  }
-  return { path, line: match[2] !== undefined ? Number(match[2]) : undefined };
 }

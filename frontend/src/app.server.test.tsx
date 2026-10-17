@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
@@ -20,7 +20,7 @@ vi.mock("./api", () => ({
 
 import { App } from "./app";
 import { fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
-import { payloadFromMessages } from "./testing/payload";
+import { payloadFromMessages, payloadFromRuns } from "./testing/payload";
 import type { TracePayload, TreeNode } from "./types";
 
 const mockedFetchTrace = vi.mocked(fetchTrace);
@@ -28,6 +28,21 @@ const mockedFetchTrace = vi.mocked(fetchTrace);
 function textPayload(content: string): TracePayload {
   return payloadFromMessages([{ kind: "response", parts: [{ part_kind: "text", content }] }]);
 }
+
+/** A worker run with a nested helper run. */
+const WORKER_WITH_HELPER = payloadFromRuns([
+  {
+    id: "worker",
+    name: "worker",
+    messages: [{ kind: "response", parts: [{ part_kind: "text", content: "working" }] }],
+  },
+  {
+    id: "helper",
+    name: "helper",
+    parent: { run_id: "worker", tool_call_id: null },
+    messages: [{ kind: "response", parts: [{ part_kind: "text", content: "helped" }] }],
+  },
+]);
 
 function treeWith(fileName: string): TreeNode {
   return {
@@ -226,5 +241,50 @@ describe("App in server mode", () => {
 
     await waitFor(() => getByRole("status"));
     expect(container.querySelector(".tree-pane")).toBeNull();
+  });
+
+  it("opens the run the URL names and records run switches in history", async () => {
+    location.hash = "#/run.json?run=helper";
+    mockedFetchTrace.mockResolvedValue(WORKER_WITH_HELPER);
+    const { getAllByText, getByRole } = render(<App />);
+    await waitFor(() => expect(getAllByText("helped").length).toBeGreaterThan(0));
+
+    const runPath = getByRole("navigation", { name: "Run path" });
+    fireEvent.click(within(runPath).getByRole("button", { name: "worker" }));
+    getAllByText("working");
+    expect(location.hash).toBe("#/run.json?run=worker");
+
+    history.back();
+    await waitFor(() => expect(getAllByText("helped").length).toBeGreaterThan(0));
+    expect(location.hash).toBe("#/run.json?run=helper");
+    expect(mockedFetchTrace).toHaveBeenCalledTimes(1); // switching runs reuses the loaded trace
+  });
+
+  it("opens another trace at its root run", async () => {
+    vi.mocked(fetchTree).mockResolvedValueOnce(treeWith("other.json"));
+    location.hash = "#/run.json?run=helper";
+    mockedFetchTrace.mockResolvedValue(WORKER_WITH_HELPER);
+    const { getAllByText, getByText } = render(<App />);
+    await waitFor(() => expect(getAllByText("helped").length).toBeGreaterThan(0));
+
+    fireEvent.click(getByText("other.json"));
+
+    expect(location.hash).toBe("#/other.json");
+    await waitFor(() => expect(getAllByText("working").length).toBeGreaterThan(0));
+  });
+
+  it("keeps the run the URL names while the file is invalid", async () => {
+    const change = captureChanges();
+    location.hash = "#/run.json?run=helper";
+    mockedFetchTrace.mockResolvedValueOnce(WORKER_WITH_HELPER);
+    const { getAllByText, getByRole } = render(<App />);
+    await waitFor(() => expect(getAllByText("helped").length).toBeGreaterThan(0));
+
+    mockedFetchTrace.mockRejectedValueOnce(new Error("'run.json' is not valid JSON"));
+    await act(async () => change(["run.json"]));
+
+    await waitFor(() => getByRole("status"));
+    getAllByText("helped");
+    expect(location.hash).toBe("#/run.json?run=helper");
   });
 });
