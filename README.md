@@ -38,7 +38,8 @@ pixi run paitrace trace.json
 | `paitrace stats [PATHS ...]` | Prints LLM calls, tokens, cost, and wall time per trace |
 
 `paitrace COMMAND --help` lists every option with examples. From a checkout, prefix commands
-with `pixi run`. With no input, a command reads piped stdin.
+with `pixi run`. With no input, a command reads piped stdin; bare `paitrace` in a terminal prints
+help.
 
 > [!WARNING]
 > The viewer has no authentication. It binds to `127.0.0.1` by default; binding `--host` to any

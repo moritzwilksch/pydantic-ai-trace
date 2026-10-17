@@ -75,6 +75,22 @@ class TestServeCommand:
         assert cli.main([str(fixtures_copy), "--port", "9999", "--no-open"]) == 1
         assert "--port" in capsys.readouterr().err
 
+    def test_bare_command_on_a_terminal_prints_help(
+        self,
+        serve_captures_app: dict,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        class TerminalInput(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        monkeypatch.setattr(sys, "stdin", TerminalInput())
+
+        assert cli.main([]) == 0
+        assert "Browse Pydantic AI traces" in capsys.readouterr().out
+        assert serve_captures_app == {}
+
     def test_serves_piped_json_from_a_temporary_file(
         self,
         fixtures_copy: Path,

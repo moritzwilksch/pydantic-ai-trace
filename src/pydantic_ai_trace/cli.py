@@ -119,6 +119,9 @@ examples:
     )
     parser.add_argument("--no-open", action="store_true", help="do not open a browser tab")
     parser.add_argument("--version", action="version", version=f"paitrace {__version__}")
+    if not argv and sys.stdin.isatty():
+        parser.print_help()
+        return 0
     args = parser.parse_args(argv)
 
     paths: list[Path] = args.paths
