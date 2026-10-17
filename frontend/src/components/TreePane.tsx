@@ -8,6 +8,7 @@ import {
 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { Brand } from "./Brand";
 import { defaultSelection, isMultiTrace } from "../selection";
 import type { TraceSelection, TraceSummary, TreeNode } from "../types";
 
@@ -37,6 +38,7 @@ export function TreePane({
     visibleRoot?.type === "dir" ? (visibleRoot.children ?? []) : visibleRoot ? [visibleRoot] : [];
   return (
     <nav class="tree-pane" id={id}>
+      <Brand />
       <div class="tree-header" title={rootLabel}>
         {rootLabel}
       </div>

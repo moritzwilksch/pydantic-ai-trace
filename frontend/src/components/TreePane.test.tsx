@@ -63,6 +63,14 @@ describe("TreePane", () => {
     vi.restoreAllMocks();
   });
 
+  it("names the app above the trace tree", () => {
+    const { container } = render(
+      <TreePane root={TREE} rootLabel="fixtures" selection={null} onSelect={() => undefined} />,
+    );
+
+    expect(container.querySelector(".tree-pane")!.firstElementChild!.textContent).toBe("paitrace");
+  });
+
   it("filters by filename and explains when no traces match", () => {
     const { getByPlaceholderText, getByText, queryByText } = render(
       <TreePane root={TREE} rootLabel="fixtures" selection={null} onSelect={() => undefined} />,
