@@ -1,5 +1,6 @@
 // What the server view shows for the selected trace, and how a load result changes it.
 
+import { sameSelection } from "./selection";
 import type { TracePayload, TraceSelection } from "./types";
 
 /** A loaded trace, with the selection it was loaded for. */
@@ -45,8 +46,4 @@ export function shownTrace(trace: TraceState): ShownTrace | null {
     default:
       return null;
   }
-}
-
-export function sameSelection(a: TraceSelection | null, b: TraceSelection | null): boolean {
-  return a === b || (a !== null && b !== null && a.path === b.path && a.line === b.line);
 }
