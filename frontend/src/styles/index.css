@@ -218,10 +218,12 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  container: main-pane / inline-size;
 }
 
 /* Fixed height, and the title absorbs width changes, so loading or switching traces
-   never moves the header or its controls. */
+   never moves the header or its controls. A narrow pane shrinks the title and the
+   search box, and the copy button drops its label, so the header never overflows. */
 .trace-header {
   display: flex;
   align-items: center;
@@ -237,7 +239,7 @@ body {
 }
 
 .trace-title {
-  flex: 1 0 160px;
+  flex: 1 1 160px;
   min-width: 0;
   font-weight: 600;
   font-size: 13px;
@@ -250,7 +252,8 @@ body {
    items that do not fit wrap onto a second line, which the fixed height hides. */
 .trace-stats {
   display: flex;
-  flex: 0 1 auto;
+  /* Shrinks long before the title or the search box. */
+  flex: 0 1000 auto;
   flex-wrap: wrap;
   min-width: 0;
   height: 18px;
@@ -288,14 +291,30 @@ body {
   white-space: nowrap;
 }
 
+/* Hidden visually only: the label stays the button's name and live region. */
+@container main-pane (max-width: 640px) {
+  .copy-trace-button {
+    padding: 3px 6px;
+  }
+
+  .copy-trace-button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 /* ---- trace search ---- */
 
 .trace-search {
-  width: 236px;
+  flex: 0 1 236px;
+  min-width: 180px;
   height: 30px;
   display: flex;
   align-items: center;
-  flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-inset);
@@ -433,23 +452,33 @@ body {
   color: var(--text-dim);
 }
 
-/* `file › parent › run` in the trace header. */
+/* `file › parent › run` in the trace header. When space runs out, the file and
+   the ancestors truncate; the selected run keeps its full name while it fits. */
 .breadcrumb {
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
-}
-
-.breadcrumb-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   color: var(--text-dim);
 }
 
-.breadcrumb-step [aria-current] {
+.breadcrumb > :first-child,
+.breadcrumb [aria-current] {
   color: var(--text);
+}
+
+.breadcrumb > :not(svg) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumb svg,
+.breadcrumb [aria-current] {
+  flex-shrink: 0;
+}
+
+.breadcrumb [aria-current] {
+  max-width: 100%;
 }
 
 .breadcrumb-link {
