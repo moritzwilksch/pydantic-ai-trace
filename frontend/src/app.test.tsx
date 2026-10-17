@@ -1005,10 +1005,7 @@ describe("App in exported-trace mode", () => {
 
     const { container } = render(<App />);
     const previews = Array.from(container.querySelectorAll(".tone-user .block-preview"));
-    expect(previews.map((preview) => preview.textContent)).toEqual([
-      "same **prompt**",
-      "same **prompt**",
-    ]);
+    expect(previews.map((preview) => preview.textContent)).toEqual(["same prompt", "same prompt"]);
     expect(container.querySelectorAll(".tone-user .markdown strong")).toHaveLength(2);
   });
 
@@ -1109,6 +1106,25 @@ describe("App in exported-trace mode", () => {
       expect(block.querySelectorAll("details")).toHaveLength(0);
       expect(block.querySelector(".block-body")?.textContent).toContain(large.trim());
     }
+  });
+
+  it("previews markdown as plain text", () => {
+    embedMessages([
+      {
+        kind: "response",
+        parts: [
+          {
+            part_kind: "text",
+            content: "## Result\n**Done.** See [the docs](https://x.test) for `run_id`.",
+          },
+        ],
+      },
+    ]);
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".block-preview")?.textContent).toBe(
+      "Result Done. See the docs for run_id.",
+    );
   });
 
   it("keeps prose containing a JSON fragment as markdown", () => {

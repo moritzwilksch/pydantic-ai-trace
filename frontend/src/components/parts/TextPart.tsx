@@ -1,5 +1,5 @@
 import { MessageSquare } from "lucide-preact";
-import { compactJson, parseJsonContainer } from "../../format";
+import { compactJson, markdownPreview, parseJsonContainer } from "../../format";
 import type { TextPart as TextPartType } from "../../types";
 import { Block } from "../Block";
 import { ValueView } from "./common";
@@ -14,7 +14,7 @@ export function TextPart({ part }: { part: TextPartType }) {
         </>
       }
       tone="assistant"
-      preview={json === null ? part.content : compactJson(json)}
+      preview={json === null ? markdownPreview(part.content) : compactJson(json)}
     >
       <ValueView value={json ?? part.content} markdown={json === null} />
     </Block>

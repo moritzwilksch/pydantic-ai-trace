@@ -1,5 +1,5 @@
 import { Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
-import { compactJson } from "../../format";
+import { compactJson, markdownPreview } from "../../format";
 import type { RunEntry, RunIndex } from "../../runIndex";
 import {
   CAPABILITY_LOAD_KIND,
@@ -319,7 +319,7 @@ function returnPreview(part: AnyToolReturnPart): string {
     return discovered.length > 0 ? discovered.join(", ") : (search.message ?? "no matches");
   }
   const instructions = capabilityInstructions(part);
-  if (instructions !== null) return instructions;
+  if (instructions !== null) return markdownPreview(instructions);
   return compactJson(part.content);
 }
 

@@ -1,5 +1,12 @@
 import { ScrollText } from "lucide-preact";
-import { cacheHitRate, formatCost, formatCount, formatDuration, formatPercent } from "../format";
+import {
+  cacheHitRate,
+  formatCost,
+  formatCount,
+  formatDuration,
+  formatPercent,
+  markdownPreview,
+} from "../format";
 import type { RunIndex } from "../runIndex";
 import type { Message, ModelResponse, Part, RequestUsage } from "../types";
 import { Block } from "./Block";
@@ -65,7 +72,7 @@ export function MessageCard({
                 </>
               }
               tone="system"
-              preview={instructions}
+              preview={markdownPreview(instructions)}
             >
               <ValueView value={instructions} markdown preserveNewlines />
             </Block>

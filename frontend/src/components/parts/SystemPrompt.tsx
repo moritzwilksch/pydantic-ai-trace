@@ -1,4 +1,5 @@
 import { Settings } from "lucide-preact";
+import { markdownPreview } from "../../format";
 import type { SystemPromptPart } from "../../types";
 import { Block } from "../Block";
 import { ValueView } from "./common";
@@ -12,7 +13,7 @@ export function SystemPrompt({ part }: { part: SystemPromptPart }) {
         </>
       }
       tone="system"
-      preview={part.content}
+      preview={markdownPreview(part.content)}
     >
       <ValueView value={part.content} markdown preserveNewlines />
     </Block>

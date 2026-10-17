@@ -1,5 +1,5 @@
 import { Bookmark, Paperclip, User } from "lucide-preact";
-import { compactJson } from "../../format";
+import { compactJson, markdownPreview } from "../../format";
 import type { UserContentItem, UserPromptPart } from "../../types";
 import { Block } from "../Block";
 import { JsonTree } from "../JsonTree";
@@ -35,7 +35,7 @@ function userContentItems(content: UserPromptPart["content"]): UserContentItem[]
 function userContentPreview(items: UserContentItem[]): string {
   if (items.length === 1) {
     const text = userContentText(items[0]);
-    if (text !== null) return text;
+    if (text !== null) return markdownPreview(text);
   }
   return compactJson(items);
 }
