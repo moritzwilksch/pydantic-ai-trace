@@ -261,8 +261,9 @@ body {
   z-index: 10;
 }
 
+/* Takes its full width first; the stats get only the space left over. */
 .trace-title {
-  flex: 1 1 160px;
+  flex: 0 1 auto;
   min-width: 0;
   font-weight: 600;
   font-size: 13px;
@@ -271,12 +272,12 @@ body {
   white-space: nowrap;
 }
 
-/* When space runs out, whole stats drop out before the title or the controls move:
-   items that do not fit wrap onto a second line, which the fixed height hides. */
+/* The stats fill the space the title and the controls leave, so whole stats drop
+   out before the title or the controls move: items that do not fit wrap onto a
+   second line, which the fixed height hides. */
 .trace-stats {
   display: flex;
-  /* Shrinks long before the title or the search box. */
-  flex: 0 1000 auto;
+  flex: 1 1 0;
   flex-wrap: wrap;
   min-width: 0;
   height: 18px;
