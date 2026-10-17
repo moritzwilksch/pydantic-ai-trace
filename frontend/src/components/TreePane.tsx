@@ -46,6 +46,12 @@ export function TreePane({
         placeholder="Filter traces…"
         value={filter}
         onInput={(e) => setFilter((e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || !visibleRoot) return;
+          e.preventDefault();
+          const first = firstEntry(visibleRoot);
+          if (first) onSelect(first);
+        }}
       />
       <div class="tree-body">
         {topLevel.length > 0 ? (
@@ -264,6 +270,20 @@ function FileButton({
       {invalidTraces > 0 ? <span class="tree-error-label">{invalidTraces} invalid</span> : null}
     </button>
   );
+}
+
+/** What clicking the first listed entry opens: a file, or a JSONL file's first listed trace. */
+function firstEntry(node: TreeNode): TraceSelection | null {
+  if (node.type === "dir") {
+    for (const child of node.children ?? []) {
+      const entry = firstEntry(child);
+      if (entry) return entry;
+    }
+    return null;
+  }
+  if (!isMultiTrace(node)) return defaultSelection(node) ?? { path: node.path };
+  const first = node.traces?.[0];
+  return first ? { path: node.path, line: first.line } : null;
 }
 
 function isSelected(selection: TraceSelection | null, path: string, line?: number): boolean {

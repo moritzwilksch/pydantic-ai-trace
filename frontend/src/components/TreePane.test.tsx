@@ -228,4 +228,46 @@ describe("TreePane", () => {
     expect(queryByRole("button", { name: "2Sum the numbers 1 to 100." })).toBeNull();
     expect(queryByText("chat.json")).not.toBeNull();
   });
+
+  it("opens the first visible match on Enter in the filter", () => {
+    const tree: TreeNode = {
+      name: "fixtures",
+      path: ".",
+      type: "dir",
+      children: [
+        {
+          name: "evals",
+          path: "evals",
+          type: "dir",
+          children: [
+            jsonl("evals/qa.jsonl", [
+              { prompt: "What is the capital of Australia?" },
+              { prompt: "Sum the numbers 1 to 100." },
+              { prompt: "Sum the primes below 10." },
+            ]),
+          ],
+        },
+        { name: "summary.json", path: "summary.json", type: "file", format: "json" },
+      ],
+    };
+    const onSelect = vi.fn();
+    const { getByPlaceholderText, getByRole } = render(
+      <TreePane root={tree} rootLabel="fixtures" selection={null} onSelect={onSelect} />,
+    );
+    const filter = getByPlaceholderText("Filter traces…");
+    const enter = (query: string) => {
+      fireEvent.input(filter, { target: { value: query } });
+      fireEvent.keyDown(filter, { key: "Enter" });
+    };
+    fireEvent.click(getByRole("button", { name: "evals" })); // collapse the folder
+
+    enter("sum the");
+    expect(onSelect).toHaveBeenLastCalledWith({ path: "evals/qa.jsonl", line: 2 });
+    enter("qa.jsonl");
+    expect(onSelect).toHaveBeenLastCalledWith({ path: "evals/qa.jsonl", line: 1 });
+    enter("summary");
+    expect(onSelect).toHaveBeenLastCalledWith({ path: "summary.json" });
+    enter("missing");
+    expect(onSelect).toHaveBeenCalledTimes(3);
+  });
 });
