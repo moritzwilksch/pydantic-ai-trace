@@ -1240,6 +1240,32 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelectorAll(".json-string")).toHaveLength(items.length);
   });
 
+  it("searches JSON entries held back behind show more, including nested ones", async () => {
+    const rows = Array.from({ length: JSON_PAGE_SIZE + 1 }, (_, i) => `row-${i}`);
+    rows[JSON_PAGE_SIZE] = "needle-outer";
+    const nested = Array.from({ length: JSON_PAGE_SIZE + 5 }, (_, i) => `cell-${i}`);
+    nested[JSON_PAGE_SIZE + 2] = "needle-inner";
+    embedMessages([
+      {
+        kind: "response",
+        parts: [{ part_kind: "tool-return", tool_name: "list", content: { rows, nested } }],
+      },
+    ]);
+    const { container, getByRole, getByText } = render(<App />);
+    const input = getByRole("searchbox", { name: "Search trace" });
+
+    fireEvent.input(input, { target: { value: "needle" } });
+    await waitFor(() => getByText("1 / 2"));
+    // Only the page holding a match opens; the rest stays behind the button.
+    getByText("show 2 more");
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => getByText("2 / 2"));
+
+    fireEvent.input(input, { target: { value: "" } });
+    await waitFor(() => getByText("show 5 more"));
+    expect(container.querySelectorAll(".json-string")).toHaveLength(2 * JSON_PAGE_SIZE);
+  });
+
   it("shows a data URL image attachment inline, falling back to a chip", () => {
     const url = "data:image/png;base64,iVBORw0KGgo=";
     embedMessages([

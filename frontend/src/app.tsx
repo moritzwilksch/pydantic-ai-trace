@@ -31,7 +31,7 @@ import {
   type Sidebar,
 } from "./components/Sidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
-import { TraceSearch } from "./components/TraceSearch";
+import { TraceSearch, TraceSearchScope } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
 import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
@@ -173,43 +173,46 @@ function TracePane({
   useLayoutEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [runId]);
+  const searchKey = runs ? `${title}/${runs.selected.run.id}` : title;
   return (
     <main class="main-pane">
-      <header class="trace-header">
-        {sidebar ? <SidebarToggle sidebar={sidebar} /> : null}
-        <RunBreadcrumb
-          title={title}
-          trajectory={runs?.trajectory ?? null}
-          selected={runs?.selected ?? null}
-          onSelect={(runId) => runs?.select(runId)}
-        />
-        {payload && runs ? (
-          <>
-            <TraceStatsBar
-              totals={runs.selected.analysis.totals}
-              subtreeTotals={runs.selected.analysis.subtree_totals}
-            />
-            <TraceSearch key={`${title}/${runs.selected.run.id}`} rootRef={traceRootRef} />
-            <CopyTraceButton key={title} text={payload.transcript} />
-          </>
-        ) : null}
-        <ThemeToggle />
-      </header>
-      <div class="trace-body" ref={bodyRef}>
-        <div ref={traceRootRef}>
-          {banner}
-          {runs ? (
-            <TraceView
-              key={runs.selected.run.id}
-              entry={runs.selected}
-              trajectory={runs.trajectory}
-              onOpenRun={runs.select}
-            />
-          ) : (
-            placeholder
-          )}
+      <TraceSearchScope resetKey={searchKey}>
+        <header class="trace-header">
+          {sidebar ? <SidebarToggle sidebar={sidebar} /> : null}
+          <RunBreadcrumb
+            title={title}
+            trajectory={runs?.trajectory ?? null}
+            selected={runs?.selected ?? null}
+            onSelect={(runId) => runs?.select(runId)}
+          />
+          {payload && runs ? (
+            <>
+              <TraceStatsBar
+                totals={runs.selected.analysis.totals}
+                subtreeTotals={runs.selected.analysis.subtree_totals}
+              />
+              <TraceSearch key={searchKey} rootRef={traceRootRef} />
+              <CopyTraceButton key={title} text={payload.transcript} />
+            </>
+          ) : null}
+          <ThemeToggle />
+        </header>
+        <div class="trace-body" ref={bodyRef}>
+          <div ref={traceRootRef}>
+            {banner}
+            {runs ? (
+              <TraceView
+                key={runs.selected.run.id}
+                entry={runs.selected}
+                trajectory={runs.trajectory}
+                onOpenRun={runs.select}
+              />
+            ) : (
+              placeholder
+            )}
+          </div>
         </div>
-      </div>
+      </TraceSearchScope>
     </main>
   );
 }

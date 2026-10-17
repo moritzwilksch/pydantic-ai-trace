@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, Search, X } from "lucide-preact";
-import type { RefObject } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { createContext, type ComponentChildren, type RefObject } from "preact";
+import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { focusTraceTarget } from "./KeyboardNav";
 
 const MATCH_HIGHLIGHT = "trace-search-match";
@@ -28,9 +28,49 @@ interface ActiveMatch {
 
 const NO_MATCH: ActiveMatch = { index: -1, reveal: "none" };
 
+interface SearchQuery {
+  query: string;
+  setQuery: (query: string) => void;
+}
+
+const SearchQueryContext = createContext<SearchQuery | null>(null);
+
+/**
+ * Shares the search query between the search box and the trace, so content that holds
+ * text back, like paginated JSON, can render what the query matches. Children that do
+ * not read the query skip re-rendering as it changes. A new `resetKey` clears the query.
+ */
+export function TraceSearchScope({
+  resetKey,
+  children,
+}: {
+  resetKey: string;
+  children: ComponentChildren;
+}) {
+  const [state, setState] = useState({ key: resetKey, query: "" });
+  const query = state.key === resetKey ? state.query : "";
+  const value = useMemo(
+    () => ({ query, setQuery: (next: string) => setState({ key: resetKey, query: next }) }),
+    [query, resetKey],
+  );
+  return <SearchQueryContext.Provider value={value}>{children}</SearchQueryContext.Provider>;
+}
+
+/** The active search query, or "" outside a TraceSearchScope. */
+export function useSearchQuery(): string {
+  return useContext(SearchQueryContext)?.query ?? "";
+}
+
+/** Matches `query` the way the search box does: literally and case-insensitively. */
+export function searchPattern(query: string): RegExp {
+  return new RegExp(escapeRegExp(query), "giu");
+}
+
 /** Search the rendered trace without coupling search to message wire types. */
 export function TraceSearch({ rootRef }: TraceSearchProps) {
-  const [query, setQuery] = useState("");
+  const scope = useContext(SearchQueryContext);
+  if (!scope) throw new Error("TraceSearch must be rendered inside a TraceSearchScope");
+  const { query, setQuery } = scope;
   const [matches, setMatches] = useState<TraceMatch[]>([]);
   const [active, setActive] = useState<ActiveMatch>(NO_MATCH);
   const observerRef = useRef<MutationObserver | null>(null);
@@ -153,7 +193,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
 }
 
 function findTextMatches(root: HTMLElement, query: string): TraceMatch[] {
-  const expression = new RegExp(escapeRegExp(query), "giu");
+  const expression = searchPattern(query);
   const matches: TraceMatch[] = [];
   for (const unit of searchUnits(root)) {
     const segments = textSegments(unit);
