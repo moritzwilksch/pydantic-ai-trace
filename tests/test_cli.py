@@ -444,9 +444,7 @@ class TestJsonCommand:
         assert [message["type"] for message in document["runs"][0]["messages"]] == [
             "request",
             "response",
-            "request",
             "response",
-            "request",
             "response",
         ]
         assert captured.err == ""
@@ -538,7 +536,7 @@ class TestJsonCommand:
 
         documents = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
         assert [[run["name"] for run in document["runs"]] for document in documents] == [
-            ["planner", "subagent", "worker", "summarizer"],
+            ["planner", "worker", "subagent", "summarizer"],
             ["mixed.jsonl · trace 2"],
         ]
 

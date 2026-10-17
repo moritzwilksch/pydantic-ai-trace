@@ -48,9 +48,11 @@ help.
 
 ### Query with jq
 
-`paitrace json` prints one document per trace: its `name`, aggregate `stats`, and `runs`, each
-with its own `stats` and `messages`. `paitrace stats --json` prints the same `stats` for each
-trace and run, without messages.
+`paitrace json` prints one document per trace: its `name`, aggregate `stats`, and `runs` in tree
+order, each with its own `stats` and `messages`. Each tool call carries what became of it: its
+`result` and `outcome`, a `retry`, `output: true` when its arguments are the run's output, and the
+`child_runs` it started. `paitrace stats --json` prints the same `stats` for each trace and run,
+without messages.
 
 ```bash
 paitrace json trace.json | jq '.stats'

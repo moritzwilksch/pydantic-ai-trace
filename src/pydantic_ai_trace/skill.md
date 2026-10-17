@@ -88,8 +88,8 @@ Find failed tool calls and retries:
 ```bash
 paitrace json trace.json | jq -c '
   .runs[] | .name as $run | .messages[].parts[]
-  | select(.type == "retry" or (.type == "tool_result" and has("outcome")))
-  | {run: $run, type, name, id, outcome, detail: (.result // .content)}'
+  | select(.type == "tool_call" and (has("outcome") or has("retry")))
+  | {run: $run, name, args, outcome, result, retry}'
 ```
 
 Get each call of one tool with its result (`--arg tool final_result` gives the output tool's

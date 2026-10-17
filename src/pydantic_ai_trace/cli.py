@@ -345,9 +345,10 @@ def _run_json(argv: list[str]) -> int:
         "paitrace json",
         description=f"""\
 Print traces as compact, structured JSON for jq, scripts, and AI agents. Each
-document has the trace's name, its stats, and its runs with their messages,
-outcomes, stats, and costs. Display headings, repeated instructions, provider
-response IDs, and binary payloads are left out.
+document has the trace's name, its stats, and its runs in tree order with their
+messages, outcomes, stats, and costs. Each tool call carries its result or retry,
+whether it gave the run's output, and the runs it started. Display headings,
+repeated instructions, provider response IDs, and binary payloads are left out.
 
 One input prints one JSON document. Several inputs, or --all, print JSONL with
 one document per trace.
