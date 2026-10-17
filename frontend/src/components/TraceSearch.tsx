@@ -16,11 +16,23 @@ interface TraceMatch {
   anchor: HTMLElement;
 }
 
+/**
+ * The current match and how to reveal it. A new query scrolls to its first match
+ * while typing continues; Enter and the arrows also move focus to the match. A
+ * re-render of the trace keeps the current match without scrolling.
+ */
+interface ActiveMatch {
+  index: number;
+  reveal: "none" | "scroll" | "focus";
+}
+
+const NO_MATCH: ActiveMatch = { index: -1, reveal: "none" };
+
 /** Search the rendered trace without coupling search to message wire types. */
 export function TraceSearch({ rootRef }: TraceSearchProps) {
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<TraceMatch[]>([]);
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const [active, setActive] = useState<ActiveMatch>(NO_MATCH);
   const observerRef = useRef<MutationObserver | null>(null);
 
   useEffect(() => {
@@ -28,14 +40,18 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
     if (!root) return;
     const searchRoot: HTMLElement = root;
 
-    function refresh() {
+    function refresh(queryChanged: boolean) {
       const next = query ? findTextMatches(searchRoot, query) : [];
       setMatches(next);
-      setActiveIndex(-1);
+      setActive((current) => {
+        if (next.length === 0) return NO_MATCH;
+        if (queryChanged) return { index: 0, reveal: "scroll" };
+        return { index: Math.min(Math.max(current.index, 0), next.length - 1), reveal: "none" };
+      });
     }
 
-    refresh();
-    const observer = new MutationObserver(refresh);
+    refresh(true);
+    const observer = new MutationObserver(() => refresh(false));
     observerRef.current = observer;
     observer.observe(searchRoot, { childList: true, characterData: true, subtree: true });
     return () => {
@@ -48,9 +64,9 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
     const observer = observerRef.current;
     const root = rootRef.current;
     observer?.disconnect();
-    publishHighlights(matches, activeIndex);
-    const active = matches[activeIndex];
-    if (active) revealMatch(active, rootRef.current);
+    publishHighlights(matches, active.index);
+    const match = matches[active.index];
+    if (match && active.reveal !== "none") revealMatch(match, root, active.reveal === "focus");
     if (observer && root) {
       observer.observe(root, { childList: true, characterData: true, subtree: true });
     }
@@ -58,14 +74,14 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
       observer?.disconnect();
       clearHighlights();
     };
-  }, [activeIndex, matches, rootRef]);
+  }, [active, matches, rootRef]);
 
   function move(delta: number) {
     if (matches.length === 0) return;
-    setActiveIndex((current) => {
-      if (current === -1) return delta < 0 ? matches.length - 1 : 0;
-      return (current + delta + matches.length) % matches.length;
-    });
+    setActive(({ index }) => ({
+      index: (index + delta + matches.length) % matches.length,
+      reveal: "focus",
+    }));
   }
 
   function clear(input: HTMLInputElement) {
@@ -73,8 +89,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
     input.blur();
   }
 
-  const result =
-    matches.length > 0 ? `${Math.max(0, activeIndex + 1)} / ${matches.length}` : "0 / 0";
+  const result = matches.length > 0 ? `${active.index + 1} / ${matches.length}` : "0 / 0";
   return (
     <div class="trace-search">
       <Search class="trace-search-icon" size={14} aria-hidden="true" />
@@ -90,8 +105,9 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
             event.preventDefault();
             move(event.shiftKey ? -1 : 1);
           } else if (event.key === "Escape") {
+            // Like a browser find bar: leave the search, keep the query and its matches.
             event.preventDefault();
-            clear(event.currentTarget);
+            event.currentTarget.blur();
           }
         }}
       />
@@ -123,7 +139,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
           <button
             type="button"
             aria-label="Clear trace search"
-            title="Clear search (Escape)"
+            title="Clear search"
             onClick={(event) => clear(event.currentTarget.parentElement!.querySelector("input")!)}
           >
             <X size={13} />
@@ -247,7 +263,7 @@ function supportsHighlights(): boolean {
   return typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined";
 }
 
-function revealMatch(match: TraceMatch, root: HTMLElement | null): void {
+function revealMatch(match: TraceMatch, root: HTMLElement | null, focus: boolean): void {
   if (!root) return;
   const ancestors: HTMLDetailsElement[] = [];
   let current: HTMLElement | null = match.anchor;
@@ -260,8 +276,10 @@ function revealMatch(match: TraceMatch, root: HTMLElement | null): void {
   for (const details of ancestors.reverse()) details.open = true;
   const container = match.anchor.closest<HTMLElement>("[data-nav]");
   if (container) {
-    container.tabIndex = -1;
-    container.focus({ preventScroll: true });
+    if (focus) {
+      container.tabIndex = -1;
+      container.focus({ preventScroll: true });
+    }
     focusTraceTarget(container);
   }
   match.anchor.scrollIntoView?.({ block: "center" });

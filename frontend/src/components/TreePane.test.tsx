@@ -59,6 +59,8 @@ const TREE: TreeNode = {
 describe("TreePane", () => {
   afterEach(() => {
     cleanup();
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+    vi.restoreAllMocks();
   });
 
   it("filters by filename and explains when no traces match", () => {
@@ -227,5 +229,81 @@ describe("TreePane", () => {
     expect(getByRole("button", { name: "1What is the capital of Australia?" })).not.toBeNull();
     expect(queryByRole("button", { name: "2Sum the numbers 1 to 100." })).toBeNull();
     expect(queryByText("chat.json")).not.toBeNull();
+  });
+
+  it("opens the first visible match on Enter in the filter", () => {
+    const tree: TreeNode = {
+      name: "fixtures",
+      path: ".",
+      type: "dir",
+      children: [
+        {
+          name: "evals",
+          path: "evals",
+          type: "dir",
+          children: [
+            jsonl("evals/qa.jsonl", [
+              { prompt: "What is the capital of Australia?" },
+              { prompt: "Sum the numbers 1 to 100." },
+              { prompt: "Sum the primes below 10." },
+            ]),
+          ],
+        },
+        { name: "summary.json", path: "summary.json", type: "file", format: "json" },
+      ],
+    };
+    const onSelect = vi.fn();
+    const { getByPlaceholderText, getByRole } = render(
+      <TreePane root={tree} rootLabel="fixtures" selection={null} onSelect={onSelect} />,
+    );
+    const filter = getByPlaceholderText("Filter traces…");
+    const enter = (query: string) => {
+      fireEvent.input(filter, { target: { value: query } });
+      fireEvent.keyDown(filter, { key: "Enter" });
+    };
+    fireEvent.click(getByRole("button", { name: "evals" })); // collapse the folder
+
+    enter("sum the");
+    expect(onSelect).toHaveBeenLastCalledWith({ path: "evals/qa.jsonl", line: 2 });
+    enter("qa.jsonl");
+    expect(onSelect).toHaveBeenLastCalledWith({ path: "evals/qa.jsonl", line: 1 });
+    enter("summary");
+    expect(onSelect).toHaveBeenLastCalledWith({ path: "summary.json" });
+    enter("missing");
+    expect(onSelect).toHaveBeenCalledTimes(3);
+  });
+
+  it("expands to a selection made elsewhere and centers it only when out of view", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    // The tree body shows y 0-100; each "trace N" button sits at y 20N.
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      const line = /^trace (\d+)$/.exec(this.textContent ?? "");
+      const top = line ? Number(line[1]) * 20 : 0;
+      return { top, bottom: this.classList.contains("tree-body") ? 100 : top + 20 } as DOMRect;
+    });
+    const tree: TreeNode = {
+      name: "fixtures",
+      path: ".",
+      type: "dir",
+      children: [
+        { name: "evals", path: "evals", type: "dir", children: [unlabelled("evals/a.jsonl", 80)] },
+      ],
+    };
+    const view = (selection: { path: string; line: number } | null) => (
+      <TreePane root={tree} rootLabel="fixtures" selection={selection} onSelect={() => undefined} />
+    );
+    const { getByRole, queryByRole, rerender } = render(view(null));
+    fireEvent.click(getByRole("button", { name: "evals" })); // collapse the folder
+    expect(queryByRole("button", { name: "trace 72" })).toBeNull();
+
+    rerender(view({ path: "evals/a.jsonl", line: 72 }));
+    expect(scrollIntoView.mock.contexts).toEqual([getByRole("button", { name: "trace 72" })]);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+
+    rerender(view({ path: "evals/a.jsonl", line: 2 }));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 });
