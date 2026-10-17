@@ -23,8 +23,9 @@ from .trajectory import Trajectory
 
 TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
 
-# Bounds the tree's size for large logs; the sidebar shows less and filters on this much.
-PROMPT_PREVIEW_CHARS = 200
+# Bounds a trace summary's text, so the tree stays small for large logs; the sidebar
+# shows less than this and filters on exactly this much.
+PREVIEW_CHARS = 200
 
 type TreeNode = dict[str, Any]
 type TraceSummary = dict[str, Any]
@@ -328,7 +329,8 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
 
 
 def _trace_summary(line: int, text: str, relative_path: str) -> TraceSummary:
-    """The 1-based `line` of a trace, its first user prompt, and its models; or its error."""
+    """The 1-based `line` of a trace, previews of its first prompt and final answer,
+    and its models; or its error."""
     try:
         trajectory = load_trajectory(text, name=relative_path)
     except TraceLoadError as exc:
@@ -337,18 +339,20 @@ def _trace_summary(line: int, text: str, relative_path: str) -> TraceSummary:
             "error": True,
             "error_message": str(exc),
             "prompt": None,
+            "answer": None,
             "models": [],
         }
     return {
         "line": line,
         "error": False,
         "prompt": _first_prompt(trajectory),
+        "answer": _final_answer(trajectory),
         "models": _model_names(trajectory),
     }
 
 
 def _first_prompt(trajectory: Trajectory) -> str | None:
-    """The first user prompt's text in run-tree order, whitespace-collapsed and truncated."""
+    """The first user prompt with text, in run-tree order."""
     for run, _ in trajectory.walk():
         for message in run.messages:
             for part in message.parts:
@@ -360,11 +364,25 @@ def _first_prompt(trajectory: Trajectory) -> str | None:
                     for item in items
                     if isinstance(item, str | TextContent)
                 ]
-                if text := re.sub(r"\s+", " ", " ".join(texts)).strip():
-                    if len(text) > PROMPT_PREVIEW_CHARS:
-                        return text[: PROMPT_PREVIEW_CHARS - 1] + "…"
-                    return text
+                if preview := _preview(" ".join(texts)):
+                    return preview
     return None
+
+
+def _final_answer(trajectory: Trajectory) -> str | None:
+    """The text of the last response with text in the last top-level run."""
+    for message in reversed(trajectory.roots()[-1].messages):
+        if isinstance(message, ModelResponse) and (preview := _preview(message.text or "")):
+            return preview
+    return None
+
+
+def _preview(text: str) -> str | None:
+    """`text` whitespace-collapsed and truncated; None when blank."""
+    collapsed = re.sub(r"\s+", " ", text).strip()
+    if len(collapsed) > PREVIEW_CHARS:
+        return collapsed[: PREVIEW_CHARS - 1] + "…"
+    return collapsed or None
 
 
 def _model_names(trajectory: Trajectory) -> list[str]:

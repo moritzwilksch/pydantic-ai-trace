@@ -67,7 +67,7 @@ class TestBuildTree:
         assert (node["trace_count"], node["error"]) == (1, True)
         assert node["error_message"].startswith("line 1: ")
 
-    def test_traces_are_summarized_by_first_prompt_and_models(self, tmp_path: Path):
+    def test_traces_are_summarized_by_prompt_answer_and_models(self, tmp_path: Path):
         long_prompt = "What is\n  the capital " + "of Australia " * 30
         second_trace = minimal_trace(model_name="gpt-5-nano")
         (tmp_path / "log.jsonl").write_text(f"{minimal_trace(long_prompt)}\n{second_trace}\n")
@@ -75,13 +75,14 @@ class TestBuildTree:
         first, second = node["traces"]
         assert first["prompt"].startswith("What is the capital of Australia of")
         assert first["prompt"].endswith("…")
-        assert len(first["prompt"]) == scan.PROMPT_PREVIEW_CHARS
+        assert len(first["prompt"]) == scan.PREVIEW_CHARS
         assert (first["models"], second["models"]) == ([], ["gpt-5-nano"])
-        assert (second["line"], second["prompt"]) == (2, "hello")
+        assert (second["line"], second["prompt"], second["answer"]) == (2, "hello", "ok")
 
     def test_trajectory_summary_takes_the_first_run_prompt(self, fixtures_copy: Path):
         [trace] = scan.build_tree(fixtures_copy / "trajectory.json")["traces"]
         assert (trace["prompt"], trace["models"]) == ("Plan the task.", ["gpt-4o"])
+        assert trace["answer"] == "summary"
 
     def test_single_file_root_yields_single_node(self, fixtures_copy: Path):
         tree = scan.build_tree(fixtures_copy / "full_trace.json")
