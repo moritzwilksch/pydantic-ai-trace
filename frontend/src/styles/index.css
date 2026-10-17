@@ -31,6 +31,8 @@
   --radius: 8px;
   /* The trace header and the sidebar's brand row: one bar across the window. */
   --header-height: 48px;
+  /* Cards, banners, and run links share one column, wide for data-dense traces. */
+  --content-max-width: 1100px;
   /* Response cards: a faint wash of the "Response" heading's color, so requests and
      responses tell apart while skimming. Dark mode needs less. */
   --card-response-bg: color-mix(in srgb, var(--assistant) 5%, var(--bg-card));
@@ -549,7 +551,7 @@ body {
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 900px;
+  max-width: var(--content-max-width);
   margin: 6px auto 0;
   padding: 6px 10px;
   border: 1px solid var(--border);
@@ -580,7 +582,7 @@ body {
 /* ---- message cards ---- */
 
 .card {
-  max-width: 900px;
+  max-width: var(--content-max-width);
   margin: 0 auto 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -981,6 +983,12 @@ summary svg,
 
 /* ---- markdown ---- */
 
+/* Prose keeps a readable measure, about 100 characters per line, inside the wide
+   column; code blocks and tables use the full width. */
+.markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+  max-width: 45em;
+}
+
 .markdown > :first-child {
   margin-top: 0;
 }
@@ -1105,7 +1113,7 @@ summary svg,
 }
 
 .banner-error {
-  max-width: 900px;
+  max-width: var(--content-max-width);
   margin: 0 auto 12px;
   padding: 10px 14px;
   border: 1px solid var(--danger);
@@ -1115,7 +1123,7 @@ summary svg,
 }
 
 .banner-warn {
-  max-width: 900px;
+  max-width: var(--content-max-width);
   margin: 0 auto 12px;
   padding: 10px 14px;
   border: 1px solid var(--warn);
