@@ -76,26 +76,33 @@ No matching tools found. The tools you need may not be available.
 --- TOOL CALL: get_invoice ---
 
 ARGUMENTS:
-{"invoice_id":"INV-4471"}
+invoice_id: "INV-4471"
 
 ========== REQUEST 4 ==========
 
 --- TOOL RETURN: get_invoice ---
 
-{"invoice_id":"INV-4471","customer":"Client A","amount_cents":24900,"currency":"EUR","status":"paid"}
+invoice_id: "INV-4471"
+customer: "Client A"
+amount_cents: 24900
+currency: "EUR"
+status: "paid"
 
 ========== RESPONSE 4 · claude-fable-5 · 1,880 in (1,700 cached) → 46 out · $0.0058 ==========
 
 --- TOOL CALL: refund_invoice ---
 
 ARGUMENTS:
-{"invoice_id":"INV-4471","amount_cents":24900}
+invoice_id: "INV-4471"
+amount_cents: 24900
 
 ========== REQUEST 5 ==========
 
 --- TOOL RETURN: refund_invoice ---
 
-{"refund_id":"RF-9021","amount_cents":24900,"state":"pending"}
+refund_id: "RF-9021"
+amount_cents: 24900
+state: "pending"
 
 ========== RESPONSE 5 · claude-fable-5 · 1,960 in (1,800 cached) → 72 out · $0.0070 ==========
 

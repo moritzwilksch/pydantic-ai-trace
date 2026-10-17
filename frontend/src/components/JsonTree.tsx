@@ -78,19 +78,24 @@ function JsonEntries({ entries }: { entries: readonly (readonly [string, unknown
 function JsonPrimitive({ value }: { value: unknown }) {
   if (typeof value === "string") {
     const size = byteLength(value);
-    const serialized = JSON.stringify(value);
+    const rendered = <JsonString value={value} />;
     if (size > LARGE_STRING_BYTES) {
-      return (
-        <CollapsedPayload sizeLabel={formatBytes(size)}>
-          <span class="json-string">{serialized}</span>
-        </CollapsedPayload>
-      );
+      return <CollapsedPayload sizeLabel={formatBytes(size)}>{rendered}</CollapsedPayload>;
     }
-    return <span class="json-string">{serialized}</span>;
+    return rendered;
   }
   if (typeof value === "number") return <span class="json-num">{String(value)}</span>;
   if (typeof value === "boolean") return <span class="json-bool">{String(value)}</span>;
   return <span class="json-null">null</span>;
+}
+
+/**
+ * A one-line string stays a quoted JSON literal; a multi-line string is shown verbatim as a
+ * block below its key, so code, diffs, and prose keep their line breaks.
+ */
+function JsonString({ value }: { value: string }) {
+  if (value.includes("\n")) return <div class="json-string json-block">{value}</div>;
+  return <span class="json-string">{JSON.stringify(value)}</span>;
 }
 
 /** Inline-collapsed wrapper for payloads too large to render eagerly. */

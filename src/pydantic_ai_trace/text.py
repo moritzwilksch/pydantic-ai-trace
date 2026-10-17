@@ -313,7 +313,41 @@ def _format_value(value: object) -> str:
         return "\n\n".join(
             _format_media(item) if is_media(item) else _format_value(item) for item in value
         )
-    return _json(value)
+    return "\n".join(_outline(value))
+
+
+def _outline(value: object) -> list[str]:
+    """A structured value as one `key: value` line per scalar, nested by indentation.
+
+    Scalars are JSON literals, so strings stay quoted and unambiguous; a string with a
+    line break becomes a `|` block of its lines, indented under its key.
+    """
+    if is_media(value):
+        return [_format_media(value)]
+    if isinstance(value, dict) and value:
+        return [line for key, child in value.items() for line in _entry(f"{_key(key)}:", child)]
+    if isinstance(value, list) and value:
+        return [line for item in value for line in _entry("-", item)]
+    return [_json(value)]
+
+
+def _entry(head: str, value: object) -> list[str]:
+    if isinstance(value, str) and "\n" in value:
+        return [f"{head} |", *_indent(value.split("\n"))]
+    lines = _outline(value)
+    if not isinstance(value, dict | list) or not value or is_media(value):
+        return [f"{head} {lines[0]}"]
+    if head == "-":
+        return [f"- {lines[0]}", *_indent(lines[1:])]
+    return [head, *_indent(lines)]
+
+
+def _indent(lines: list[str]) -> list[str]:
+    return [f"  {line}" if line else "" for line in lines]
+
+
+def _key(key: str) -> str:
+    return key if re.fullmatch(r"[\w.-]+", key) else _json(key)
 
 
 def is_media(value: object) -> bool:

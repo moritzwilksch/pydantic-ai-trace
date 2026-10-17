@@ -893,6 +893,12 @@ details.collapsible > summary {
   word-break: break-word;
 }
 
+.json-block {
+  margin: 2px 0 2px 16px;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+}
+
 .json-num {
   color: var(--code-number);
 }

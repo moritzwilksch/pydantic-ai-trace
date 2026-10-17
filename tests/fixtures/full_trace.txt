@@ -26,18 +26,19 @@ The user wants population figures. I should look both cities up before answering
 --- TOOL CALL: lookup_population ---
 
 ARGUMENTS:
-{"city":"Berlin"}
+city: "Berlin"
 
 --- TOOL CALL: lookup_population ---
 
 ARGUMENTS:
-{"city":"Hamburg"}
+city: "Hamburg"
 
 ========== REQUEST 2 ==========
 
 --- TOOL RETURN: lookup_population ---
 
-{"city":"Berlin","population":3877100}
+city: "Berlin"
+population: 3877100
 
 --- RETRY PROMPT: lookup_population ---
 
@@ -48,13 +49,14 @@ unknown city spelling
 --- TOOL CALL: lookup_population ---
 
 ARGUMENTS:
-{"city":"Hamburg, Germany"}
+city: "Hamburg, Germany"
 
 ========== REQUEST 3 ==========
 
 --- TOOL RETURN: lookup_population ---
 
-{"city":"Hamburg","population":1945532}
+city: "Hamburg"
+population: 1945532
 
 ========== RESPONSE 3 · gpt-5 · 400 in → 90 out · $0.0014 ==========
 

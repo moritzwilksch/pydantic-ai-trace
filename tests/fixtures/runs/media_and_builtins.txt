@@ -22,11 +22,13 @@ Keep the description concise.
 --- BUILTIN TOOL CALL: web_search ---
 
 ARGUMENTS:
-{"query":"cat picture description"}
+query: "cat picture description"
 
 --- BUILTIN TOOL RETURN: web_search ---
 
-{"results":[{"title":"Cats","url":"https://example.com"}]}
+results:
+  - title: "Cats"
+    url: "https://example.com"
 
 --- TEXT ---
 
@@ -40,4 +42,9 @@ It is a picture of a cat sitting on a windowsill.
 
 --- RETRY PROMPT: validate_input ---
 
-[{"type":"missing","loc":["body","name"],"msg":"Field required","input":{}}]
+- type: "missing"
+  loc:
+    - "body"
+    - "name"
+  msg: "Field required"
+  input: {}
