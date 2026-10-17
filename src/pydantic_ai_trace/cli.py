@@ -274,7 +274,7 @@ examples:
     if args.output is None and (args.input is None or args.input == Path("-")):
         raise CliError("--output is required when exporting stdin")
     output = args.output or _default_export_path(args.input, args.line)
-    _require_output_not_input(output, [args.input])
+    _require_usable_output(output, [args.input])
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
@@ -312,7 +312,7 @@ examples:
     parser.add_argument("-o", "--output", type=Path, help="write to this file instead of stdout")
     parser.add_argument("--line", type=int, help=_LINE_HELP)
     args = parser.parse_args(argv)
-    _require_output_not_input(args.output, [args.input])
+    _require_usable_output(args.output, [args.input])
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
@@ -376,7 +376,7 @@ examples:
             f"expected .json or .jsonl trace files, got directory: {directory}; "
             f"pass its traces instead, e.g. paitrace json {directory / '*.json'} --all"
         )
-    _require_output_not_input(args.output, inputs)
+    _require_usable_output(args.output, inputs)
     try:
         multiple = len(inputs) > 1
         if multiple and Path("-") in inputs:
@@ -606,9 +606,17 @@ def _require_trace_file(input_path: Path) -> Literal["json", "jsonl"]:
     return scan.TRACE_SUFFIXES[input_path.suffix]
 
 
-def _require_output_not_input(output: Path | None, inputs: Iterable[Path | None]) -> None:
-    """Refuse to write over an input, under any path that names the same file."""
-    if output is None or not output.exists():
+def _require_usable_output(output: Path | None, inputs: Iterable[Path | None]) -> None:
+    """Require an existing output directory, and refuse to write over an input.
+
+    A missing directory is an error rather than created, so a mistyped `--output` path
+    does not leave new directories behind.
+    """
+    if output is None:
+        return
+    if not output.parent.is_dir():
+        raise CliError(f"output directory does not exist: {output.parent}")
+    if not output.exists():
         return
     for path in inputs:
         if path is not None and path != Path("-") and path.exists() and output.samefile(path):

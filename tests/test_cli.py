@@ -864,6 +864,27 @@ class TestStatsCommand:
         assert len(rows["配達.json"]) == len(rows["long.json"]) - 2
 
 
+class TestOutputPath:
+    @pytest.mark.parametrize(
+        "command", [["export"], ["text"], ["json"], ["json", "--all"]], ids=" ".join
+    )
+    def test_missing_output_directory_is_named(
+        self,
+        fixtures_copy: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+        command: list[str],
+    ):
+        output = tmp_path / "missing" / "dir" / "out.html"
+        source = str(fixtures_copy / "full_trace.json")
+
+        assert cli.main([*command, source, "-o", str(output)]) == 1
+        assert capsys.readouterr().err == (
+            f"error: output directory does not exist: {output.parent}\n"
+        )
+        assert not output.parent.exists()
+
+
 class TestClosedStdout:
     @pytest.mark.parametrize(
         "command",
