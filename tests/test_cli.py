@@ -1,6 +1,7 @@
 import io
 import json
 import socket
+import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -83,6 +84,16 @@ class TestServeCommand:
     def test_missing_path_fails_with_message(self, capsys: pytest.CaptureFixture):
         assert cli.main(["/definitely/not/here"]) == 1
         assert "does not exist" in capsys.readouterr().err
+
+    def test_directory_without_traces_is_served_with_a_note(
+        self, tmp_path: Path, serve_captures_app: dict, capsys: pytest.CaptureFixture
+    ):
+        (tmp_path / "notes.txt").write_text("hi")
+
+        assert cli.main([str(tmp_path), "--no-open"]) == 0
+        assert serve_captures_app["root"] == tmp_path
+        note = f"note: no .json or .jsonl traces found under {tmp_path} yet"
+        assert note in capsys.readouterr().err.splitlines()
 
     def test_non_trace_file_is_rejected(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         target = tmp_path / "notes.txt"
@@ -240,6 +251,22 @@ class TestExportCommand:
         assert output.exists()
         assert capsys.readouterr() == ("", f"wrote {output}\n")
 
+    def test_default_output_names_the_selected_jsonl_line(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        source = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main(["export", str(source), "--line", "1"]) == 0
+        assert cli.main(["export", str(source), "--line", "2"]) == 0
+
+        err = capsys.readouterr().err
+        assert err.splitlines() == [
+            f"wrote {source.with_name('multi.line-1.html')}",
+            f"wrote {source.with_name('multi.line-2.html')}",
+        ]
+        assert "hello from line one" in source.with_name("multi.line-1.html").read_text()
+        assert "hello from line two" in source.with_name("multi.line-2.html").read_text()
+
     def test_invalid_trace_is_not_exported(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         source = tmp_path / "nan.json"
         source.write_text('[{"cost": NaN}]')
@@ -304,7 +331,56 @@ class TestTextCommand:
     ):
         code = cli.main(["text", str(fixtures_copy / "runs" / "multi.jsonl")])
         assert code == 1
-        assert "pass line 1..2" in capsys.readouterr().err
+        assert capsys.readouterr().err == "error: 'multi.jsonl' has 2 traces; pass --line 1..2\n"
+
+    def test_out_of_range_line_names_the_flag(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        code = cli.main(["text", str(fixtures_copy / "runs" / "multi.jsonl"), "--line", "3"])
+        assert code == 1
+        assert "pass --line 1..2" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("edit", "hinted"),
+        [
+            (lambda trace: trace[0]["parts"][0].update(part_kind="future-part"), True),
+            (lambda trace: trace[1].update(kind="future-message"), True),
+            (lambda trace: trace[0]["parts"][0].pop("part_kind"), False),
+            (lambda trace: trace[1]["parts"][0].update(content=7), False),
+        ],
+        ids=["unknown part kind", "unknown message kind", "missing kind", "wrong type"],
+    )
+    def test_unknown_kind_suggests_upgrading_pydantic_ai(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, edit, hinted: bool
+    ):
+        trace = json.loads(minimal_trace())
+        edit(trace)
+        source = tmp_path / "trace.json"
+        source.write_text(json.dumps(trace))
+
+        assert cli.main(["text", str(source)]) == 1
+        assert ("if a newer Pydantic AI wrote this trace, upgrade" in capsys.readouterr().err) is (
+            hinted
+        )
+
+    @pytest.mark.parametrize(
+        ("edit", "hinted"),
+        [
+            (lambda run: run["messages"][0].update(kind="future-message"), True),
+            (lambda run: run.update(outcome={"status": "future-status"}), False),
+        ],
+        ids=["unknown message kind", "unknown outcome"],
+    )
+    def test_upgrade_hint_in_a_trajectory_covers_only_messages(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture, edit, hinted: bool
+    ):
+        source = fixtures_copy / "trajectory.json"
+        trajectory = json.loads(source.read_text())
+        edit(trajectory["runs"][0])
+        source.write_text(json.dumps(trajectory))
+
+        assert cli.main(["text", str(source)]) == 1
+        assert ("upgrade pydantic-ai-slim" in capsys.readouterr().err) is hinted
 
     def test_output_file_receives_text_without_polluting_stdout(
         self, fixtures_copy: Path, tmp_path: Path, capsys: pytest.CaptureFixture
@@ -348,6 +424,14 @@ class TestTextCommand:
 
 
 class TestJsonCommand:
+    def test_multitrace_jsonl_offers_line_or_all(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        assert cli.main(["json", str(fixtures_copy / "runs" / "multi.jsonl")]) == 1
+        assert capsys.readouterr().err == (
+            "error: 'multi.jsonl' has 2 traces; pass --line 1..2, or --all for every trace\n"
+        )
+
     def test_writes_compact_json_to_stdout(
         self,
         fixtures_copy: Path,
@@ -641,6 +725,17 @@ class TestJsonCommand:
 
 
 class TestStatsCommand:
+    @pytest.mark.parametrize("as_json", [False, True])
+    def test_directory_without_traces_fails_with_message(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, as_json: bool
+    ):
+        (tmp_path / "empty").mkdir()
+
+        assert cli.main(["stats", str(tmp_path), *(["--json"] if as_json else [])]) == 1
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == f"error: no .json or .jsonl traces found under {tmp_path}\n"
+
     def test_summarizes_every_trace_under_a_directory_and_reports_invalid_ones(
         self, fixtures_copy: Path, capsys: pytest.CaptureFixture
     ):
@@ -830,3 +925,48 @@ class TestStatsCommand:
         assert rows["long.json"].endswith("14m 23s")
         # Each wide character fills two columns, so equal widths need two fewer characters.
         assert len(rows["配達.json"]) == len(rows["long.json"]) - 2
+
+
+class TestOutputPath:
+    @pytest.mark.parametrize(
+        "command", [["export"], ["text"], ["json"], ["json", "--all"]], ids=" ".join
+    )
+    def test_missing_output_directory_is_named(
+        self,
+        fixtures_copy: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
+        command: list[str],
+    ):
+        output = tmp_path / "missing" / "dir" / "out.html"
+        source = str(fixtures_copy / "full_trace.json")
+
+        assert cli.main([*command, source, "-o", str(output)]) == 1
+        assert capsys.readouterr().err == (
+            f"error: output directory does not exist: {output.parent}\n"
+        )
+        assert not output.parent.exists()
+
+
+class TestClosedStdout:
+    @pytest.mark.parametrize(
+        "command",
+        [["text", "big.json"], ["json", "big.json"], ["json", "big.jsonl", "--all"]],
+    )
+    def test_reader_closing_the_pipe_exits_quietly(self, tmp_path: Path, command: list[str]):
+        trace = minimal_trace("x" * 1_000_000)  # far beyond a pipe buffer
+        (tmp_path / "big.json").write_text(trace)
+        (tmp_path / "big.jsonl").write_text(f"{trace}\n{trace}\n")
+        process = subprocess.Popen(
+            [sys.executable, "-m", "pydantic_ai_trace.cli", *command],
+            cwd=tmp_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert process.stdout is not None and process.stderr is not None
+        process.stdout.read(1)  # like `| head -c 1`
+        process.stdout.close()
+
+        stderr = process.stderr.read()
+        assert process.wait(timeout=30) == 1
+        assert stderr == b""

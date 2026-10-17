@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import ipaddress
+import os
 import sys
 import tempfile
 import threading
@@ -37,18 +38,30 @@ _LINE_HELP = "which trace of a multi-trace .jsonl input to use, counting from 1"
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     try:
-        if argv and argv[0] == "export" and not Path("export").exists():
-            return _run_export(argv[1:])
-        if argv and argv[0] == "text" and not Path("text").exists():
-            return _run_text(argv[1:])
-        if argv and argv[0] == "json" and not Path("json").exists():
-            return _run_json(argv[1:])
-        if argv and argv[0] == "stats" and not Path("stats").exists():
-            return _run_stats(argv[1:])
-        return _run_serve(argv)
+        status = _run(argv)
+        sys.stdout.flush()  # Surface a closed pipe here, not at interpreter exit.
+        return status
+    except BrokenPipeError:
+        # The reader, such as `head` or `less`, stopped reading. Point stdout at devnull so
+        # the interpreter's final flush cannot fail too.
+        # https://docs.python.org/3/library/signal.html#note-on-sigpipe
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 1
     except CliError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+
+def _run(argv: list[str]) -> int:
+    if argv and argv[0] == "export" and not Path("export").exists():
+        return _run_export(argv[1:])
+    if argv and argv[0] == "text" and not Path("text").exists():
+        return _run_text(argv[1:])
+    if argv and argv[0] == "json" and not Path("json").exists():
+        return _run_json(argv[1:])
+    if argv and argv[0] == "stats" and not Path("stats").exists():
+        return _run_stats(argv[1:])
+    return _run_serve(argv)
 
 
 class CliError(Exception):
@@ -167,6 +180,9 @@ examples:
         raise CliError(f"path does not exist: {root}")
     if root.is_file() and root.suffix not in scan.TRACE_SUFFIXES:
         raise CliError(f"not a trace file (expected .json or .jsonl): {root}")
+    if root.is_dir() and next(scan.iter_trace_files(root), None) is None:
+        # Keep serving: the viewer lists traces as they are written.
+        print(f"note: no .json or .jsonl traces found under {root} yet", file=sys.stderr)
     return _serve_source(
         root,
         display_name=str(root),
@@ -243,6 +259,7 @@ costs, and the viewer, so it opens offline in any browser.
         epilog="""\
 examples:
   paitrace export trace.json                 # writes trace.html
+  paitrace export runs.jsonl --line 2        # writes runs.line-2.html
   paitrace export runs.jsonl --line 2 -o run2.html
   curl -s https://example.test/trace.json | paitrace export -o trace.html""",
     )
@@ -251,15 +268,16 @@ examples:
         "-o",
         "--output",
         type=Path,
-        help="where to write the HTML (default: INPUT with an .html suffix; required for stdin)",
+        help="where to write the HTML (default: INPUT with an .html suffix, or .line-N.html "
+        "with --line on a .jsonl input; required for stdin)",
     )
     parser.add_argument("--line", type=int, help=_LINE_HELP)
     args = parser.parse_args(argv)
 
     if args.output is None and (args.input is None or args.input == Path("-")):
         raise CliError("--output is required when exporting stdin")
-    output = args.output or args.input.with_suffix(".html")
-    _require_output_not_input(output, [args.input])
+    output = args.output or _default_export_path(args.input, args.line)
+    _require_usable_output(output, [args.input])
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
@@ -270,6 +288,13 @@ examples:
         raise CliError(str(exc)) from exc
     print(f"wrote {output}", file=sys.stderr)
     return 0
+
+
+def _default_export_path(input_path: Path, line: int | None) -> Path:
+    """INPUT as .html; each selected JSONL line gets its own file."""
+    if line is None or input_path.suffix != ".jsonl":
+        return input_path.with_suffix(".html")
+    return input_path.with_name(f"{input_path.stem}.line-{line}.html")
 
 
 def _run_text(argv: list[str]) -> int:
@@ -290,11 +315,13 @@ examples:
     parser.add_argument("-o", "--output", type=Path, help="write to this file instead of stdout")
     parser.add_argument("--line", type=int, help=_LINE_HELP)
     args = parser.parse_args(argv)
-    _require_output_not_input(args.output, [args.input])
+    _require_usable_output(args.output, [args.input])
 
     try:
         loaded = _load_trace(args.input, args.line, parser)
         _write_output(loaded.payload().transcript, args.output)
+    except BrokenPipeError:
+        raise  # stdout closed; `main` handles it
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     return 0
@@ -352,7 +379,7 @@ examples:
             f"expected .json or .jsonl trace files, got directory: {directory}; "
             f"pass its traces instead, e.g. paitrace json {directory / '*.json'} --all"
         )
-    _require_output_not_input(args.output, inputs)
+    _require_usable_output(args.output, inputs)
     try:
         multiple = len(inputs) > 1
         if multiple and Path("-") in inputs:
@@ -370,11 +397,13 @@ examples:
             return 0
 
         input_path = inputs[0] if inputs else None
-        loaded = _load_trace(input_path, args.line, parser)
+        loaded = _load_trace(input_path, args.line, parser, offer_all=True)
         from .compact import format_compact_json
 
         rendered = format_compact_json(loaded.payload(), indent=2 if args.pretty else None)
         _write_output(rendered, args.output)
+    except BrokenPipeError:
+        raise  # stdout closed; `main` handles it
     except (scan.TraceLookupError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
     return 0
@@ -444,22 +473,32 @@ def _stats_files(path: Path, *, prefix: bool) -> list[tuple[Path, str]]:
     if not path.is_dir():
         return [(path, path.as_posix())]
     base = path.parent if prefix else path
-    return [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
+    files = [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
+    if not files:
+        raise CliError(f"no .json or .jsonl traces found under {path}")
+    return files
 
 
 def _load_trace(
     input_path: Path | None,
     line: int | None,
     parser: argparse.ArgumentParser,
+    *,
+    offer_all: bool = False,
 ) -> LoadedTrace:
-    if input_path is None or input_path == Path("-"):
-        text = _read_stdin(parser, explicit=input_path == Path("-"))
-        format = scan.detect_trace_format(text)
-        selected = scan.select_trace(text, format=format, name="stdin", line=line)
-        return LoadedTrace(selected, "stdin")
+    """Load one trace; `offer_all` names `--all` as an alternative to `--line`."""
+    try:
+        if input_path is None or input_path == Path("-"):
+            text = _read_stdin(parser, explicit=input_path == Path("-"))
+            format = scan.detect_trace_format(text)
+            selected = scan.select_trace(text, format=format, name="stdin", line=line)
+            return LoadedTrace(selected, "stdin")
 
-    format = _require_trace_file(input_path)
-    text = scan.read_trace(input_path.parent, input_path.name, line)
+        format = _require_trace_file(input_path)
+        text = scan.read_trace(input_path.parent, input_path.name, line)
+    except scan.LineSelectionError as exc:
+        choices = f"--line 1..{exc.count}" + (", or --all for every trace" if offer_all else "")
+        raise CliError(f"{exc.name!r} has {exc.count} traces; pass {choices}") from exc
     selected_line = (line or 1) if format == "jsonl" else None
     name = (
         f"{input_path.name} · trace {selected_line}"
@@ -573,9 +612,17 @@ def _require_trace_file(input_path: Path) -> Literal["json", "jsonl"]:
     return scan.TRACE_SUFFIXES[input_path.suffix]
 
 
-def _require_output_not_input(output: Path | None, inputs: Iterable[Path | None]) -> None:
-    """Refuse to write over an input, under any path that names the same file."""
-    if output is None or not output.exists():
+def _require_usable_output(output: Path | None, inputs: Iterable[Path | None]) -> None:
+    """Require an existing output directory, and refuse to write over an input.
+
+    A missing directory is an error rather than created, so a mistyped `--output` path
+    does not leave new directories behind.
+    """
+    if output is None:
+        return
+    if not output.parent.is_dir():
+        raise CliError(f"output directory does not exist: {output.parent}")
+    if not output.exists():
         return
     for path in inputs:
         if path is not None and path != Path("-") and path.exists() and output.samefile(path):
