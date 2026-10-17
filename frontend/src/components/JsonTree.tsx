@@ -1,9 +1,6 @@
-import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { formatBytes } from "../format";
 import { jsonEntries } from "../json";
 
-const LARGE_STRING_BYTES = 10_000;
 /** Entries an array or object shows before a "show more" button; keeps huge tool results cheap. */
 export const JSON_PAGE_SIZE = 100;
 
@@ -76,14 +73,7 @@ function JsonEntries({ entries }: { entries: readonly (readonly [string, unknown
 }
 
 function JsonPrimitive({ value }: { value: unknown }) {
-  if (typeof value === "string") {
-    const size = byteLength(value);
-    const rendered = <JsonString value={value} />;
-    if (size > LARGE_STRING_BYTES) {
-      return <CollapsedPayload sizeLabel={formatBytes(size)}>{rendered}</CollapsedPayload>;
-    }
-    return rendered;
-  }
+  if (typeof value === "string") return <JsonString value={value} />;
   if (typeof value === "number") return <span class="json-num">{String(value)}</span>;
   if (typeof value === "boolean") return <span class="json-bool">{String(value)}</span>;
   return <span class="json-null">null</span>;
@@ -97,27 +87,3 @@ function JsonString({ value }: { value: string }) {
   if (value.includes("\n")) return <div class="json-string json-block">{value}</div>;
   return <span class="json-string">{JSON.stringify(value)}</span>;
 }
-
-/** Inline-collapsed wrapper for payloads too large to render eagerly. */
-export function CollapsedPayload({
-  sizeLabel,
-  children,
-}: {
-  sizeLabel: string;
-  children: ComponentChildren;
-}) {
-  return (
-    <details class="collapsible">
-      <summary>
-        <span class="badge">{sizeLabel}</span> click to expand
-      </summary>
-      {children}
-    </details>
-  );
-}
-
-export function byteLength(value: string): number {
-  return new Blob([value]).size;
-}
-
-export const LARGE_PAYLOAD_BYTES = LARGE_STRING_BYTES;

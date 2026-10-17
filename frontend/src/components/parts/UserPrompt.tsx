@@ -1,5 +1,5 @@
 import { Bookmark, Paperclip, User } from "lucide-preact";
-import { compactJson } from "../../format";
+import { markdownPreview } from "../../format";
 import type { UserContentItem, UserPromptPart } from "../../types";
 import { Block } from "../Block";
 import { JsonTree } from "../JsonTree";
@@ -31,13 +31,22 @@ function userContentItems(content: UserPromptPart["content"]): UserContentItem[]
   return Array.isArray(content) ? content : [content];
 }
 
-/** A scalar string and an equivalent one-item sequence get the same preview. */
+/**
+ * Text items as plain text, every other item as a short `[label]`, so a
+ * preview never carries base64. A scalar string and an equivalent one-item
+ * sequence get the same preview.
+ */
 function userContentPreview(items: UserContentItem[]): string {
-  if (items.length === 1) {
-    const text = userContentText(items[0]);
-    if (text !== null) return text;
-  }
-  return compactJson(items);
+  return items.map(itemPreview).join(" ");
+}
+
+function itemPreview(item: UserContentItem): string {
+  if (typeof item === "string") return markdownPreview(item);
+  if (item.kind === "text-content") return markdownPreview(item.content);
+  if (item.kind === "cache-point") return "[cache point]";
+  // Like the media chip, a binary is named by its identifier.
+  if (item.kind === "binary") return `[${item.identifier} · ${item.media_type}]`;
+  return `[${item.media_type}]`;
 }
 
 function userContentText(item: UserContentItem | string): string | null {

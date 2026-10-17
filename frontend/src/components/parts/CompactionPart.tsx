@@ -1,4 +1,5 @@
 import { Archive } from "lucide-preact";
+import { markdownPreview } from "../../format";
 import type { CompactionPart as CompactionPartType } from "../../types";
 import { Block } from "../Block";
 import { ValueView } from "./common";
@@ -14,7 +15,7 @@ export function CompactionPart({ part }: { part: CompactionPartType }) {
       }
       tone="assistant"
       badges={part.provider_name ? <span class="badge">{part.provider_name}</span> : null}
-      preview={part.content ?? "history compacted"}
+      preview={part.content ? markdownPreview(part.content) : "history compacted"}
     >
       {part.content ? (
         <ValueView value={part.content} markdown />

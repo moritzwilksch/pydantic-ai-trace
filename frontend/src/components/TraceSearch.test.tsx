@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
 import { createRef } from "preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Block } from "./Block";
 import { TraceSearch } from "./TraceSearch";
 
 class TestHighlight {
@@ -34,6 +35,29 @@ afterEach(() => {
 });
 
 describe("TraceSearch", () => {
+  it("ignores the collapsed block's more hint", async () => {
+    const rootRef = createRef<HTMLDivElement>();
+    const { container, getByRole, getByText } = render(
+      <>
+        <TraceSearch rootRef={rootRef} />
+        <div ref={rootRef}>
+          <div class="part" data-nav>
+            <Block label="Text" preview={"long preview ".repeat(10)}>
+              one more line
+            </Block>
+          </div>
+        </div>
+      </>,
+    );
+    expect(container.querySelector(".preview-more")?.textContent).toBe("more");
+
+    fireEvent.input(getByRole("searchbox", { name: "Search trace" }), {
+      target: { value: "more" },
+    });
+
+    await waitFor(() => expect(getByText("1 / 1")).not.toBeNull());
+  });
+
   it("activates the first match while typing, opens its collapsed parents, and highlights all matches", async () => {
     const rootRef = createRef<HTMLDivElement>();
     const { getByRole, getByText } = render(

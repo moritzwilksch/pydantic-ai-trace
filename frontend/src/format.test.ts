@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   cacheHitRate,
   compactJson,
-  formatBytes,
   formatCost,
   formatCount,
   formatDuration,
   formatTotalsCost,
+  markdownPreview,
   parseJsonContainer,
 } from "./format";
 import { parseJson } from "./json";
@@ -108,8 +108,23 @@ describe("formatDuration", () => {
   });
 });
 
-describe("formatBytes", () => {
-  it("picks the unit by size", () => {
-    expect([512, 1536, 3 * 1024 * 1024].map(formatBytes)).toEqual(["512 B", "1.5 KB", "3.0 MB"]);
+describe("markdownPreview", () => {
+  it("strips inline and block markdown syntax", () => {
+    expect(markdownPreview("# Title\n\n- **bold** and *em* and ~~gone~~\n> `code`")).toBe(
+      "Title bold and em and gone code",
+    );
+    expect(markdownPreview("![chart](a.png) [link](https://x.test)")).toBe("chart link");
+    expect(markdownPreview("```python\nprint(1)\n```")).toBe("print(1)");
+  });
+
+  it("keeps underscores and asterisks that are not emphasis", () => {
+    expect(markdownPreview("call snake_case_name with 2 * 3 * 4")).toBe(
+      "call snake_case_name with 2 * 3 * 4",
+    );
+  });
+
+  it("truncates long text without scanning all of it", () => {
+    const preview = markdownPreview(`**${"a".repeat(1_000)}**`, 20);
+    expect(preview).toBe(`${"a".repeat(19)}…`);
   });
 });

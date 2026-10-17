@@ -52,6 +52,27 @@ function compact(value: unknown, limit: number): string {
 }
 
 /**
+ * One-line plain-text preview of markdown, e.g. `**Done.** See [docs](…)` → `Done. See docs`.
+ * Strips common syntax with a few regexes over a bounded prefix instead of
+ * parsing, so every collapsed block can afford it.
+ */
+export function markdownPreview(source: string, maxLength = 200): string {
+  const prefix = source.slice(0, maxLength * 2);
+  const text = prefix
+    .replace(/^\s{0,3}(```|~~~).*$/gm, "") // code fences
+    .replace(/^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, "") // block markers
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links and images
+    .replace(/(\*\*|__|~~)(?=\S)(.+?)(?<=\S)\1/g, "$2")
+    .replace(/\*\*/g, "") // bold cut off by the prefix bound
+    .replace(/(?<!\w)([*_])(?=\S)(.+?)(?<=\S)\1(?!\w)/g, "$2")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  const truncated = text.length > maxLength || prefix.length < source.length;
+  return truncated ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+/**
  * Cache hit rate in percent, or null when nothing was cached.
  *
  * Providers disagree on whether `input_tokens` includes cache reads (OpenAI:
@@ -84,13 +105,6 @@ export function formatDuration(seconds: number): string {
 /** A percentage to one decimal, e.g. `42.5%`. */
 export function formatPercent(percent: number): string {
   return `${percent.toFixed(1)}%`;
-}
-
-/** A byte size in B, KB, or MB, e.g. `1.5 KB`. */
-export function formatBytes(length: number): string {
-  if (length < 1024) return `${length} B`;
-  if (length < 1024 * 1024) return `${(length / 1024).toFixed(1)} KB`;
-  return `${(length / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /** A cost in USD from its exact decimal string, e.g. `$0.0028`. */

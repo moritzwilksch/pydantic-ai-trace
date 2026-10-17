@@ -1,8 +1,7 @@
 import { FileText, Film, ImageIcon, ImageOff, Paperclip, Volume2 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { byteLength, CollapsedPayload, JsonTree, LARGE_PAYLOAD_BYTES } from "../JsonTree";
-import { formatBytes } from "../../format";
+import { JsonTree } from "../JsonTree";
 import { Markdown } from "../Markdown";
 
 /** Linked-chip icons for `*-url` attachments; unknown url kinds get a paperclip. */
@@ -164,8 +163,7 @@ export function ToolReturnValue({ content }: { content: unknown }) {
 
 /**
  * Markdown for strings, JsonTree for anything else. Every rendering is clamped
- * to the display max height (scrolls internally); very large strings render
- * collapsed so the DOM stays small.
+ * to the display max height (scrolls internally).
  */
 export function ValueView({
   value,
@@ -177,16 +175,15 @@ export function ValueView({
   preserveNewlines?: boolean;
 }) {
   if (typeof value === "string") {
-    const body = markdown ? (
-      <Markdown source={value} preserveNewlines={preserveNewlines} />
-    ) : (
-      <pre class="raw-text">{value}</pre>
+    return (
+      <div class="clamp">
+        {markdown ? (
+          <Markdown source={value} preserveNewlines={preserveNewlines} />
+        ) : (
+          <pre class="raw-text">{value}</pre>
+        )}
+      </div>
     );
-    const size = byteLength(value);
-    if (size > LARGE_PAYLOAD_BYTES) {
-      return <CollapsedPayload sizeLabel={formatBytes(size)}>{body}</CollapsedPayload>;
-    }
-    return <div class="clamp">{body}</div>;
   }
   return (
     <div class="clamp">

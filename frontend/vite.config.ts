@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
@@ -9,6 +10,10 @@ export default defineConfig({
   build: {
     outDir: "../src/pydantic_ai_trace/static",
     emptyOutDir: true,
+  },
+  // Tests that assert visibility read the real stylesheet.
+  test: {
+    css: { include: [/index\.css/] },
   },
   server: {
     proxy: {

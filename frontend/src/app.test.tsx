@@ -1005,10 +1005,7 @@ describe("App in exported-trace mode", () => {
 
     const { container } = render(<App />);
     const previews = Array.from(container.querySelectorAll(".tone-user .block-preview"));
-    expect(previews.map((preview) => preview.textContent)).toEqual([
-      "same **prompt**",
-      "same **prompt**",
-    ]);
+    expect(previews.map((preview) => preview.textContent)).toEqual(["same prompt", "same prompt"]);
     expect(container.querySelectorAll(".tone-user .markdown strong")).toHaveLength(2);
   });
 
@@ -1089,23 +1086,73 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".json-tree")?.textContent).not.toContain("\\n");
   });
 
-  it("measures large JSON strings in UTF-8 bytes", () => {
+  it("reveals a large tool return with one click", () => {
+    const large = "row ".repeat(5_000);
     embedMessages([
       {
-        kind: "response",
+        kind: "request",
+        parts: [
+          { part_kind: "tool-return", tool_name: "dump", content: large },
+          { part_kind: "tool-return", tool_name: "fetch", content: { rows: large } },
+        ],
+      },
+    ]);
+    const { getByText } = render(<App />);
+
+    for (const toolName of ["dump", "fetch"]) {
+      const block = getByText(toolName).closest("details")!;
+      fireEvent.click(block.querySelector("summary")!);
+      expect(block.open).toBe(true);
+      expect(block.querySelectorAll("details")).toHaveLength(0);
+      expect(block.querySelector(".block-body")?.textContent).toContain(large.trim());
+    }
+  });
+
+  it("previews user media as labels, never as base64", () => {
+    embedMessages([
+      {
+        kind: "request",
         parts: [
           {
-            part_kind: "tool-return",
-            tool_name: "echo",
-            content: { value: "é".repeat(6_000) },
+            part_kind: "user-prompt",
+            content: [
+              "Does the **receipt** match?",
+              {
+                kind: "binary",
+                data: "iVBORw0KGgo=",
+                media_type: "image/png",
+                identifier: "receipt.png",
+              },
+              { kind: "document-url", url: "https://x.test/a.pdf", media_type: "application/pdf" },
+              { kind: "cache-point" },
+            ],
           },
         ],
       },
     ]);
     const { container } = render(<App />);
 
-    expect(container.querySelector(".json-tree details.collapsible")?.textContent).toContain(
-      "11.7 KB",
+    expect(container.querySelector(".tone-user .block-preview")?.textContent).toBe(
+      "Does the receipt match? [receipt.png · image/png] [application/pdf] [cache point]",
+    );
+  });
+
+  it("previews markdown as plain text", () => {
+    embedMessages([
+      {
+        kind: "response",
+        parts: [
+          {
+            part_kind: "text",
+            content: "## Result\n**Done.** See [the docs](https://x.test) for `run_id`.",
+          },
+        ],
+      },
+    ]);
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".block-preview")?.textContent).toBe(
+      "Result Done. See the docs for run_id.",
     );
   });
 
