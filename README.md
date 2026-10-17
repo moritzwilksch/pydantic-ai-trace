@@ -2,8 +2,10 @@
 
 Inspect [Pydantic AI](https://ai.pydantic.dev) agent runs in your browser. Point `paitrace` at a `list[ModelMessage]` dump, a trajectory of several runs, or a directory of them. It reads the files from disk, reloads them when they change, and exports any trace as a self-contained HTML file. No hosted service, no account.
 
-<img width="1196" height="791" alt="image" src="https://github.com/user-attachments/assets/bfdfb570-69be-4c2f-811b-4fe8182f8601" />
-
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/moritzwilksch/pydantic-ai-trace/main/docs/screenshot-dark.png">
+  <img alt="The paitrace viewer showing a research agent run, its tool calls, and the fact_checker subagent it started" src="https://raw.githubusercontent.com/moritzwilksch/pydantic-ai-trace/main/docs/screenshot-light.png" width="1400">
+</picture>
 
 ## What you can inspect
 
@@ -196,6 +198,7 @@ pixi run gen-types   # regenerate frontend/src/generated/payload.ts from the Pyt
 pixi run lint        # ruff, prettier, and eslint
 pixi run typecheck   # pyright and TypeScript
 pixi run build       # bundled frontend plus sdist and wheel
+pixi run screenshots # re-render docs/screenshot-{light,dark}.png for this README
 ```
 
 ## Releasing
