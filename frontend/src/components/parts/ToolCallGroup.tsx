@@ -1,4 +1,4 @@
-import { Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
+import { Bot, Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
 import { compactJson } from "../../format";
 import type { RunEntry } from "../../runIndex";
 import {
@@ -11,7 +11,7 @@ import {
   type ToolSearchReturnContent,
 } from "../../types";
 import { Block } from "../Block";
-import { ChildRunCard } from "../ChildRunCard";
+import { ChildRunCard, OutcomeBadge } from "../ChildRunCard";
 import { ToolReturnValue, ValueView } from "./common";
 
 /**
@@ -45,6 +45,9 @@ export function ToolCallGroup({
         {part.part_kind === "builtin-tool-call" ? <span class="badge">builtin</span> : null}
         {part.tool_kind ? <span class="badge">{part.tool_kind}</span> : null}
         <ResultBadge result={result} />
+        {childRuns.map((child) => (
+          <ChildRunLink key={child.run.id} entry={child} onOpen={onOpenRun} />
+        ))}
         {argsPreview ? (
           <span
             class="block-preview"
@@ -125,6 +128,27 @@ function StartedRuns({
         <ChildRunCard key={child.run.id} entry={child} onOpen={onOpenRun} />
       ))}
     </div>
+  );
+}
+
+/** Names a started run in the collapsed header and opens it without toggling the call. */
+function ChildRunLink({ entry, onOpen }: { entry: RunEntry; onOpen: (runId: string) => void }) {
+  const { run } = entry;
+  return (
+    <button
+      type="button"
+      class="child-run-link"
+      title={`Open run ${run.name}`}
+      onClick={(event) => {
+        event.preventDefault(); // a click inside <summary> would also toggle the call
+        event.stopPropagation();
+        onOpen(run.id);
+      }}
+    >
+      <Bot size={12} />
+      <span class="child-run-link-name">{run.name}</span>
+      <OutcomeBadge status={run.outcome.status} />
+    </button>
   );
 }
 

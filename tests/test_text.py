@@ -198,7 +198,7 @@ def test_a_trajectory_renders_each_run_in_tree_order():
         "========== RUN: subagent ==========",
         "========== RUN: summarizer ==========",
     ]
-    assert "PARENT: worker via tool call call_1" in text
+    assert "PARENT: worker (worker) · RESPONSE 1 · TOOL CALL: ask_subagent" in text
     assert "OUTCOME: completed" in text
 
 
@@ -262,3 +262,40 @@ def test_binary_content_is_named_by_its_identifier():
     text = transcript(trace, "receipt.json")
 
     assert "[binary: receipt.png, image/png, 2 B, payload omitted]" in text
+
+
+def test_parent_and_started_runs_name_each_other():
+    """Two calls to one tool in one response: each call names the run it started."""
+
+    def run(run_id: str, parent: dict | None, messages: list[dict]) -> dict:
+        return {
+            "id": run_id,
+            "name": run_id,
+            "parent": parent,
+            "started_at": "2026-01-01T09:00:00Z",
+            "ended_at": "2026-01-01T09:00:01Z",
+            "outcome": {"status": "completed"},
+            "messages": json.loads(messages_json(messages)),
+        }
+
+    calls = {
+        "kind": "response",
+        "parts": [
+            {"part_kind": "tool-call", "tool_name": "delegate", "args": {}, "tool_call_id": c}
+            for c in ("call_a", "call_b")
+        ],
+    }
+    runs = [
+        run("orchestrator", None, [request(), calls]),
+        run("a", {"run_id": "orchestrator", "tool_call_id": "call_a"}, [request()]),
+        run("b", {"run_id": "orchestrator", "tool_call_id": "call_b"}, [request()]),
+        run("checker", {"run_id": "orchestrator", "tool_call_id": None}, [request()]),
+    ]
+
+    text = transcript(json.dumps({"runs": runs}), "t")
+
+    first_call, second_call = text.split("--- TOOL CALL: delegate ---")[1:]
+    assert "STARTED RUN: a (a)" in first_call.split("--- TOOL CALL")[0]
+    assert "STARTED RUN: b (b)" in second_call.split("==========")[0]
+    assert "PARENT: orchestrator (orchestrator) · RESPONSE 1 · TOOL CALL: delegate" in text
+    assert "PARENT: orchestrator (orchestrator)\n" in text

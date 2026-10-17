@@ -151,6 +151,8 @@ class TestTree:
         worker = next(run for run in analysis.runs if run.run_id == "worker")
         assert worker.tool_calls[0].child_run_ids == ("subagent",)
         assert worker.nested_run_ids == ("validator",)
+        assert worker.child_run_ids == ("validator", "subagent")  # by start
+        assert analysis.root_run_ids == ("planner", "worker", "summarizer")
 
     def test_a_missing_parent_is_flagged(self):
         child = single_run(

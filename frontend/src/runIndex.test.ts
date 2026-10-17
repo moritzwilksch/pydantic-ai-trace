@@ -32,4 +32,20 @@ describe("indexTrajectory", () => {
     ]);
     expect(trajectory.ancestors("")).toEqual([]);
   });
+
+  it("orders runs as the payload's analysis does, without re-sorting", () => {
+    const payload = payloadFromRuns([
+      { id: "a", name: "a", messages: text("a") },
+      { id: "b", name: "b", messages: text("b") },
+      { id: "x", name: "x", parent: { run_id: "a", tool_call_id: null }, messages: text("x") },
+      { id: "y", name: "y", parent: { run_id: "a", tool_call_id: null }, messages: text("y") },
+    ]);
+    payload.analysis.root_run_ids = ["b", "a"];
+    payload.analysis.runs[0].child_run_ids = ["y", "x"];
+
+    const trajectory = indexTrajectory(payload);
+
+    expect(trajectory.roots.map((entry) => entry.run.id)).toEqual(["b", "a"]);
+    expect(trajectory.children("a").map((entry) => entry.run.id)).toEqual(["y", "x"]);
+  });
 });

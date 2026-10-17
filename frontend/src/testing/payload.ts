@@ -39,7 +39,14 @@ export function payloadFromRuns(
   return {
     name,
     trajectory: { runs: runs as [Run, ...Run[]] },
-    analysis: { totals: sumTotals(analyses.map((a) => a.totals)), runs: analyses },
+    analysis: {
+      totals: sumTotals(analyses.map((a) => a.totals)),
+      runs: analyses,
+      // Tree order is spec order here.
+      root_run_ids: runs
+        .filter((run) => run.parent === null || !runs.some((r) => r.id === run.parent!.run_id))
+        .map((run) => run.id),
+    },
     transcript,
   };
 }
@@ -140,6 +147,7 @@ function analyzeRun(run: Run, runs: Run[]): RunAnalysis {
     responses,
     tool_calls: calls,
     matched_results: matched,
+    child_run_ids: runs.filter((child) => child.parent?.run_id === run.id).map((child) => child.id),
     nested_run_ids: runs
       .filter((child) => child.parent?.run_id === run.id && child.parent.tool_call_id === null)
       .map((child) => child.id),

@@ -119,11 +119,39 @@ class TestTrajectory:
 
         assert Trajectory.model_validate_json(trajectory.model_dump_json()) == trajectory
 
-    def test_roots_and_children_are_sorted_by_start(self):
+    def test_roots_and_unrelated_siblings_are_sorted_by_start(self):
         trajectory = Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
 
         assert [run.name for run in trajectory.roots()] == ["planner", "worker", "summarizer"]
         assert [run.name for run in trajectory.children(RunId("worker"))] == ["subagent"]
+
+    def test_children_started_by_tool_calls_follow_the_calls(self):
+        """Parallel calls start in any order; the tree reads in the model's call order."""
+        calls = ModelResponse(
+            parts=[
+                ToolCallPart(tool_name="delegate", args={}, tool_call_id=call_id)
+                for call_id in ("first", "second")
+            ],
+            timestamp=at(0),
+        )
+        parent = run("parent", messages=(calls,))
+        second = run(
+            "second",
+            parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("second")),
+            started_at=at(1),
+        )
+        nested = run("nested", parent=Parent(run_id=RunId("parent")), started_at=at(2))
+        first = run(
+            "first",
+            parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("first")),
+            started_at=at(3),
+        )
+
+        trajectory = Trajectory(runs=(nested, second, first, parent))
+
+        # The nested run keeps its place by start time.
+        children = trajectory.children(RunId("parent"))
+        assert [child.name for child in children] == ["first", "nested", "second"]
 
     def test_from_named_messages_builds_one_root_per_name(self):
         trajectory = Trajectory.from_named_messages(

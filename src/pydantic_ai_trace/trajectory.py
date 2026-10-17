@@ -122,7 +122,7 @@ class Run(_Frozen):
 
 
 class Trajectory(_Frozen):
-    # End order. Sort siblings by `started_at`.
+    # End order. `roots`, `children`, and `walk` give tree order.
     runs: Annotated[tuple[Run, ...], Field(min_length=1)]
 
     @model_validator(mode="after")
@@ -190,12 +190,30 @@ class Trajectory(_Frozen):
 
     @cached_property
     def _children(self) -> dict[RunId | None, list[Run]]:
-        """Children by parent ID, sorted by start; roots are under `None`."""
-        ids = {run.id for run in self.runs}
+        """Children by parent ID in tree order; roots are under `None`.
+
+        Siblings sort by start, except that runs started by tool calls fill their slots
+        in the order of those calls, so parallel calls read in the order the model made
+        them.
+        """
+        by_id = {run.id: run for run in self.runs}
         children: dict[RunId | None, list[Run]] = {None: []}
         for run in sorted(self.runs, key=lambda run: run.started_at):
-            parent_id = run.parent.run_id if run.parent and run.parent.run_id in ids else None
+            parent_id = run.parent.run_id if run.parent and run.parent.run_id in by_id else None
             children.setdefault(parent_id, []).append(run)
+        for parent_id, siblings in children.items():
+            if parent_id is None:
+                continue
+            position = _tool_call_positions(by_id[parent_id])
+            slots = [
+                (index, position[run.parent.tool_call_id], run)
+                for index, run in enumerate(siblings)
+                if run.parent is not None and run.parent.tool_call_id is not None
+            ]
+            # Stable: runs started by the same call keep their start order.
+            called = sorted(slots, key=lambda slot: slot[1])
+            for (index, _, _), (_, _, run) in zip(slots, called, strict=True):
+                siblings[index] = run
         return children
 
 
@@ -237,6 +255,17 @@ def _datetime(value: object) -> datetime | None:
         return _as_utc(datetime.fromisoformat(value))
     except ValueError:
         return None
+
+
+def _tool_call_positions(run: Run) -> dict[str, int]:
+    """Each tool call ID's position among the run's tool calls."""
+    ids = [
+        part.tool_call_id
+        for message in run.messages
+        for part in message.parts
+        if isinstance(part, BaseToolCallPart)
+    ]
+    return {call_id: index for index, call_id in reversed(list(enumerate(ids)))}
 
 
 def _tool_call_counts(run: Run) -> Counter[str]:

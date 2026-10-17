@@ -75,12 +75,14 @@ class RunAnalysis(_Frozen):
     responses: tuple[ResponseInfo, ...]
     tool_calls: tuple[ToolCallInfo, ...]
     matched_results: tuple[PartRef, ...]
+    child_run_ids: tuple[RunId, ...]  # Recorded children, in tree order.
     nested_run_ids: tuple[RunId, ...]  # Children not started by a tool call.
 
 
 class Analysis(_Frozen):
     totals: Totals
     runs: tuple[RunAnalysis, ...]  # Same order as `Trajectory.runs`.
+    root_run_ids: tuple[RunId, ...]  # Top-level runs, in tree order.
 
 
 def analyze(trajectory: Trajectory) -> Analysis:
@@ -109,7 +111,11 @@ def analyze(trajectory: Trajectory) -> Analysis:
         )
         for run in trajectory.runs
     )
-    return Analysis(totals=combine_totals(own.values(), _span(trajectory.runs)), runs=runs)
+    return Analysis(
+        totals=combine_totals(own.values(), _span(trajectory.runs)),
+        runs=runs,
+        root_run_ids=tuple(run.id for run in trajectory.roots()),
+    )
 
 
 def _analyze_run(
@@ -133,6 +139,7 @@ def _analyze_run(
         ),
         tool_calls=tool_calls,
         matched_results=matched,
+        child_run_ids=tuple(child.id for child in children),
         nested_run_ids=tuple(
             child.id for child in children if child.parent and child.parent.tool_call_id is None
         ),
