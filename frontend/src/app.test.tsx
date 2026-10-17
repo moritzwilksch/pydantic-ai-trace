@@ -283,7 +283,7 @@ describe("App in exported-trace mode", () => {
     const link = within(toolCall.querySelector("summary")!).getByRole("button", {
       name: /fact_checker/,
     });
-    expect(link.textContent).toContain("failed");
+    expect(link.textContent).toBe("→ fact_checker failed");
 
     // Cancelling the click keeps <summary> from also toggling the call; jsdom does not toggle.
     expect(fireEvent.click(link)).toBe(false);
@@ -789,7 +789,7 @@ describe("App in exported-trace mode", () => {
     expect(details.every((block) => !block.open)).toBe(true);
   });
 
-  it("shows a compact args preview on tool call summaries", () => {
+  it("shows tool call arguments signature-style on the summary", () => {
     embedMessages([
       {
         kind: "response",
@@ -804,8 +804,8 @@ describe("App in exported-trace mode", () => {
       },
     ]);
     const { container } = render(<App />);
-    const preview = container.querySelector(".tool-group .block-preview");
-    expect(preview?.textContent).toBe('path: "src/app.py"');
+    const signature = container.querySelector(".tool-group .tool-signature");
+    expect(signature?.textContent).toBe('read_file(path: "src/app.py")');
     // everything starts collapsed; the summary preview carries the skim info
     expect(container.querySelector<HTMLDetailsElement>(".tool-group")?.open).toBe(false);
     // no per-node JSON toggles: args render as plain nodes once expanded
@@ -864,9 +864,11 @@ describe("App in exported-trace mode", () => {
     expect(output.open).toBe(true);
     expect(output.querySelector(".tool-name")?.textContent).toBe("answer");
     expect(output.querySelector(".block-body")?.textContent).toContain("Berlin");
-    expect(container.querySelector(".output-accepted")?.textContent?.trim()).toBe(
-      "Output accepted answer",
-    );
+    // Both ends keep the call's number, so the numbering has no gap.
+    expect(output.querySelector(".pair-link")?.ariaLabel).toBe("Jump to result of call #2");
+    const accepted = container.querySelector(".output-accepted")!;
+    expect(accepted.textContent?.trim()).toBe("Output accepted answer#2");
+    expect(accepted.querySelector(".pair-link")?.ariaLabel).toBe("Jump to call #2");
     expect(container.textContent).not.toContain("Tool return");
   });
 

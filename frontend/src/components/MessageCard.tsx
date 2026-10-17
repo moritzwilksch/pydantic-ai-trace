@@ -12,7 +12,13 @@ import { SystemPrompt } from "./parts/SystemPrompt";
 import { TextPart } from "./parts/TextPart";
 import { ThinkingPart } from "./parts/ThinkingPart";
 import { ToolAvailabilityDelta } from "./parts/ToolAvailabilityDelta";
-import { OutputAccepted, OutputCall, ToolCallGroup, ToolReturn } from "./parts/ToolCallGroup";
+import {
+  OutputAccepted,
+  OutputCall,
+  pairedCall,
+  ToolCallGroup,
+  ToolReturn,
+} from "./parts/ToolCallGroup";
 import { UserPrompt } from "./parts/UserPrompt";
 
 /**
@@ -66,7 +72,7 @@ export function MessageCard({
           </div>
         ) : null}
         {visibleParts.map(({ part, partIndex }) => (
-          <div class="part" data-nav key={partIndex}>
+          <div class="part" data-nav data-part={`${messageIndex}:${partIndex}`} key={partIndex}>
             <PartView
               part={part}
               messageIndex={messageIndex}
@@ -125,35 +131,46 @@ function PartView({
       return <ThinkingPart part={part} />;
     case "tool-call":
     case "builtin-tool-call": {
-      const info = run.toolCall(messageIndex, partIndex);
-      if (info?.is_output) {
+      const call = run.toolCall(messageIndex, partIndex);
+      if (call === undefined)
+        return <FallbackPart part={part as unknown as Record<string, unknown>} />;
+      const { info, number } = call;
+      if (info.is_output) {
         return (
           <OutputCall
             part={part}
+            number={number}
+            result={info.result}
             args={info.args}
             childRuns={run.childRuns(info)}
             onOpenRun={onOpenRun}
           />
         );
       }
+      const resultPart = info.result === null ? null : run.part(info.result);
       return (
         <ToolCallGroup
           part={part}
-          args={info?.args ?? null}
-          result={info ? run.toolResult(info) : null}
-          childRuns={info ? run.childRuns(info) : []}
+          number={number}
+          args={info.args}
+          result={
+            info.result !== null && resultPart !== null
+              ? { ref: info.result, part: resultPart }
+              : null
+          }
+          childRuns={run.childRuns(info)}
           onOpenRun={onOpenRun}
         />
       );
     }
     case "retry-prompt":
-      return <RetryPrompt part={part} />;
+      return <RetryPrompt part={part} call={pairedCall(run, messageIndex, partIndex)} />;
     case "tool-return":
-    case "builtin-tool-return":
-      if (run.isOutputResult(messageIndex, partIndex)) return <OutputAccepted part={part} />;
-      return (
-        <ToolReturn part={part} hasMatchingCall={run.isMatchedResult(messageIndex, partIndex)} />
-      );
+    case "builtin-tool-return": {
+      const call = pairedCall(run, messageIndex, partIndex);
+      if (call?.isOutput) return <OutputAccepted part={part} call={call} />;
+      return <ToolReturn part={part} call={call} />;
+    }
     case "compaction":
       return <CompactionPart part={part} />;
     case "file":

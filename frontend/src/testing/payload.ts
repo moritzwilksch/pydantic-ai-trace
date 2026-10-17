@@ -101,6 +101,9 @@ function withDefaults(raw: unknown): Message {
   } as unknown as Message;
 }
 
+/** Parts that answer a tool call, as `analysis.py` pairs them. */
+const RESULT_KINDS = new Set(["tool-return", "builtin-tool-return", "retry-prompt"]);
+
 function analyzeRun(run: Run, runs: Run[]): RunAnalysis {
   const pending = new Map<string, number[]>();
   const calls: ToolCallInfo[] = [];
@@ -122,8 +125,8 @@ function analyzeRun(run: Run, runs: Run[]): RunAnalysis {
             .map((child) => child.id),
         });
         pending.set(callId!, [...(pending.get(callId!) ?? []), calls.length - 1]);
-      } else if (callId !== undefined && callId !== null) {
-        const waiting = pending.get(callId);
+      } else if (RESULT_KINDS.has(part.part_kind)) {
+        const waiting = pending.get(callId!);
         if (!waiting?.length) return;
         const info = calls[waiting.shift()!];
         info.result = { message: m, part: p };

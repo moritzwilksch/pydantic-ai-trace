@@ -1,6 +1,6 @@
-import { Bot, Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
+import { Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
 import { compactJson } from "../../format";
-import type { RunEntry } from "../../runIndex";
+import type { RunEntry, RunIndex } from "../../runIndex";
 import {
   CAPABILITY_LOAD_KIND,
   TOOL_SEARCH_KIND,
@@ -8,28 +8,54 @@ import {
   type AnyToolReturnPart,
   type LoadCapabilityReturn,
   type Part,
+  type PartRef,
   type ToolSearchReturnContent,
 } from "../../types";
 import { Block } from "../Block";
-import { ChildRunCard, OutcomeBadge } from "../ChildRunCard";
+import { ChildRunCard } from "../ChildRunCard";
+import { focusPart } from "../KeyboardNav";
 import { ToolReturnValue, ValueView } from "./common";
 
+/** The call a tool return or retry prompt answers, as its header shows it. */
+export interface CallLink {
+  number: number;
+  ref: PartRef;
+  argsPreview: string;
+  /** The call is the run's accepted output call; see `ToolCallInfo.is_output`. */
+  isOutput: boolean;
+}
+
+export function pairedCall(run: RunIndex, message: number, part: number): CallLink | null {
+  const call = run.resultOf(message, part);
+  if (call === undefined) return null;
+  const callPart = run.part(call.info.call) as AnyToolCallPart;
+  return {
+    number: call.number,
+    ref: call.info.call,
+    argsPreview: callPreview(callPart, call.info.args),
+    isOutput: call.info.is_output,
+  };
+}
+
 /**
- * A tool call annotated with the status of its paired return/retry, and the runs
- * it started. The result itself remains in its original message so the trace
- * mirrors the source JSON.
+ * A tool call annotated with its number, a link to its paired return/retry and
+ * that result's status, and the runs it started. The result itself remains in
+ * its original message so the trace mirrors the source JSON.
  */
 export function ToolCallGroup({
   part,
+  number,
   args,
   result,
   childRuns,
   onOpenRun,
 }: {
   part: AnyToolCallPart;
+  /** 1-based position among the run's tool calls; the paired result shows the same number. */
+  number: number;
   /** The call's arguments, parsed from a JSON string where possible. */
   args: unknown;
-  result: Part | null;
+  result: { ref: PartRef; part: Part } | null;
   childRuns: RunEntry[];
   onOpenRun: (runId: string) => void;
 }) {
@@ -41,26 +67,26 @@ export function ToolCallGroup({
         <span class="block-label">
           <Wrench size={13} /> Tool call
         </span>
-        <span class="tool-name">{part.tool_name}</span>
+        <ToolSignature name={part.tool_name} args={argsPreview} />
         {part.part_kind === "builtin-tool-call" ? <span class="badge">builtin</span> : null}
         {part.tool_kind ? <span class="badge">{part.tool_kind}</span> : null}
-        <ResultBadge result={result} />
-        {childRuns.map((child) => (
-          <ChildRunLink key={child.run.id} entry={child} onOpen={onOpenRun} />
-        ))}
-        {argsPreview ? (
-          <span
-            class="block-preview"
-            title={hasTruncatedPreview ? "Expand to view full tool arguments" : argsPreview}
-          >
-            {argsPreview}
-          </span>
-        ) : null}
+        {result !== null ? <ResultBadge result={result.part} /> : null}
         {hasTruncatedPreview ? (
           <span class="preview-more" title="Expand to view full tool arguments">
             more
           </span>
         ) : null}
+        <span class="pair-end">
+          {childRuns.map((child) => (
+            <ChildRunLink key={child.run.id} entry={child} onOpen={onOpenRun} />
+          ))}
+          {result === null ? <span class="pair-missing">no return recorded</span> : null}
+          <PairNumber
+            number={number}
+            to={result?.ref ?? null}
+            label={`Jump to result of call #${number}`}
+          />
+        </span>
       </summary>
       <div class="tool-group-section">
         <div class="part-label">arguments</div>
@@ -73,15 +99,20 @@ export function ToolCallGroup({
 
 /**
  * The output tool call Pydantic AI accepted: its arguments are the run's structured
- * output, so they show open, as the answer rather than as a tool invocation.
+ * output, so they show open, as the answer rather than as a tool invocation. It keeps
+ * its call number, linking to the acceptance, so the run's numbering has no gaps.
  */
 export function OutputCall({
   part,
+  number,
+  result,
   args,
   childRuns,
   onOpenRun,
 }: {
   part: AnyToolCallPart;
+  number: number;
+  result: PartRef | null;
   args: unknown;
   childRuns: RunEntry[];
   onOpenRun: (runId: string) => void;
@@ -96,6 +127,11 @@ export function OutputCall({
       tone="assistant"
       badges={<span class="tool-name">{part.tool_name}</span>}
       preview={compactJson(args)}
+      trailing={
+        <span class="pair-end">
+          <PairNumber number={number} to={result} label={`Jump to result of call #${number}`} />
+        </span>
+      }
       defaultOpen
     >
       <ValueView value={args} />
@@ -105,10 +141,11 @@ export function OutputCall({
 }
 
 /** Pydantic AI's fixed status return for the accepted output call; boilerplate, so muted. */
-export function OutputAccepted({ part }: { part: AnyToolReturnPart }) {
+export function OutputAccepted({ part, call }: { part: AnyToolReturnPart; call: CallLink }) {
   return (
     <div class="output-accepted" title={compactJson(part.content)}>
       <Check size={13} /> Output accepted <span class="tool-name">{part.tool_name}</span>
+      <CallEnd call={call} />
     </div>
   );
 }
@@ -137,7 +174,7 @@ function ChildRunLink({ entry, onOpen }: { entry: RunEntry; onOpen: (runId: stri
   return (
     <button
       type="button"
-      class="child-run-link"
+      class="pair-link child-run-link"
       title={`Open run ${run.name}`}
       onClick={(event) => {
         event.preventDefault(); // a click inside <summary> would also toggle the call
@@ -145,21 +182,15 @@ function ChildRunLink({ entry, onOpen }: { entry: RunEntry; onOpen: (runId: stri
         onOpen(run.id);
       }}
     >
-      <Bot size={12} />
-      <span class="child-run-link-name">{run.name}</span>
-      <OutcomeBadge status={run.outcome.status} />
+      → <span class="child-run-link-name">{run.name}</span>
+      {run.outcome.status !== "completed" ? ` ${run.outcome.status}` : null}
     </button>
   );
 }
 
 /** A tool return rendered in its original message position. */
-export function ToolReturn({
-  part,
-  hasMatchingCall,
-}: {
-  part: AnyToolReturnPart;
-  hasMatchingCall: boolean;
-}) {
+export function ToolReturn({ part, call }: { part: AnyToolReturnPart; call: CallLink | null }) {
+  const preview = returnPreview(part);
   return (
     <Block
       label={
@@ -170,15 +201,62 @@ export function ToolReturn({
       tone="tool"
       badges={
         <>
-          <span class="tool-name">{part.tool_name}</span>
+          <ToolSignature name={part.tool_name} args={call?.argsPreview ?? null} />
           {part.tool_kind ? <span class="badge">{part.tool_kind}</span> : null}
-          {!hasMatchingCall ? <span class="badge warn">no matching call</span> : null}
+          {preview ? <span class="pair-arrow">→</span> : null}
         </>
       }
-      preview={returnPreview(part)}
+      preview={preview}
+      trailing={<CallEnd call={call} />}
     >
       <ToolReturnContent part={part} />
     </Block>
+  );
+}
+
+/**
+ * `name(args)`: a tool's name with its call's argument summary, shown on the call
+ * and on its result. `args` is null when the call is unknown.
+ */
+export function ToolSignature({ name, args }: { name: string; args: string | null }) {
+  return (
+    <span class="tool-signature">
+      <span class="tool-name">{name}</span>
+      {args !== null ? <span class="tool-args">({args})</span> : null}
+    </span>
+  );
+}
+
+/** The right edge of a result header: its call's number as a link, or an unpaired mark. */
+export function CallEnd({ call }: { call: CallLink | null }) {
+  return (
+    <span class="pair-end">
+      {call === null ? (
+        <span class="pair-missing">no matching call</span>
+      ) : (
+        <PairNumber number={call.number} to={call.ref} label={`Jump to call #${call.number}`} />
+      )}
+    </span>
+  );
+}
+
+/** A call's number; a link to the other end of the pair when that end exists. */
+function PairNumber({ number, to, label }: { number: number; to: PartRef | null; label: string }) {
+  if (to === null) return <span class="pair-number">#{number}</span>;
+  return (
+    <button
+      type="button"
+      class="pair-number pair-link"
+      aria-label={label}
+      title={label}
+      onClick={(event) => {
+        // The link sits in a <summary>; jumping must not also toggle the block.
+        event.preventDefault();
+        focusPart(to);
+      }}
+    >
+      #{number}
+    </button>
   );
 }
 
@@ -289,8 +367,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Only problems are badged — success is the unremarkable default. */
-function ResultBadge({ result }: { result: Part | null }) {
-  if (result === null) return <span class="badge warn">no return recorded</span>;
+function ResultBadge({ result }: { result: Part }) {
   if (result.part_kind === "retry-prompt") return <span class="badge error">retry</span>;
   const outcome = "outcome" in result ? result.outcome : undefined;
   if (outcome === "failed" || outcome === "denied") {

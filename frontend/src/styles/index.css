@@ -541,42 +541,6 @@ body {
   background: var(--bg-hover);
 }
 
-/* The same link, inline in a collapsed tool call's header. */
-.child-run-link {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-  padding: 0 6px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--bg-inset);
-  color: var(--text);
-  font: inherit;
-  font-size: 11px;
-  line-height: 16px;
-  white-space: nowrap;
-  max-width: 45%;
-  min-width: 0;
-  cursor: pointer;
-}
-
-.child-run-link svg {
-  flex-shrink: 0;
-}
-
-.child-run-link-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-mono);
-  font-weight: 600;
-}
-
-.child-run-link:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .child-run-stats {
   margin-left: auto;
   color: var(--text-dim);
@@ -1185,6 +1149,79 @@ details.collapsible > summary {
 .hljs-section,
 .hljs-built_in {
   color: var(--code-key);
+}
+
+/* ---- tool call/result pairing ---- */
+
+/* `name(args)`: the arguments truncate only once the preview after them is short. */
+.tool-signature {
+  display: inline-flex;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tool-signature .tool-name {
+  flex-shrink: 0;
+}
+
+.tool-args {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.pair-arrow {
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+/* Long arguments must not squeeze the result preview after the arrow to nothing. */
+.pair-arrow + .block-preview {
+  min-width: min(14ch, 25%);
+}
+
+/* The call's number (a link to the other end of the pair) at the header's right edge. */
+.pair-end {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.pair-number {
+  font-family: var(--font-mono);
+}
+
+.pair-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.pair-link:hover {
+  text-decoration: underline;
+}
+
+/* A run the call started, named in its header; long names truncate. */
+.child-run-link {
+  display: inline-flex;
+  gap: 0.5ch;
+  max-width: 28ch;
+  white-space: nowrap;
+}
+
+.child-run-link-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
 }
 
 /* ---- narrow screens: the sidebar overlays the trace ---- */
