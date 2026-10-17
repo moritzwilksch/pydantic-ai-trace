@@ -92,7 +92,73 @@ def test_a_user_tool_sharing_a_framework_tool_name_is_not_reinterpreted():
     text = transcript(trace, "lookalike.json")
 
     assert "QUERIES:" not in text
-    assert 'ARGUMENTS:\n{"queries":"not the framework shape"}' in text
+    assert 'ARGUMENTS:\nqueries: "not the framework shape"' in text
+
+
+def response(*parts: dict) -> dict:
+    return {"kind": "response", "timestamp": "2026-01-01T09:00:00Z", "parts": list(parts)}
+
+
+def test_multi_line_tool_args_print_as_indented_blocks():
+    patch = "for attempt in range(3):\n    retry()\n\nreturn done"
+    trace = messages_json(
+        [
+            response(
+                {
+                    "part_kind": "tool-call",
+                    "tool_name": "edit_file",
+                    "args": {"path": "a.py", "edits": [{"new": patch, "line": 3}]},
+                    "tool_call_id": "c1",
+                }
+            )
+        ]
+    )
+
+    text = transcript(trace, "edit.json")
+
+    assert (
+        "ARGUMENTS:\n"
+        'path: "a.py"\n'
+        "edits:\n"
+        "  - new: |\n"
+        "      for attempt in range(3):\n"
+        "          retry()\n"
+        "\n"
+        "      return done\n"
+        "    line: 3\n"
+    ) in text
+
+
+def test_structured_tool_returns_print_one_scalar_per_line():
+    trace = messages_json(
+        [
+            request(
+                {
+                    "part_kind": "tool-return",
+                    "tool_name": "lookup",
+                    "content": {
+                        "id": 7,
+                        "odd key: x\ny": "one line",
+                        "tags": [],
+                        "meta": {},
+                        "note": None,
+                    },
+                    "tool_call_id": "c1",
+                }
+            )
+        ]
+    )
+
+    text = transcript(trace, "return.json")
+
+    assert (
+        "--- TOOL RETURN: lookup ---\n\n"
+        "id: 7\n"
+        '"odd key: x\\ny": "one line"\n'
+        "tags: []\n"
+        "meta: {}\n"
+        "note: null\n"
+    ) in text
 
 
 def test_a_trajectory_renders_each_run_in_tree_order():

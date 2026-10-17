@@ -32,4 +32,10 @@ not json {
 
 --- TOOL RETURN: numbers [FAILED] ---
 
-{"1":"first","10":"tenth","2":"second","whole":1,"small":0.000001,"tiny":1e-7,"unicode":"café"}
+1: "first"
+10: "tenth"
+2: "second"
+whole: 1
+small: 0.000001
+tiny: 1e-7
+unicode: "café"
