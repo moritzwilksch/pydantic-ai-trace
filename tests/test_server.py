@@ -22,6 +22,16 @@ def client_for(root: Path) -> TestClient:
     return TestClient(create_app(root))
 
 
+# Prompt, answer, and model name each hold an escaped lone surrogate: valid JSON input
+# whose decoded text UTF-8 cannot encode.
+SURROGATE_TRACE = (
+    r'[{"kind":"request","parts":[{"part_kind":"user-prompt","content":"hi \ud800",'
+    r'"timestamp":"2026-01-01T00:00:00Z"}]},'
+    r'{"kind":"response","parts":[{"part_kind":"text","content":"ok \udfff"}],'
+    r'"model_name":"m\ud800","timestamp":"2026-01-01T00:00:01Z"}]'
+)
+
+
 class TestMeta:
     def test_directory_mode(self, fixtures_copy: Path):
         response = client_for(fixtures_copy).get("/api/meta")
@@ -72,6 +82,34 @@ class TestTree:
 
         assert tree["name"] == "selected traces"
         assert [child["name"] for child in tree["children"]] == ["runs", "full_trace.json"]
+
+    def test_lists_surrogate_summaries_beside_sibling_traces(self, tmp_path: Path):
+        (tmp_path / "surrogate.json").write_text(SURROGATE_TRACE, encoding="utf-8")
+        (tmp_path / "sibling.json").write_text(minimal_trace())
+
+        response = client_for(tmp_path).get("/api/tree")
+
+        assert response.status_code == 200
+        files = {child["name"]: child for child in response.json()["children"]}
+        assert files.keys() == {"sibling.json", "surrogate.json"}
+        [summary] = files["surrogate.json"]["traces"]
+        assert summary["prompt"] == "hi \ud800"
+        assert summary["answer"] == "ok \udfff"
+        assert summary["models"] == ["m\ud800"]
+
+    def test_collection_lists_surrogate_summaries(self, tmp_path: Path):
+        (tmp_path / "surrogate.json").write_text(SURROGATE_TRACE, encoding="utf-8")
+        (tmp_path / "sibling.json").write_text(minimal_trace())
+        collection = scan.TraceCollection.from_paths(
+            [tmp_path / "surrogate.json", tmp_path / "sibling.json"]
+        )
+
+        response = TestClient(create_app(collection)).get("/api/tree")
+
+        assert response.status_code == 200
+        files = {child["name"]: child for child in response.json()["children"]}
+        assert files["surrogate.json"]["traces"][0]["prompt"] == "hi \ud800"
+        assert files["sibling.json"]["traces"][0]["prompt"] == "hello"
 
 
 class TestTrace:
