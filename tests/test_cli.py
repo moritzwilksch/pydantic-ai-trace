@@ -85,6 +85,16 @@ class TestServeCommand:
         assert cli.main(["/definitely/not/here"]) == 1
         assert "does not exist" in capsys.readouterr().err
 
+    def test_directory_without_traces_is_served_with_a_note(
+        self, tmp_path: Path, serve_captures_app: dict, capsys: pytest.CaptureFixture
+    ):
+        (tmp_path / "notes.txt").write_text("hi")
+
+        assert cli.main([str(tmp_path), "--no-open"]) == 0
+        assert serve_captures_app["root"] == tmp_path
+        note = f"note: no .json or .jsonl traces found under {tmp_path} yet"
+        assert note in capsys.readouterr().err.splitlines()
+
     def test_non_trace_file_is_rejected(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         target = tmp_path / "notes.txt"
         target.write_text("hi")
@@ -673,6 +683,17 @@ class TestJsonCommand:
 
 
 class TestStatsCommand:
+    @pytest.mark.parametrize("as_json", [False, True])
+    def test_directory_without_traces_fails_with_message(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, as_json: bool
+    ):
+        (tmp_path / "empty").mkdir()
+
+        assert cli.main(["stats", str(tmp_path), *(["--json"] if as_json else [])]) == 1
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == f"error: no .json or .jsonl traces found under {tmp_path}\n"
+
     def test_summarizes_every_trace_under_a_directory_and_reports_invalid_ones(
         self, fixtures_copy: Path, capsys: pytest.CaptureFixture
     ):

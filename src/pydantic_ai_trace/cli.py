@@ -180,6 +180,9 @@ examples:
         raise CliError(f"path does not exist: {root}")
     if root.is_file() and root.suffix not in scan.TRACE_SUFFIXES:
         raise CliError(f"not a trace file (expected .json or .jsonl): {root}")
+    if root.is_dir() and next(scan.iter_trace_files(root), None) is None:
+        # Keep serving: the viewer lists traces as they are written.
+        print(f"note: no .json or .jsonl traces found under {root} yet", file=sys.stderr)
     return _serve_source(
         root,
         display_name=str(root),
@@ -470,7 +473,10 @@ def _stats_files(path: Path, *, prefix: bool) -> list[tuple[Path, str]]:
     if not path.is_dir():
         return [(path, path.as_posix())]
     base = path.parent if prefix else path
-    return [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
+    files = [(file, file.relative_to(base).as_posix()) for file in scan.iter_trace_files(path)]
+    if not files:
+        raise CliError(f"no .json or .jsonl traces found under {path}")
+    return files
 
 
 def _load_trace(
