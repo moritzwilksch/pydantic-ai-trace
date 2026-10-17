@@ -815,22 +815,39 @@ describe("App in exported-trace mode", () => {
     expect(container.textContent).not.toContain('{"status":"ok","items":[1,2]}');
   });
 
-  it("escapes JSON string primitives", () => {
+  it("quotes one-line JSON strings and escapes their quotes", () => {
+    embedMessages([
+      {
+        kind: "response",
+        parts: [{ part_kind: "tool-return", tool_name: "echo", content: { value: 'say "hi"' } }],
+      },
+    ]);
+    const { container } = render(<App />);
+
+    expect(container.querySelector(".json-string")?.textContent).toBe('"say \\"hi\\""');
+  });
+
+  it("shows multi-line tool args verbatim, as inert text", () => {
+    const patch = 'for attempt in range(3):\n    <b>retry</b>\n\treturn "done"';
     embedMessages([
       {
         kind: "response",
         parts: [
           {
-            part_kind: "tool-return",
-            tool_name: "echo",
-            content: { value: 'line 1\n"line 2"' },
+            part_kind: "tool-call",
+            tool_name: "edit_file",
+            tool_call_id: "c1",
+            args: JSON.stringify({ path: "a.py", new: patch }),
           },
         ],
       },
     ]);
     const { container } = render(<App />);
 
-    expect(container.querySelector(".json-string")?.textContent).toBe('"line 1\\n\\"line 2\\""');
+    const block = container.querySelector(".json-block");
+    expect(block?.textContent).toBe(patch);
+    expect(block?.querySelector("b")).toBeNull();
+    expect(container.querySelector(".json-tree")?.textContent).not.toContain("\\n");
   });
 
   it("measures large JSON strings in UTF-8 bytes", () => {
