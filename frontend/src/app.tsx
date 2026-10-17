@@ -2,7 +2,8 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { embeddedPayload, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
 import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
-import { defaultSelection } from "./selection";
+import { defaultSelection, isMultiTrace } from "./selection";
+import { sameSelection, shownTrace, traceFailed, type TraceState } from "./traceState";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { RunBreadcrumb } from "./components/RunBreadcrumb";
@@ -12,20 +13,6 @@ import { TraceSearch } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
 import { TreePane } from "./components/TreePane";
 import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
-
-/** A loaded trace, with the selection it was loaded for. */
-interface ShownTrace {
-  status: "ready";
-  selection: TraceSelection;
-  data: TracePayload;
-}
-
-/** While the next trace loads, the previous one stays on screen, so nothing jumps. */
-type TraceState =
-  | { status: "unselected" }
-  | { status: "loading"; previous: ShownTrace | null }
-  | ShownTrace
-  | { status: "error"; message: string };
 
 export function App() {
   const embedded = useMemo(embeddedPayload, []);
@@ -183,7 +170,9 @@ function ServerApp() {
         if (isLatest()) setTrace({ status: "ready", selection: target, data });
       })
       .catch((e) => {
-        if (isLatest()) setTrace({ status: "error", message: String(e) });
+        if (!isLatest()) return;
+        const message = e instanceof Error ? e.message : String(e);
+        setTrace((current) => traceFailed(current, target, message));
       });
   }
 
@@ -252,11 +241,12 @@ function ServerApp() {
     selectionTitle(shown.selection) === selectionTitle(selection)
       ? runs
       : null;
-  // File mode hides the tree — unless the file needs it (multi-trace, broken, or several runs).
+  // File mode hides the tree — unless the file needs it (multi-trace, broken with
+  // nothing to show, or several runs).
   const showTree =
     meta === null ||
     meta.mode === "dir" ||
-    (tree !== null && defaultSelection(tree) === null) ||
+    (tree !== null && (isMultiTrace(tree) || (defaultSelection(tree) === null && !shown))) ||
     Boolean(runs?.multiRun);
 
   return (
@@ -275,7 +265,16 @@ function ServerApp() {
         title={title}
         payload={payload}
         runs={runs}
-        banner={appError ? <div class="banner-error">{appError}</div> : null}
+        banner={
+          <>
+            {appError ? <div class="banner-error">{appError}</div> : null}
+            {trace.status === "stale" ? (
+              <div class="banner-warn" role="status">
+                File currently invalid: {trace.message}; showing last valid version.
+              </div>
+            ) : null}
+          </>
+        }
         placeholder={<TraceStatus trace={trace} />}
       />
     </div>
@@ -294,12 +293,6 @@ function useRequestOrder(): () => () => boolean {
   };
 }
 
-function shownTrace(trace: TraceState): ShownTrace | null {
-  if (trace.status === "ready") return trace;
-  if (trace.status === "loading") return trace.previous;
-  return null;
-}
-
 function selectionTitle(selection: TraceSelection): string {
   return `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`;
 }
@@ -313,12 +306,9 @@ function TraceStatus({ trace }: { trace: TraceState }) {
     case "error":
       return <div class="banner-error">{trace.message}</div>;
     case "ready":
+    case "stale":
       return null;
   }
-}
-
-function sameSelection(a: TraceSelection | null, b: TraceSelection | null): boolean {
-  return a === b || (a !== null && b !== null && a.path === b.path && a.line === b.line);
 }
 
 function readHash(): TraceSelection | null {
