@@ -399,23 +399,44 @@ describe("App in exported-trace mode", () => {
 
     fireEvent.keyDown(window, { key: "/" });
     fireEvent.input(input, { target: { value: "needle" } });
-    await waitFor(() => getByText("0 / 3"));
-    fireEvent.keyDown(input, { key: "Enter" });
-
     await waitFor(() => getByText("1 / 3"));
-    expect(document.activeElement).toBe(details[0].closest("[data-nav]"));
     expect(details[0].open).toBe(true);
-    fireEvent.keyDown(document.activeElement!, { key: "c" });
-    expect(details[0].open).toBe(false);
+    expect(document.activeElement).toBe(input);
 
-    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => getByText("2 / 3"));
     expect(document.activeElement).toBe(details[1].closest("[data-nav]"));
     expect(details[1].open).toBe(true);
+    fireEvent.keyDown(document.activeElement!, { key: "c" });
+    expect(details[1].open).toBe(false);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    await waitFor(() => getByText("3 / 3"));
+    expect(document.activeElement).toBe(details[2].closest("[data-nav]"));
+    expect(details[2].open).toBe(true);
 
     fireEvent.keyDown(document.activeElement!, { key: "/" });
     expect(document.activeElement).toBe(input);
     expect(input.selectionStart).toBe(input.value.length);
+  });
+
+  it("finds model names in response footers", async () => {
+    embedMessages([
+      { kind: "request", parts: [{ part_kind: "user-prompt", content: "hi" }] },
+      {
+        kind: "response",
+        parts: [{ part_kind: "text", content: "hello" }],
+        model_name: "gpt-5-mini",
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    ]);
+    const { getByRole, getByText } = render(<App />);
+
+    fireEvent.input(getByRole("searchbox", { name: "Search trace" }), {
+      target: { value: "gpt-5" },
+    });
+
+    await waitFor(() => getByText("1 / 1"));
   });
 
   it("renders every part kind of an embedded trace without crashing", () => {
