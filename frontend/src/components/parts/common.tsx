@@ -1,13 +1,8 @@
 import { FileText, Film, ImageIcon, ImageOff, Paperclip, Volume2 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import {
-  byteLength,
-  CollapsedPayload,
-  formatBytes,
-  JsonTree,
-  LARGE_PAYLOAD_BYTES,
-} from "../JsonTree";
+import { byteLength, CollapsedPayload, JsonTree, LARGE_PAYLOAD_BYTES } from "../JsonTree";
+import { formatBytes } from "../../format";
 import { Markdown } from "../Markdown";
 
 /** Linked-chip icons for `*-url` attachments; unknown url kinds get a paperclip. */

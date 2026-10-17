@@ -1,5 +1,5 @@
 import { Ban, Bot, TriangleAlert, Unlink, Workflow } from "lucide-preact";
-import { formatTotalsCost } from "../format";
+import { formatCount, formatDuration, formatTotalsCost } from "../format";
 import type { RunEntry, TrajectoryIndex } from "../runIndex";
 
 /**
@@ -90,7 +90,7 @@ function runSummary({ run, analysis }: RunEntry): string {
   const totals = analysis.subtree_totals;
   const lines = [
     run.name,
-    `${totals.llm_calls} LLM calls · ${totals.duration_seconds.toFixed(1)}s`,
+    `${formatCount(totals.llm_calls)} LLM calls · ${formatDuration(totals.duration_seconds)}`,
   ];
   if (run.outcome.status === "failed") {
     lines.push(`failed: ${run.outcome.error_type}: ${run.outcome.detail}`);

@@ -1,5 +1,5 @@
 import { ScrollText } from "lucide-preact";
-import { cacheHitRate, formatCost } from "../format";
+import { cacheHitRate, formatCost, formatCount, formatDuration, formatPercent } from "../format";
 import type { RunIndex } from "../runIndex";
 import type { Message, ModelResponse, Part, RequestUsage } from "../types";
 import { Block } from "./Block";
@@ -176,7 +176,7 @@ function UsageSummary({ usage }: { usage: RequestUsage }) {
   const hitRate = cacheHitRate(usage.input_tokens, usage.cache_read_tokens);
   const cached =
     hitRate !== null
-      ? ` (${formatCount(usage.cache_read_tokens)} cached, ${hitRate.toFixed(1)}%)`
+      ? ` (${formatCount(usage.cache_read_tokens)} cached, ${formatPercent(hitRate)})`
       : "";
   return (
     <span>
@@ -190,13 +190,7 @@ function Timestamp({ value, runStartMs }: { value: string | null; runStartMs: nu
   const parsed = Date.parse(value);
   return (
     <span class="when" title={value}>
-      {new Date(parsed).toLocaleTimeString()} (+{((parsed - runStartMs) / 1000).toFixed(1)}s)
+      {new Date(parsed).toLocaleTimeString()} (+{formatDuration((parsed - runStartMs) / 1000)})
     </span>
   );
-}
-
-export function formatCount(count: number): string {
-  if (count < 10_000) return String(count);
-  if (count < 1_000_000) return `${(count / 1000).toFixed(1)}k`;
-  return `${(count / 1_000_000).toFixed(2)}M`;
 }

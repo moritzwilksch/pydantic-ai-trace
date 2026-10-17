@@ -1,9 +1,15 @@
 import { useMemo } from "preact/hooks";
-import { cacheHitRate, formatTotalsCost } from "../format";
+import {
+  cacheHitRate,
+  formatCount,
+  formatDuration,
+  formatPercent,
+  formatTotalsCost,
+} from "../format";
 import { indexRun, type RunEntry, type TrajectoryIndex } from "../runIndex";
 import type { Totals } from "../types";
 import { ChildRunCard } from "./ChildRunCard";
-import { formatCount, MessageCard } from "./MessageCard";
+import { MessageCard } from "./MessageCard";
 
 /** One run's messages in order, with the runs it started inline under their tool calls. */
 export function TraceView({
@@ -78,14 +84,14 @@ export function TraceStatsBar({
   return (
     <div class="trace-stats">
       <span>
-        <b>{totals.llm_calls}</b> LLM calls
+        <b>{formatCount(totals.llm_calls)}</b> LLM calls
       </span>
       <span class="trace-token-summary" aria-label="Token usage">
         <b>{formatCount(tokens.input)}</b> in
       </span>
       <span class="trace-token-summary">
         <b>{formatCount(tokens.cache_read)}</b> cached
-        {hitRate !== null ? ` (${hitRate.toFixed(1)}%)` : ""}
+        {hitRate !== null ? ` (${formatPercent(hitRate)})` : ""}
       </span>
       <span class="trace-token-summary">
         <b>{formatCount(tokens.output)}</b> out
@@ -96,11 +102,11 @@ export function TraceStatsBar({
         </span>
       ) : null}
       <span>
-        <b>{totals.duration_seconds.toFixed(1)}s</b> wall time
+        <b>{formatDuration(totals.duration_seconds)}</b> wall time
       </span>
       {withSubruns ? (
         <span title="This run plus every run it started">
-          with subruns: <b>{withSubruns.llm_calls}</b> calls
+          with subruns: <b>{formatCount(withSubruns.llm_calls)}</b> calls
           {subtreeCost !== null ? (
             <>
               , <b>{subtreeCost}</b>

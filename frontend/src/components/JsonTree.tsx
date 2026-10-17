@@ -1,5 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
+import { formatBytes } from "../format";
 import { jsonEntries } from "../json";
 
 const LARGE_STRING_BYTES = 10_000;
@@ -108,12 +109,6 @@ export function CollapsedPayload({
       {children}
     </details>
   );
-}
-
-export function formatBytes(length: number): string {
-  if (length < 1024) return `${length} B`;
-  if (length < 1024 * 1024) return `${(length / 1024).toFixed(1)} KB`;
-  return `${(length / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function byteLength(value: string): number {
