@@ -252,6 +252,44 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".tool-group .child-run")).not.toBeNull();
   });
 
+  it("names the started run in a collapsed tool call and opens it from there", () => {
+    embed(
+      payloadFromRuns([
+        {
+          id: "orchestrator",
+          name: "orchestrator",
+          messages: [
+            {
+              kind: "response",
+              parts: [
+                { part_kind: "tool-call", tool_name: "delegate", args: "{}", tool_call_id: "c1" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "checker",
+          name: "fact_checker",
+          parent: { run_id: "orchestrator", tool_call_id: "c1" },
+          outcome: { status: "failed", error_type: "RuntimeError", detail: "crashed" },
+          messages: [{ kind: "response", parts: [{ part_kind: "text", content: "checking" }] }],
+        },
+      ]),
+    );
+
+    const { container, getByText } = render(<App />);
+    const toolCall = container.querySelector<HTMLDetailsElement>(".tool-group")!;
+    expect(toolCall.open).toBe(false);
+    const link = within(toolCall.querySelector("summary")!).getByRole("button", {
+      name: /fact_checker/,
+    });
+    expect(link.textContent).toContain("failed");
+
+    // Cancelling the click keeps <summary> from also toggling the call; jsdom does not toggle.
+    expect(fireEvent.click(link)).toBe(false);
+    getByText("Run failed with RuntimeError: crashed");
+  });
+
   it("marks a subtree cost as partial wherever it appears", () => {
     const payload = payloadFromRuns([
       {
