@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   cacheHitRate,
   compactJson,
-  formatBytes,
   formatCost,
   formatCount,
   formatDuration,
@@ -105,11 +104,5 @@ describe("formatDuration", () => {
     [7325.6, "2h 2m 6s"],
   ])("formats %s seconds as %s", (seconds, expected) => {
     expect(formatDuration(seconds)).toBe(expected);
-  });
-});
-
-describe("formatBytes", () => {
-  it("picks the unit by size", () => {
-    expect([512, 1536, 3 * 1024 * 1024].map(formatBytes)).toEqual(["512 B", "1.5 KB", "3.0 MB"]);
   });
 });

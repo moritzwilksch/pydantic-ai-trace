@@ -86,13 +86,6 @@ export function formatPercent(percent: number): string {
   return `${percent.toFixed(1)}%`;
 }
 
-/** A byte size in B, KB, or MB, e.g. `1.5 KB`. */
-export function formatBytes(length: number): string {
-  if (length < 1024) return `${length} B`;
-  if (length < 1024 * 1024) return `${(length / 1024).toFixed(1)} KB`;
-  return `${(length / 1024 / 1024).toFixed(1)} MB`;
-}
-
 /** A cost in USD from its exact decimal string, e.g. `$0.0028`. */
 export function formatCost(costUsd: string): string {
   return `$${Number(costUsd).toFixed(4)}`;

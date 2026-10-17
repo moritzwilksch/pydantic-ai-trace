@@ -1089,24 +1089,26 @@ describe("App in exported-trace mode", () => {
     expect(container.querySelector(".json-tree")?.textContent).not.toContain("\\n");
   });
 
-  it("measures large JSON strings in UTF-8 bytes", () => {
+  it("reveals a large tool return with one click", () => {
+    const large = "row ".repeat(5_000);
     embedMessages([
       {
-        kind: "response",
+        kind: "request",
         parts: [
-          {
-            part_kind: "tool-return",
-            tool_name: "echo",
-            content: { value: "é".repeat(6_000) },
-          },
+          { part_kind: "tool-return", tool_name: "dump", content: large },
+          { part_kind: "tool-return", tool_name: "fetch", content: { rows: large } },
         ],
       },
     ]);
-    const { container } = render(<App />);
+    const { getByText } = render(<App />);
 
-    expect(container.querySelector(".json-tree details.collapsible")?.textContent).toContain(
-      "11.7 KB",
-    );
+    for (const toolName of ["dump", "fetch"]) {
+      const block = getByText(toolName).closest("details")!;
+      fireEvent.click(block.querySelector("summary")!);
+      expect(block.open).toBe(true);
+      expect(block.querySelectorAll("details")).toHaveLength(0);
+      expect(block.querySelector(".block-body")?.textContent).toContain(large.trim());
+    }
   });
 
   it("keeps prose containing a JSON fragment as markdown", () => {
