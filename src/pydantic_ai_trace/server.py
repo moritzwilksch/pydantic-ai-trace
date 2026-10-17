@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import socket
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -12,11 +11,12 @@ from typing import Any
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from starlette.responses import HTMLResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from . import scan
 from ._html import packaged_index_html
+from ._json import dumps_compact
 from .load import TraceLoadError, load_trajectory
 from .payload import TracePayload, build_payload
 
@@ -109,15 +109,15 @@ def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) ->
         return HTMLResponse(_load_index_html())
 
     async def meta(_: Request) -> Response:
-        return JSONResponse({"mode": mode, "root": root_label})
+        return _json_response({"mode": mode, "root": root_label})
 
     async def tree(_: Request) -> Response:
         if collection is not None:
-            return JSONResponse(await asyncio.to_thread(scan.build_collection_tree, collection))
+            return _json_response(await asyncio.to_thread(scan.build_collection_tree, collection))
         assert root is not None
         tree_root = root  # narrowed, for the closure
         # Read .gitignore on every listing: a change to it is a change to the tree.
-        return JSONResponse(
+        return _json_response(
             await asyncio.to_thread(
                 lambda: scan.build_tree(tree_root, ignored=scan.git_ignored(tree_root))
             )
@@ -129,9 +129,9 @@ def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) ->
         try:
             line = int(line_param) if line_param is not None else None
         except ValueError:
-            return JSONResponse({"error": f"invalid line: {line_param!r}"}, status_code=400)
+            return _json_response({"error": f"invalid line: {line_param!r}"}, status_code=400)
         if mode == "file" and root is not None and relative_path != root.name:
-            return JSONResponse({"error": f"not found: {relative_path}"}, status_code=404)
+            return _json_response({"error": f"not found: {relative_path}"}, status_code=404)
         try:
             if collection is not None:
                 text = await asyncio.to_thread(
@@ -141,12 +141,12 @@ def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) ->
                 assert serve_root is not None
                 text = await asyncio.to_thread(scan.read_trace, serve_root, relative_path, line)
         except scan.TraceLookupError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
+            return _json_response({"error": str(exc)}, status_code=exc.status_code)
         name = f"{relative_path} · trace {line}" if line is not None else relative_path
         try:
             payload = await asyncio.to_thread(_build_payload, text, name)
         except TraceLoadError as exc:
-            return JSONResponse(
+            return _json_response(
                 {"error": f"{name}: {exc}", "details": list(exc.details)}, status_code=400
             )
         return Response(payload.to_json(), media_type="application/json")
@@ -213,7 +213,7 @@ async def _change_events(base: Path, only: str | None, stop_event: asyncio.Event
             if only is not None:
                 paths = [path for path in paths if path == only]
             if paths:
-                payload = json.dumps({"type": "changed", "paths": paths})
+                payload = dumps_compact({"type": "changed", "paths": paths})
                 yield f"data: {payload}\n\n"
 
 
@@ -243,8 +243,14 @@ async def _collection_change_events(
                 }
             )
             if paths:
-                payload = json.dumps({"type": "changed", "paths": paths})
+                payload = dumps_compact({"type": "changed", "paths": paths})
                 yield f"data: {payload}\n\n"
+
+
+def _json_response(content: object, status_code: int = 200) -> Response:
+    """Every JSON response goes through `dumps_compact`: trace text and file names are
+    untrusted, and a lone surrogate would break Starlette's own UTF-8 encoding."""
+    return Response(dumps_compact(content), status_code=status_code, media_type="application/json")
 
 
 def _build_payload(text: str, name: str) -> TracePayload:

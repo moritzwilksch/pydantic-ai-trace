@@ -6,10 +6,9 @@ This is the only contract between Python and the frontend. The frontend's types 
 
 from __future__ import annotations
 
-import json
-
 from pydantic import BaseModel, ConfigDict, JsonValue
 
+from ._json import dumps_compact
 from .analysis import Analysis, analyze
 from .text import format_transcript
 from .trajectory import MESSAGE_BYTES_CONFIG, Trajectory
@@ -24,10 +23,8 @@ class TracePayload(BaseModel):
     transcript: str
 
     def to_json(self) -> str:
-        """ASCII JSON, so untrusted text such as lone surrogates stays valid JSON."""
-        return json.dumps(
-            self.model_dump(mode="json"), ensure_ascii=True, allow_nan=False, separators=(",", ":")
-        )
+        """JSON that stays valid UTF-8 even when untrusted text holds lone surrogates."""
+        return dumps_compact(self.model_dump(mode="json"))
 
 
 def build_payload(trajectory: Trajectory, *, name: str) -> TracePayload:
