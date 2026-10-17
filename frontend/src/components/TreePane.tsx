@@ -7,7 +7,7 @@ import {
   TriangleAlert,
 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { defaultSelection, isMultiTrace } from "../selection";
 import type { TraceSelection, TraceSummary, TreeNode } from "../types";
 
@@ -205,8 +205,10 @@ function TraceButton({
   onClick: () => void;
 }) {
   const details = [`trace ${trace.line}`, ...trace.models].join(" · ");
+  const ref = useRevealWhenSelected(selected);
   return (
     <button
+      ref={ref}
       class={`tree-node ${trace.error ? "error" : ""} ${selected ? "selected" : ""}`}
       aria-invalid={trace.error || undefined}
       title={
@@ -249,8 +251,10 @@ function FileButton({
   onClick: () => void;
 }) {
   const invalidTraces = node.error ? 0 : (node.traces ?? []).filter((t) => t.error).length;
+  const ref = useRevealWhenSelected(selected);
   return (
     <button
+      ref={ref}
       class={`tree-node ${node.error ? "error" : ""} ${selected ? "selected" : ""}`}
       aria-invalid={node.error || undefined}
       aria-expanded={expanded}
@@ -270,6 +274,28 @@ function FileButton({
       {invalidTraces > 0 ? <span class="tree-error-label">{invalidTraces} invalid</span> : null}
     </button>
   );
+}
+
+/**
+ * Center an entry that becomes selected out of view, such as from a deep link.
+ * It runs once the entry renders, after its ancestors have expanded to show it.
+ */
+function useRevealWhenSelected(selected: boolean) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    const entry = ref.current;
+    const body = entry?.closest(".tree-body");
+    if (selected && entry && body && !isWithin(entry, body)) {
+      entry.scrollIntoView?.({ block: "center" });
+    }
+  }, [selected]);
+  return ref;
+}
+
+function isWithin(element: Element, container: Element): boolean {
+  const inner = element.getBoundingClientRect();
+  const outer = container.getBoundingClientRect();
+  return inner.top >= outer.top && inner.bottom <= outer.bottom;
 }
 
 /** What clicking the first listed entry opens: a file, or a JSONL file's first listed trace. */
