@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
 import { createRef } from "preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Block } from "./Block";
-import { TraceSearch } from "./TraceSearch";
+import { TraceSearch, TraceSearchScope } from "./TraceSearch";
 
 class TestHighlight {
   priority = 0;
@@ -38,7 +38,7 @@ describe("TraceSearch", () => {
   it("ignores the collapsed block's more hint", async () => {
     const rootRef = createRef<HTMLDivElement>();
     const { container, getByRole, getByText } = render(
-      <>
+      <TraceSearchScope resetKey="">
         <TraceSearch rootRef={rootRef} />
         <div ref={rootRef}>
           <div class="part" data-nav>
@@ -47,7 +47,7 @@ describe("TraceSearch", () => {
             </Block>
           </div>
         </div>
-      </>,
+      </TraceSearchScope>,
     );
     expect(container.querySelector(".preview-more")?.textContent).toBe("more");
 
@@ -61,7 +61,7 @@ describe("TraceSearch", () => {
   it("activates the first match while typing, opens its collapsed parents, and highlights all matches", async () => {
     const rootRef = createRef<HTMLDivElement>();
     const { getByRole, getByText } = render(
-      <>
+      <TraceSearchScope resetKey="">
         <TraceSearch rootRef={rootRef} />
         <div ref={rootRef}>
           <div class="part" data-nav>
@@ -77,7 +77,7 @@ describe("TraceSearch", () => {
             </details>
           </div>
         </div>
-      </>,
+      </TraceSearchScope>,
     );
     const input = getByRole("searchbox", { name: "Search trace" });
     input.focus();
@@ -99,7 +99,7 @@ describe("TraceSearch", () => {
   it("matches across text nodes and wraps forward and backward navigation", async () => {
     const rootRef = createRef<HTMLDivElement>();
     const { getByRole, getByText } = render(
-      <>
+      <TraceSearchScope resetKey="">
         <TraceSearch rootRef={rootRef} />
         <div ref={rootRef}>
           <div class="part">
@@ -108,7 +108,7 @@ describe("TraceSearch", () => {
           </div>
           <div class="part">A second bold move.</div>
         </div>
-      </>,
+      </TraceSearchScope>,
     );
     const input = getByRole("searchbox", { name: "Search trace" });
 
@@ -126,7 +126,7 @@ describe("TraceSearch", () => {
   it("leaves search with Escape but keeps the query and its matches", async () => {
     const rootRef = createRef<HTMLDivElement>();
     const { getByRole, getByText, queryByText } = render(
-      <>
+      <TraceSearchScope resetKey="">
         <TraceSearch rootRef={rootRef} />
         <div ref={rootRef}>
           <div class="part">
@@ -136,7 +136,7 @@ describe("TraceSearch", () => {
             </details>
           </div>
         </div>
-      </>,
+      </TraceSearchScope>,
     );
     const input = getByRole("searchbox", { name: "Search trace" }) as HTMLInputElement;
     input.focus();
@@ -162,13 +162,13 @@ describe("TraceSearch", () => {
     Element.prototype.scrollIntoView = scrollIntoView;
     const rootRef = createRef<HTMLDivElement>();
     const { getByRole, getByText } = render(
-      <>
+      <TraceSearchScope resetKey="">
         <TraceSearch rootRef={rootRef} />
         <div ref={rootRef}>
           <div class="part">first target</div>
           <div class="part">second target</div>
         </div>
-      </>,
+      </TraceSearchScope>,
     );
     const input = getByRole("searchbox", { name: "Search trace" });
     fireEvent.input(input, { target: { value: "target" } });
@@ -191,12 +191,12 @@ describe("TraceSearch", () => {
     vi.stubGlobal("Highlight", undefined);
     const rootRef = createRef<HTMLDivElement>();
     const { getByRole, getByText } = render(
-      <>
+      <TraceSearchScope resetKey="">
         <TraceSearch rootRef={rootRef} />
         <div ref={rootRef}>
           <div class="part">first target and second target</div>
         </div>
-      </>,
+      </TraceSearchScope>,
     );
     const input = getByRole("searchbox", { name: "Search trace" });
 
