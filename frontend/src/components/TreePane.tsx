@@ -1,8 +1,15 @@
-import { CornerDownRight, Ellipsis, FileText, Folder, TriangleAlert } from "lucide-preact";
+import {
+  ChevronDown,
+  ChevronRight,
+  CornerDownRight,
+  Ellipsis,
+  FileText,
+  TriangleAlert,
+} from "lucide-preact";
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { defaultSelection, isMultiTrace } from "../selection";
-import type { TraceSelection, TreeNode } from "../types";
+import type { TraceSelection, TraceSummary, TreeNode } from "../types";
 
 /** JSONL traces listed per page: evaluation logs can hold many thousands. */
 export const TRACE_LINE_PAGE = 100;
@@ -46,6 +53,9 @@ export function TreePane({
             <NodeView
               key={node.path}
               node={node}
+              // A lone file is the whole tree, so its traces start listed.
+              startOpen={root.type === "file"}
+              filtering={query !== ""}
               selection={selection}
               onSelect={onSelect}
               selectedChildren={selectedChildren}
@@ -59,37 +69,46 @@ export function TreePane({
   );
 }
 
-function NodeView({
-  node,
-  selection,
-  onSelect,
-  selectedChildren,
-}: {
+interface NodeProps {
   node: TreeNode;
+  /** A filter lists every match, so it opens every node it keeps. */
+  filtering: boolean;
   selection: TraceSelection | null;
   onSelect: (selection: TraceSelection) => void;
   selectedChildren: ComponentChildren;
-}) {
+}
+
+/** A folder or file; folders and multi-trace files open and close. */
+function NodeView({ startOpen, ...props }: NodeProps & { startOpen: boolean }) {
+  const { node, filtering, selection, onSelect, selectedChildren } = props;
+  const holdsSelection =
+    selection !== null &&
+    (node.type === "dir"
+      ? selection.path.startsWith(`${node.path}/`)
+      : selection.path === node.path);
+  // Folders start open; a JSONL file's traces start hidden unless they hold the selection.
+  const [open, setOpen] = useState(node.type === "dir" || startOpen || holdsSelection);
+  // A selection made elsewhere, such as from the URL, reveals itself.
+  useEffect(() => {
+    if (holdsSelection) setOpen(true);
+  }, [holdsSelection, selection?.path, selection?.line]);
+  const shown = open || filtering;
+  const toggle = () => setOpen(!open);
+
   if (node.type === "dir") {
     return (
       <div>
-        <div class="tree-node">
-          <span class="icon">
-            <Folder size={14} />
-          </span>
+        <button class="tree-node" aria-expanded={shown} onClick={toggle}>
+          <Chevron open={shown} />
           {node.name}
-        </div>
-        <div class="tree-children">
-          {(node.children ?? []).map((child) => (
-            <NodeView
-              key={child.path}
-              node={child}
-              selection={selection}
-              onSelect={onSelect}
-              selectedChildren={selectedChildren}
-            />
-          ))}
-        </div>
+        </button>
+        {shown ? (
+          <div class="tree-children">
+            {(node.children ?? []).map((child) => (
+              <NodeView key={child.path} {...props} node={child} startOpen={false} />
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -98,11 +117,17 @@ function NodeView({
   const target = defaultSelection(node);
   return (
     <div>
-      <FileButton node={node} target={target} selection={selection} onSelect={onSelect} />
+      <FileButton
+        node={node}
+        selected={target !== null && isSelected(selection, target.path, target.line)}
+        expanded={multiTrace ? shown : undefined}
+        // A broken file still opens, so the viewer can explain the error.
+        onClick={multiTrace ? toggle : () => onSelect(target ?? { path: node.path })}
+      />
       {target && isSelected(selection, target.path, target.line) ? (
         <NestedUnderSelection>{selectedChildren}</NestedUnderSelection>
       ) : null}
-      {multiTrace ? (
+      {multiTrace && shown ? (
         <TraceLines
           node={node}
           selection={selection}
@@ -112,6 +137,10 @@ function NodeView({
       ) : null}
     </div>
   );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return <span class="icon">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>;
 }
 
 /** A JSONL file's traces, one page at a time; a selected later trace stays listed. */
@@ -127,34 +156,28 @@ function TraceLines({
   selectedChildren: ComponentChildren;
 }) {
   const [shown, setShown] = useState(TRACE_LINE_PAGE);
-  const count = node.trace_count ?? 0;
-  const listed = Math.min(shown, count);
-  const lines = Array.from({ length: listed }, (_, i) => i + 1);
+  const traces = node.traces ?? [];
+  const listed = traces.slice(0, shown);
   const selectedLine = selection?.path === node.path ? selection.line : undefined;
-  if (selectedLine !== undefined && selectedLine > listed && selectedLine <= count) {
-    lines.push(selectedLine);
-  }
-  const hidden = count - listed;
+  const selectedTrace = traces.find((trace) => trace.line === selectedLine);
+  if (selectedTrace && !listed.includes(selectedTrace)) listed.push(selectedTrace);
+  const hidden = Math.max(0, traces.length - shown);
   return (
     <div class="tree-children">
-      {lines.map((line) => (
-        <div key={line}>
-          <button
-            class={`tree-node ${isSelected(selection, node.path, line) ? "selected" : ""}`}
-            onClick={() => onSelect({ path: node.path, line })}
-          >
-            <span class="icon">
-              <CornerDownRight size={12} />
-            </span>
-            trace {line}
-          </button>
-          {isSelected(selection, node.path, line) ? (
+      {listed.map((trace) => (
+        <div key={trace.line}>
+          <TraceButton
+            trace={trace}
+            selected={isSelected(selection, node.path, trace.line)}
+            onClick={() => onSelect({ path: node.path, line: trace.line })}
+          />
+          {isSelected(selection, node.path, trace.line) ? (
             <NestedUnderSelection>{selectedChildren}</NestedUnderSelection>
           ) : null}
         </div>
       ))}
       {hidden > 0 ? (
-        <button class="tree-node tree-more" onClick={() => setShown(listed + TRACE_LINE_PAGE)}>
+        <button class="tree-node tree-more" onClick={() => setShown(shown + TRACE_LINE_PAGE)}>
           <span class="icon">
             <Ellipsis size={12} />
           </span>
@@ -165,38 +188,80 @@ function TraceLines({
   );
 }
 
+/** One JSONL trace, labelled by its line number and first prompt. */
+function TraceButton({
+  trace,
+  selected,
+  onClick,
+}: {
+  trace: TraceSummary;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const details = [`trace ${trace.line}`, ...trace.models].join(" · ");
+  return (
+    <button
+      class={`tree-node ${trace.error ? "error" : ""} ${selected ? "selected" : ""}`}
+      aria-invalid={trace.error || undefined}
+      title={
+        trace.error
+          ? (trace.error_message ?? "Trace could not be parsed")
+          : [details, trace.prompt, trace.answer && `→ ${trace.answer}`].filter(Boolean).join("\n")
+      }
+      onClick={onClick}
+    >
+      <span class="icon">
+        {trace.error ? <TriangleAlert size={12} /> : <CornerDownRight size={12} />}
+      </span>
+      {trace.prompt ? (
+        <>
+          <span class="line-number">{trace.line}</span>
+          <span class="label">{trace.prompt}</span>
+        </>
+      ) : (
+        <span class="label">trace {trace.line}</span>
+      )}
+      {trace.error ? <span class="tree-error-label">invalid</span> : null}
+    </button>
+  );
+}
+
 function NestedUnderSelection({ children }: { children: ComponentChildren }) {
   return children ? <div class="tree-children">{children}</div> : null;
 }
 
 function FileButton({
   node,
-  target,
-  selection,
-  onSelect,
+  selected,
+  expanded,
+  onClick,
 }: {
   node: TreeNode;
-  /** How clicking opens this file; null when it can't be opened directly. */
-  target: TraceSelection | null;
-  selection: TraceSelection | null;
-  onSelect: (selection: TraceSelection) => void;
+  selected: boolean;
+  /** Whether a multi-trace file lists its traces; undefined for other files. */
+  expanded: boolean | undefined;
+  onClick: () => void;
 }) {
+  const invalidTraces = node.error ? 0 : (node.traces ?? []).filter((t) => t.error).length;
   return (
     <button
-      class={`tree-node ${node.error ? "error" : ""} ${
-        target && isSelected(selection, target.path, target.line) ? "selected" : ""
-      }`}
+      class={`tree-node ${node.error ? "error" : ""} ${selected ? "selected" : ""}`}
       aria-invalid={node.error || undefined}
+      aria-expanded={expanded}
       title={node.error ? (node.error_message ?? "File could not be parsed") : node.path}
-      onClick={() => {
-        if (target) onSelect(target);
-        else if (node.error) onSelect({ path: node.path });
-      }}
+      onClick={onClick}
     >
-      <span class="icon">{node.error ? <TriangleAlert size={14} /> : <FileText size={14} />}</span>
-      {node.name}
+      {expanded !== undefined ? (
+        <Chevron open={expanded} />
+      ) : (
+        <span class="icon">
+          {node.error ? <TriangleAlert size={14} /> : <FileText size={14} />}
+        </span>
+      )}
+      <span class="label">{node.name}</span>
       {node.format === "jsonl" ? <span class="count">{node.trace_count}</span> : null}
       {node.error ? <span class="tree-error-label">invalid</span> : null}
+      {invalidTraces > 0 ? <span class="tree-error-label">{invalidTraces} invalid</span> : null}
     </button>
   );
 }
@@ -205,15 +270,24 @@ function isSelected(selection: TraceSelection | null, path: string, line?: numbe
   return selection !== null && selection.path === path && selection.line === line;
 }
 
+/** Keep nodes whose name or path matches, and files with a trace whose summary does. */
 function filterTree(node: TreeNode, query: string): TreeNode | null {
   if (node.type === "file") {
-    return node.name.toLowerCase().includes(query) || node.path.toLowerCase().includes(query)
-      ? node
-      : null;
+    if (node.name.toLowerCase().includes(query) || node.path.toLowerCase().includes(query)) {
+      return node;
+    }
+    const traces = (node.traces ?? []).filter((trace) => traceMatches(trace, query));
+    return traces.length > 0 ? { ...node, traces } : null;
   }
   const children = (node.children ?? [])
     .map((child) => filterTree(child, query))
     .filter((child): child is TreeNode => child !== null);
   if (children.length === 0 && !node.name.toLowerCase().includes(query)) return null;
   return { ...node, children };
+}
+
+function traceMatches(trace: TraceSummary, query: string): boolean {
+  return [trace.prompt, trace.answer, ...trace.models].some(
+    (text) => text?.toLowerCase().includes(query) ?? false,
+  );
 }

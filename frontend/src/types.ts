@@ -33,7 +33,22 @@ export interface TreeNode {
   trace_count?: number;
   error?: boolean;
   error_message?: string;
+  /** A file's traces in order, each summarized for the tree's labels and filter. */
+  traces?: TraceSummary[];
   children?: TreeNode[];
+}
+
+export interface TraceSummary {
+  /** 1-based trace number; a JSON file has one. */
+  line: number;
+  error: boolean;
+  error_message?: string;
+  // Previews, whitespace-collapsed and truncated; null when invalid or absent.
+  /** The first user prompt. */
+  prompt: string | null;
+  /** The last top-level run's final response text. */
+  answer: string | null;
+  models: string[];
 }
 
 export interface Meta {
