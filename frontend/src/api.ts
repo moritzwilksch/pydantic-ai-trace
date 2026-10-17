@@ -44,9 +44,19 @@ async function getJson(url: string): Promise<any> {
   return response.json();
 }
 
+/** A failed API request. `details` lists every validation error of a broken trace. */
+export class FetchError extends Error {
+  constructor(
+    message: string,
+    readonly details: string[] = [],
+  ) {
+    super(message);
+  }
+}
+
 async function throwFetchError(url: string, response: Response): Promise<never> {
   const detail = await response.json().catch(() => null);
-  throw new Error(detail?.error ?? `${url} failed with ${response.status}`);
+  throw new FetchError(detail?.error ?? `${url} failed with ${response.status}`, detail?.details);
 }
 
 /** Subscribe to file-change events; returns an unsubscribe function. */

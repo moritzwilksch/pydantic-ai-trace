@@ -4,6 +4,8 @@ Reading and selecting only checks that each trace is a JSON array or object;
 `load.load_trajectory` owns validation. Tree nodes run that validation on every
 trace, so the sidebar can explain why a trace cannot be opened and can label and
 filter traces by a short summary.
+A directory scan leaves out JSON that is not a trace at all, such as `package.json`;
+a file named explicitly keeps its node and says why it is not a trace.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +21,7 @@ from typing import Any, Literal
 
 from pydantic_ai.messages import ModelResponse, TextContent, UserPromptPart
 
-from .load import TraceLoadError, load_trajectory
+from .load import NotATraceError, TraceLoadError, load_trajectory
 from .trajectory import Trajectory
 
 TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
@@ -26,6 +29,10 @@ TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl"
 # Bounds a trace summary's text, so the tree stays small for large logs; the sidebar
 # shows less than this and filters on exactly this much.
 PREVIEW_CHARS = 200
+
+# Directories a scan never enters, whatever git says: a .gitignore may not list them.
+# Hidden entries, such as `.git`, `.venv`, and `.pixi`, are skipped by name already.
+SKIPPED_DIRS = frozenset({"node_modules", "venv", "__pycache__", "dist", "build"})
 
 type TreeNode = dict[str, Any]
 type TraceSummary = dict[str, Any]
@@ -91,16 +98,39 @@ def resolve_within(root: Path, relative_path: str) -> Path:
     return resolved
 
 
-def build_tree(root: Path) -> TreeNode:
+def build_tree(root: Path, *, ignored: frozenset[Path] = frozenset()) -> TreeNode:
     """Build the trace tree for a root directory or a single trace file.
 
-    Directories without any trace files underneath are pruned. Files that are
-    unreadable or not valid JSON array(s) are kept with a concise diagnostic,
-    so the viewer can explain why a trace cannot be opened.
+    The scan skips hidden entries, `SKIPPED_DIRS`, and the `ignored` paths, as
+    from `git_ignored(root)`. Directories without any trace files underneath are
+    pruned, and so is JSON that is not a trace. Broken or unreadable traces are
+    kept with a concise diagnostic, so the viewer can explain why a trace cannot
+    be opened.
     """
     if root.is_file():
-        return _file_node(root, root.name)
-    return _dir_node(root, root, name=root.name)
+        return _file_node(root, root.name)[0]
+    return _dir_node(root, root, name=root.name, ignored=ignored)
+
+
+def git_ignored(root: Path) -> frozenset[Path]:
+    """Untracked paths under directory `root` that git ignores, joined to `root`.
+
+    An ignored directory is listed once, not its contents. Empty when `root` is
+    not a directory in a git work tree, when git is unavailable, and when `root`
+    itself is ignored: naming an ignored directory is a request to read it.
+    """
+    if not root.is_dir():
+        return frozenset()
+    command = ["git", "-C", str(root), "ls-files", "-z", "--others", "--ignored"]
+    command += ["--exclude-standard", "--directory"]
+    try:
+        result = subprocess.run(command, capture_output=True, check=False)
+    except OSError:
+        return frozenset()
+    paths = [os.fsdecode(path) for path in result.stdout.split(b"\0") if path]
+    if result.returncode != 0 or "./" in paths:
+        return frozenset()
+    return frozenset(root / path.removesuffix("/") for path in paths)
 
 
 def build_collection_tree(collection: TraceCollection) -> TreeNode:
@@ -125,7 +155,7 @@ def build_collection_tree(collection: TraceCollection) -> TreeNode:
                 parent["children"].append(child)
                 directories[key] = child
             parent = child
-        parent["children"].append(_file_node(selected.path, selected.key))
+        parent["children"].append(_file_node(selected.path, selected.key)[0])
     _sort_tree(root)
     return root
 
@@ -247,11 +277,11 @@ def _ensure_json_container(text: str, relative_path: str) -> None:
         )
 
 
-def iter_trace_files(directory: Path) -> Iterator[Path]:
+def iter_trace_files(directory: Path, *, ignored: frozenset[Path] = frozenset()) -> Iterator[Path]:
     """Trace files under `directory`, in the sidebar's order and with its exclusions."""
-    for entry in _visible_entries(directory):
+    for entry in _visible_entries(directory, ignored):
         if entry.is_dir():
-            yield from iter_trace_files(entry)
+            yield from iter_trace_files(entry, ignored=ignored)
         elif entry.suffix in TRACE_SUFFIXES:
             yield entry
 
@@ -268,24 +298,36 @@ def jsonl_lines(chunks: Iterable[str]) -> Iterator[str]:
                 yield line.removesuffix("\r")
 
 
-def _visible_entries(directory: Path) -> list[Path]:
-    """Directory entries without hidden files or symlinks: directories first, then by name."""
+def _visible_entries(directory: Path, ignored: frozenset[Path]) -> list[Path]:
+    """Directory entries a scan enters: directories first, then by name.
+
+    Leaves out hidden entries, symlinks, `SKIPPED_DIRS`, and `ignored` paths.
+    """
     try:
         entries = sorted(directory.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
     except OSError:
         return []
-    return [entry for entry in entries if not entry.name.startswith(".") and not entry.is_symlink()]
+    return [
+        entry
+        for entry in entries
+        if not entry.name.startswith(".")
+        and not entry.is_symlink()
+        and not (entry.name in SKIPPED_DIRS and entry.is_dir())
+        and entry not in ignored
+    ]
 
 
-def _dir_node(root: Path, directory: Path, name: str) -> TreeNode:
+def _dir_node(root: Path, directory: Path, name: str, ignored: frozenset[Path]) -> TreeNode:
     children: list[TreeNode] = []
-    for entry in _visible_entries(directory):
+    for entry in _visible_entries(directory, ignored):
         if entry.is_dir():
-            child = _dir_node(root, entry, name=entry.name)
+            child = _dir_node(root, entry, name=entry.name, ignored=ignored)
             if child["children"]:
                 children.append(child)
         elif entry.suffix in TRACE_SUFFIXES:
-            children.append(_file_node(entry, entry.relative_to(root).as_posix()))
+            node, is_trace = _file_node(entry, entry.relative_to(root).as_posix())
+            if is_trace:
+                children.append(node)
     return {
         "name": name,
         "path": directory.relative_to(root).as_posix(),
@@ -294,11 +336,12 @@ def _dir_node(root: Path, directory: Path, name: str) -> TreeNode:
     }
 
 
-def _file_node(path: Path, relative_path: str) -> TreeNode:
-    """A file and a summary of each of its traces.
+def _file_node(path: Path, relative_path: str) -> tuple[TreeNode, bool]:
+    """A file and a summary of each of its traces, and whether the file is a trace.
 
     The file itself is an error when it cannot be read, holds no traces, or holds
     one invalid trace; an invalid trace among several is flagged on its summary only.
+    A file whose first trace is not a trace at all is not a trace file.
     """
     node: TreeNode = {
         "name": path.name,
@@ -311,17 +354,22 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
     }
     try:
         if path.suffix == ".json":
-            traces = [_trace_summary(1, path.read_text(encoding="utf-8"), relative_path)]
+            trajectory = _load(path.read_text(encoding="utf-8"), relative_path)
+            traces = [_trace_summary(1, trajectory)]
+            is_trace = not isinstance(trajectory, NotATraceError)
         else:
+            traces, is_trace = [], True
             with path.open(encoding="utf-8") as stream:
-                traces = [
-                    _trace_summary(number, line, relative_path)
-                    for number, line in enumerate(jsonl_lines(stream), start=1)
-                ]
+                # Summarize while streaming, so only one trajectory is held at a time.
+                for number, line in enumerate(jsonl_lines(stream), start=1):
+                    trajectory = _load(line, relative_path)
+                    if number == 1:
+                        is_trace = not isinstance(trajectory, NotATraceError)
+                    traces.append(_trace_summary(number, trajectory))
     except (OSError, UnicodeDecodeError) as exc:
         node["error"] = True
         node["error_message"] = f"cannot read file: {exc}"
-        return node
+        return node, True
     node["trace_count"] = len(traces)
     node["traces"] = traces
     if not traces:
@@ -331,19 +379,24 @@ def _file_node(path: Path, relative_path: str) -> TreeNode:
         node["error"] = True
         message = traces[0]["error_message"]
         node["error_message"] = message if path.suffix == ".json" else f"line 1: {message}"
-    return node
+    return node, is_trace
 
 
-def _trace_summary(line: int, text: str, relative_path: str) -> TraceSummary:
+def _load(text: str, relative_path: str) -> Trajectory | TraceLoadError:
+    try:
+        return load_trajectory(text, name=relative_path)
+    except TraceLoadError as exc:
+        return exc
+
+
+def _trace_summary(line: int, trajectory: Trajectory | TraceLoadError) -> TraceSummary:
     """The 1-based `line` of a trace, previews of its first prompt and final answer,
     and its models; or its error."""
-    try:
-        trajectory = load_trajectory(text, name=relative_path)
-    except TraceLoadError as exc:
+    if isinstance(trajectory, TraceLoadError):
         return {
             "line": line,
             "error": True,
-            "error_message": str(exc),
+            "error_message": str(trajectory),
             "prompt": None,
             "answer": None,
             "models": [],

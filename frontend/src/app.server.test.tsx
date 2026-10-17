@@ -3,7 +3,8 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./api", () => ({
+vi.mock("./api", async (importOriginal) => ({
+  FetchError: (await importOriginal<typeof import("./api")>()).FetchError,
   embeddedPayload: () => null,
   fetchMeta: vi.fn(() => Promise.resolve({ mode: "dir", root: "traces" })),
   fetchTree: vi.fn(() =>
@@ -19,7 +20,7 @@ vi.mock("./api", () => ({
 }));
 
 import { App } from "./app";
-import { fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
+import { FetchError, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
 import { payloadFromMessages, payloadFromRuns } from "./testing/payload";
 import type { TracePayload, TreeNode } from "./types";
 
@@ -165,6 +166,20 @@ describe("App in server mode", () => {
     const { getByText } = render(<App />);
 
     await waitFor(() => expect(getByText("run.json was removed")).toBeTruthy());
+  });
+
+  it("expands every validation error of a broken trace", async () => {
+    mockedFetchTrace.mockRejectedValue(
+      new FetchError("run.json: runs.0.parent: Field required (+1 more)", [
+        "runs.0.parent: Field required",
+        "runs.0.outcome: Field required",
+      ]),
+    );
+    const { getByText } = render(<App />);
+
+    fireEvent.click(await waitFor(() => getByText("Show all 2 errors")));
+
+    expect(getByText("runs.0.outcome: Field required")).toBeTruthy();
   });
 
   it("keeps the newest reload when an older one resolves last", async () => {

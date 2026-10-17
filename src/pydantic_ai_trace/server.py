@@ -115,7 +115,13 @@ def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) ->
         if collection is not None:
             return JSONResponse(await asyncio.to_thread(scan.build_collection_tree, collection))
         assert root is not None
-        return JSONResponse(await asyncio.to_thread(scan.build_tree, root))
+        tree_root = root  # narrowed, for the closure
+        # Read .gitignore on every listing: a change to it is a change to the tree.
+        return JSONResponse(
+            await asyncio.to_thread(
+                lambda: scan.build_tree(tree_root, ignored=scan.git_ignored(tree_root))
+            )
+        )
 
     async def trace(request: Request) -> Response:
         relative_path = request.query_params.get("path", "")
@@ -140,7 +146,9 @@ def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) ->
         try:
             payload = await asyncio.to_thread(_build_payload, text, name)
         except TraceLoadError as exc:
-            return JSONResponse({"error": f"{name}: {exc}"}, status_code=400)
+            return JSONResponse(
+                {"error": f"{name}: {exc}", "details": list(exc.details)}, status_code=400
+            )
         return Response(payload.to_json(), media_type="application/json")
 
     async def events(_: Request) -> Response:

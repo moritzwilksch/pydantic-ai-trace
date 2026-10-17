@@ -1,6 +1,13 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { embeddedPayload, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
+import {
+  embeddedPayload,
+  FetchError,
+  fetchMeta,
+  fetchTrace,
+  fetchTree,
+  subscribeChanges,
+} from "./api";
 import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
 import {
   defaultSelection,
@@ -238,7 +245,8 @@ function ServerApp() {
       .catch((e) => {
         if (!isLatest()) return;
         const message = e instanceof Error ? e.message : String(e);
-        setTrace((current) => traceFailed(current, target, message));
+        const details = e instanceof FetchError ? e.details : [];
+        setTrace((current) => traceFailed(current, target, message, details));
       });
   }
 
@@ -335,6 +343,7 @@ function ServerApp() {
             {trace.status === "stale" ? (
               <div class="banner-warn" role="status">
                 File currently invalid: {trace.message}; showing last valid version.
+                <ErrorDetails details={trace.details} />
               </div>
             ) : null}
           </>
@@ -368,9 +377,29 @@ function TraceStatus({ trace }: { trace: TraceState }) {
     case "loading":
       return <div class="empty">Loading trace…</div>;
     case "error":
-      return <div class="banner-error">{trace.message}</div>;
+      return (
+        <div class="banner-error">
+          {trace.message}
+          <ErrorDetails details={trace.details} />
+        </div>
+      );
     case "ready":
     case "stale":
       return null;
   }
+}
+
+/** Every validation error of a broken trace, collapsed; nothing for a single error. */
+function ErrorDetails({ details }: { details: string[] }) {
+  if (details.length < 2) return null;
+  return (
+    <details class="error-details">
+      <summary>Show all {details.length} errors</summary>
+      <ul>
+        {details.map((detail, i) => (
+          <li key={i}>{detail}</li>
+        ))}
+      </ul>
+    </details>
+  );
 }

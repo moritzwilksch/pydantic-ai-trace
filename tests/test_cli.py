@@ -621,7 +621,7 @@ class TestJsonCommand:
         output.write_text("existing output\n", encoding="utf-8")
 
         assert cli.main(["json", str(source), "--all", "-o", str(output)]) == 1
-        assert "broken.jsonl · trace 2: runs: Field required" in capsys.readouterr().err
+        assert "broken.jsonl · trace 2: not a trace: " in capsys.readouterr().err
         assert output.read_text(encoding="utf-8") == "existing output\n"
 
     def test_pretty_indents_single_trace_output(
@@ -726,10 +726,16 @@ class TestJsonCommand:
 
 class TestStatsCommand:
     @pytest.mark.parametrize("as_json", [False, True])
+    @pytest.mark.parametrize("content", ["empty/", "package.json", "node_modules/pkg/trace.json"])
     def test_directory_without_traces_fails_with_message(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture, as_json: bool
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, as_json: bool, content: str
     ):
-        (tmp_path / "empty").mkdir()
+        if content.endswith("/"):
+            (tmp_path / content).mkdir(parents=True)
+        else:
+            (tmp_path / content).parent.mkdir(parents=True, exist_ok=True)
+            text = minimal_trace() if content.endswith("trace.json") else '{"name": "app"}'
+            (tmp_path / content).write_text(text)
 
         assert cli.main(["stats", str(tmp_path), *(["--json"] if as_json else [])]) == 1
         captured = capsys.readouterr()
@@ -749,6 +755,42 @@ class TestStatsCommand:
         assert "runs/multi.jsonl" in rows  # each JSONL line is its own row
         assert rows["total"][1] == "12"
         assert "  broken.json: not valid JSON" in "\n".join(lines)
+
+    def test_passes_over_json_that_is_not_a_trace_in_a_directory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        (tmp_path / "package.json").write_text('{"name": "app", "version": "1.0.0"}')
+        (tmp_path / "events.jsonl").write_text('{"event": "start"}\n')
+        (tmp_path / "good.json").write_text(minimal_trace())
+
+        assert cli.main(["stats", str(tmp_path)]) == 0
+
+        out = capsys.readouterr().out
+        assert out.splitlines()[1].startswith("good.json")
+        assert "package.json" not in out
+        assert "events.jsonl" not in out
+
+    def test_reads_a_named_path_inside_a_skipped_directory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        vendored = tmp_path / "node_modules" / "pkg"
+        vendored.mkdir(parents=True)
+        (vendored / "a.json").write_text(minimal_trace())
+        (vendored / "b.json").write_text(minimal_trace())
+
+        assert cli.main(["stats", str(vendored), str(vendored / "b.json"), "--json"]) == 0
+        names = [json.loads(line)["name"] for line in capsys.readouterr().out.splitlines()]
+        assert names == ["pkg/a.json", "pkg/b.json", (vendored / "b.json").as_posix()]
+
+    def test_reports_a_named_file_that_is_not_a_trace(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        source = tmp_path / "package.json"
+        source.write_text('{"name": "app"}')
+
+        assert cli.main(["stats", str(source)]) == 1
+
+        assert f"  {source.as_posix()}: not a trace: " in capsys.readouterr().out
 
     def test_json_prints_one_object_per_trace(
         self, fixtures_copy: Path, capsys: pytest.CaptureFixture
@@ -970,3 +1012,15 @@ class TestClosedStdout:
         stderr = process.stderr.read()
         assert process.wait(timeout=30) == 1
         assert stderr == b""
+
+
+@pytest.mark.parametrize("command", ["text", "json", "export"])
+def test_single_trace_commands_reject_json_that_is_not_a_trace(
+    command: str, tmp_path: Path, capsys: pytest.CaptureFixture
+):
+    source = tmp_path / "package.json"
+    source.write_text('{"name": "app"}')
+
+    assert cli.main([command, str(source), "-o", str(tmp_path / "out")]) == 1
+
+    assert capsys.readouterr().err.startswith("error: package.json: not a trace: ")
