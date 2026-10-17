@@ -181,7 +181,8 @@ A `.json` file holds one trace. A `.jsonl` file holds one trace per line, and ea
 own trace in the viewer and in `paitrace stats`.
 
 Traces are validated with the installed Pydantic AI. A trace that does not validate is listed
-with its first validation error instead. A dump from a newer Pydantic AI may need a newer install.
+with its first validation error instead. A dump from a newer Pydantic AI may need a newer install;
+the error suggests one when a message or part kind is unknown to the installed version.
 
 ## Development
 

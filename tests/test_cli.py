@@ -340,6 +340,48 @@ class TestTextCommand:
         assert code == 1
         assert "pass --line 1..2" in capsys.readouterr().err
 
+    @pytest.mark.parametrize(
+        ("edit", "hinted"),
+        [
+            (lambda trace: trace[0]["parts"][0].update(part_kind="future-part"), True),
+            (lambda trace: trace[1].update(kind="future-message"), True),
+            (lambda trace: trace[0]["parts"][0].pop("part_kind"), False),
+            (lambda trace: trace[1]["parts"][0].update(content=7), False),
+        ],
+        ids=["unknown part kind", "unknown message kind", "missing kind", "wrong type"],
+    )
+    def test_unknown_kind_suggests_upgrading_pydantic_ai(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, edit, hinted: bool
+    ):
+        trace = json.loads(minimal_trace())
+        edit(trace)
+        source = tmp_path / "trace.json"
+        source.write_text(json.dumps(trace))
+
+        assert cli.main(["text", str(source)]) == 1
+        assert ("if a newer Pydantic AI wrote this trace, upgrade" in capsys.readouterr().err) is (
+            hinted
+        )
+
+    @pytest.mark.parametrize(
+        ("edit", "hinted"),
+        [
+            (lambda run: run["messages"][0].update(kind="future-message"), True),
+            (lambda run: run.update(outcome={"status": "future-status"}), False),
+        ],
+        ids=["unknown message kind", "unknown outcome"],
+    )
+    def test_upgrade_hint_in_a_trajectory_covers_only_messages(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture, edit, hinted: bool
+    ):
+        source = fixtures_copy / "trajectory.json"
+        trajectory = json.loads(source.read_text())
+        edit(trajectory["runs"][0])
+        source.write_text(json.dumps(trajectory))
+
+        assert cli.main(["text", str(source)]) == 1
+        assert ("upgrade pydantic-ai-slim" in capsys.readouterr().err) is hinted
+
     def test_output_file_receives_text_without_polluting_stdout(
         self, fixtures_copy: Path, tmp_path: Path, capsys: pytest.CaptureFixture
     ):
