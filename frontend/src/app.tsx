@@ -8,6 +8,13 @@ import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { RunBreadcrumb } from "./components/RunBreadcrumb";
 import { RunTree } from "./components/RunTree";
+import {
+  SIDEBAR_ID,
+  SidebarBackdrop,
+  SidebarToggle,
+  useSidebar,
+  type Sidebar,
+} from "./components/Sidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceSearch } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
@@ -28,21 +35,28 @@ export function App() {
 /** Exported HTML: one embedded payload, with a runs sidebar for a trajectory. */
 function ExportedApp({ payload }: { payload: TracePayload }) {
   const runs = useRuns(payload, payload.name);
+  const sidebar = useSidebar();
   return (
-    <div class="layout">
+    <div class={layoutClass(sidebar)}>
       {runs?.multiRun ? (
-        <nav class="tree-pane">
+        <nav class="tree-pane" id={SIDEBAR_ID}>
           <div class="tree-header" title={payload.name}>
             {payload.name}
           </div>
           <div class="tree-body">
             <div class="tree-children">
-              <RunTreeFor runs={runs} />
+              <RunTreeFor runs={runs} onSelected={() => sidebar.setOpen(false)} />
             </div>
           </div>
         </nav>
       ) : null}
-      <TracePane title={payload.name} payload={payload} runs={runs} />
+      <SidebarBackdrop sidebar={sidebar} />
+      <TracePane
+        title={payload.name}
+        payload={payload}
+        runs={runs}
+        sidebar={runs?.multiRun ? sidebar : null}
+      />
     </div>
   );
 }
@@ -71,26 +85,40 @@ function useRuns(payload: TracePayload | null, traceKey: string): Runs | null {
   };
 }
 
-function RunTreeFor({ runs }: { runs: Runs }) {
+function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }) {
   return (
-    <RunTree trajectory={runs.trajectory} selected={runs.selected.run.id} onSelect={runs.select} />
+    <RunTree
+      trajectory={runs.trajectory}
+      selected={runs.selected.run.id}
+      onSelect={(runId) => {
+        runs.select(runId);
+        onSelected();
+      }}
+    />
   );
+}
+
+/** The sidebar overlays the trace on narrow screens while open; see `useSidebar`. */
+function layoutClass(sidebar: Sidebar): string {
+  return sidebar.open ? "layout sidebar-open" : "layout";
 }
 
 /**
  * One trace: its header and the selected run. `placeholder` replaces the body
- * while no payload is loaded.
+ * while no payload is loaded. `sidebar` is null when there is no sidebar to toggle.
  */
 function TracePane({
   title,
   payload,
   runs,
+  sidebar,
   placeholder,
   banner,
 }: {
   title: string;
   payload: TracePayload | null;
   runs: Runs | null;
+  sidebar: Sidebar | null;
   placeholder?: ComponentChildren;
   banner?: ComponentChildren;
 }) {
@@ -104,6 +132,7 @@ function TracePane({
   return (
     <main class="main-pane">
       <header class="trace-header">
+        {sidebar ? <SidebarToggle sidebar={sidebar} /> : null}
         <RunBreadcrumb
           title={title}
           trajectory={runs?.trajectory ?? null}
@@ -149,6 +178,7 @@ function ServerApp() {
   const [appError, setAppError] = useState<string | null>(null);
   const beginTreeRequest = useRequestOrder();
   const beginTraceRequest = useRequestOrder();
+  const sidebar = useSidebar();
 
   // A save can trigger several change events, and their responses can arrive out
   // of order. Only the latest request may update the tree or the trace.
@@ -226,6 +256,7 @@ function ServerApp() {
     const encoded = next.path.split("/").map(encodeURIComponent).join("/");
     location.hash = `#/${encoded}${next.line !== undefined ? `:${next.line}` : ""}`;
     setSelection(next);
+    sidebar.setOpen(false);
   }
 
   const shown = shownTrace(trace);
@@ -250,21 +281,28 @@ function ServerApp() {
     Boolean(runs?.multiRun);
 
   return (
-    <div class="layout">
+    <div class={layoutClass(sidebar)}>
       {showTree && tree ? (
         <TreePane
+          id={SIDEBAR_ID}
           root={tree}
           rootLabel={meta?.root ?? ""}
           selection={selection}
           onSelect={select}
-          selectedChildren={runsUnderSelection ? <RunTreeFor runs={runsUnderSelection} /> : null}
+          selectedChildren={
+            runsUnderSelection ? (
+              <RunTreeFor runs={runsUnderSelection} onSelected={() => sidebar.setOpen(false)} />
+            ) : null
+          }
         />
       ) : null}
+      <SidebarBackdrop sidebar={sidebar} />
       <TracePane
         key={title}
         title={title}
         payload={payload}
         runs={runs}
+        sidebar={showTree && tree ? sidebar : null}
         banner={
           <>
             {appError ? <div class="banner-error">{appError}</div> : null}

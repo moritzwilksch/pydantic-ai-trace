@@ -8,12 +8,14 @@ import type { TraceSelection, TreeNode } from "../types";
 export const TRACE_LINE_PAGE = 100;
 
 export function TreePane({
+  id,
   root,
   rootLabel,
   selection,
   onSelect,
   selectedChildren,
 }: {
+  id?: string;
   root: TreeNode;
   rootLabel: string;
   selection: TraceSelection | null;
@@ -27,7 +29,7 @@ export function TreePane({
   const topLevel =
     visibleRoot?.type === "dir" ? (visibleRoot.children ?? []) : visibleRoot ? [visibleRoot] : [];
   return (
-    <nav class="tree-pane">
+    <nav class="tree-pane" id={id}>
       <div class="tree-header" title={rootLabel}>
         {rootLabel}
       </div>
