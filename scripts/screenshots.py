@@ -33,7 +33,7 @@ from pydantic_ai_trace import Run, Trajectory
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 START = datetime(2026, 1, 15, 9, 30, tzinfo=UTC)
-VIEWPORT = {"width": 1400, "height": 900}
+VIEWPORT = {"width": 1400, "height": 1100}
 
 type Theme = Literal["light", "dark"]
 
@@ -87,21 +87,14 @@ def demo_trajectory() -> Trajectory:
     search_population = ToolCallPart(
         "web_search", {"query": "largest EU cities by population 2025"}, "call_search_1"
     )
-    search_density = ToolCallPart(
-        "web_search", {"query": "EU capitals population density"}, "call_search_2"
-    )
     verify = ToolCallPart(
         "verify_claims",
-        {"claims": ["Berlin has 3.9M residents", "Madrid has 3.4M residents"]},
+        {"claim": "Berlin and Madrid each have more than 3 million residents"},
         "call_verify",
     )
     report_output = {
         "answer": "Berlin and Madrid are the only EU capitals with more than 3 million residents.",
-        "cities": [
-            {"name": "Berlin", "population": 3_897_145, "verified": True},
-            {"name": "Madrid", "population": 3_460_491, "verified": True},
-        ],
-        "sources": ["destatis.de", "ine.es"],
+        "capitals": {"Berlin": 3_897_145, "Madrid": 3_460_491},
     }
     report = ToolCallPart("final_result", report_output, "call_final")
     research_messages: list[ModelMessage] = [
@@ -121,12 +114,11 @@ def demo_trajectory() -> Trajectory:
                 "largest cities first, then have the fact checker confirm the candidates."
             ),
             search_population,
-            search_density,
             model=gpt,
             tokens=(1_240, 0, 186),
         ),
         request(
-            4.0,
+            3.8,
             tool_return(
                 3.8,
                 search_population,
@@ -135,11 +127,6 @@ def demo_trajectory() -> Trajectory:
                     {"title": "Madrid: padrón municipal", "url": "https://ine.es/madrid"},
                     {"title": "Rome demographics", "url": "https://istat.it/roma"},
                 ],
-            ),
-            tool_return(
-                4.0,
-                search_density,
-                [{"title": "Urban density in the EU", "url": "https://ec.europa.eu/eurostat"}],
             ),
         ),
         response(6.2, verify, model=gpt, tokens=(1_810, 1_152, 64)),
@@ -212,8 +199,9 @@ def capture(page: Page, url: str, out: Path) -> None:
     # Select the run explicitly instead of relying on the default selection.
     page.locator(".run-node", has_text="research_agent").click()
     page.locator(".child-run").wait_for(state="attached")
-    # Expand the tool call that started the subagent.
-    page.locator("details.tool-group:has(.tool-name:text-is('verify_claims')) > summary").click()
+    # Expand the tool call that started the subagent, and the structured output.
+    for tool in ("verify_claims", "final_result"):
+        page.locator(f"details.tool-group:has(.tool-name:text-is('{tool}')) > summary").click()
     page.locator(".trace-body").evaluate("body => { body.scrollTop = 0; }")
     # No focus ring, caret, or hover state; the pointer rests on empty sidebar space.
     page.evaluate("document.activeElement?.blur()")
