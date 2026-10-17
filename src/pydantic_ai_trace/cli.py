@@ -109,7 +109,9 @@ examples:
         "(default: stdin when piped)",
     )
     parser.add_argument(
-        "--port", type=int, default=DEFAULT_PORT, help="port to listen on (default: %(default)s)"
+        "--port",
+        type=int,
+        help=f"port to listen on (default: {DEFAULT_PORT}, or a free port when it is busy)",
     )
     parser.add_argument(
         "--host",
@@ -119,6 +121,9 @@ examples:
     )
     parser.add_argument("--no-open", action="store_true", help="do not open a browser tab")
     parser.add_argument("--version", action="version", version=f"paitrace {__version__}")
+    if not argv and sys.stdin.isatty():
+        parser.print_help()
+        return 0
     args = parser.parse_args(argv)
 
     paths: list[Path] = args.paths
@@ -176,10 +181,9 @@ def _serve_source(
     *,
     display_name: str,
     host: str,
-    port: int,
+    port: int | None,
     no_open: bool,
 ) -> int:
-    url = f"http://{host}:{port}/"
     if not _is_loopback(host):
         print(
             f"warning: serving on {host} without authentication; "
@@ -187,8 +191,9 @@ def _serve_source(
             file=sys.stderr,
         )
 
-    def on_bound() -> None:
-        print(f"paitrace serving {display_name} at {url}")
+    def on_bound(bound_port: int) -> None:
+        url = _browser_url(host, bound_port)
+        print(f"paitrace serving {display_name} at {url} (Ctrl-C to stop)", file=sys.stderr)
         if not no_open:
             browser_timer = threading.Timer(0.5, webbrowser.open, args=[url])
             browser_timer.daemon = True  # never keep the process alive
@@ -196,11 +201,26 @@ def _serve_source(
 
     from .server import ServerStartError, serve
 
+    ports = [DEFAULT_PORT, 0] if port is None else [port]  # 0: any free port
     try:
-        serve(source, host=host, port=port, on_bound=on_bound)
+        serve(source, host=host, ports=ports, on_bound=on_bound)
     except ServerStartError as exc:
-        raise CliError(f"{exc}; pick another port with --port") from exc
+        hint = "; pick another port with --port" if port is not None else ""
+        raise CliError(f"{exc}{hint}") from exc
     return 0
+
+
+def _browser_url(host: str, port: int) -> str:
+    """A URL a local browser can open; a wildcard address is not one."""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:  # a hostname
+        return f"http://{host}:{port}/"
+    if address.is_unspecified:
+        return f"http://localhost:{port}/"
+    if address.version == 6:
+        return f"http://[{host}]:{port}/"
+    return f"http://{host}:{port}/"
 
 
 def _is_loopback(host: str) -> bool:
@@ -248,7 +268,7 @@ examples:
         output.write_text(payload_document(loaded.payload()), encoding="utf-8")
     except (scan.TraceLookupError, FileNotFoundError, OSError, UnicodeError, ValueError) as exc:
         raise CliError(str(exc)) from exc
-    print(f"wrote {output}")
+    print(f"wrote {output}", file=sys.stderr)
     return 0
 
 
@@ -324,6 +344,14 @@ examples:
     args = parser.parse_args(argv)
 
     inputs: list[Path] = args.inputs
+    # One document per trace has no single-document form for a directory; a
+    # shell glob names its traces explicitly.
+    directory = next((path for path in inputs if path.is_dir()), None)
+    if directory is not None:
+        raise CliError(
+            f"expected .json or .jsonl trace files, got directory: {directory}; "
+            f"pass its traces instead, e.g. paitrace json {directory / '*.json'} --all"
+        )
     _require_output_not_input(args.output, inputs)
     try:
         multiple = len(inputs) > 1

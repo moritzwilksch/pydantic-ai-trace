@@ -236,7 +236,7 @@ class TestIndex:
 def test_server_bind_failure_does_not_report_started(fixtures_copy: Path):
     started = False
 
-    def on_bound():
+    def on_bound(port: int):
         nonlocal started
         started = True
 
@@ -246,6 +246,6 @@ def test_server_bind_failure_does_not_report_started(fixtures_copy: Path):
         port = blocker.getsockname()[1]
 
         with pytest.raises(ServerStartError):
-            serve(fixtures_copy, host="127.0.0.1", port=port, on_bound=on_bound)
+            serve(fixtures_copy, host="127.0.0.1", ports=[port], on_bound=on_bound)
 
     assert started is False

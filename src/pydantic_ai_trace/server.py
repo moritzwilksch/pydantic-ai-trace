@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-from collections.abc import Callable
+import socket
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -30,11 +31,20 @@ class ServerStartError(Exception):
 def serve(
     source: ServerSource,
     host: str,
-    port: int,
-    on_bound: Callable[[], None] | None = None,
+    ports: Sequence[int],
+    on_bound: Callable[[int], None] | None = None,
 ) -> None:
-    """Run the viewer server until interrupted; Ctrl-C always exits promptly."""
+    """Run the viewer server until interrupted; Ctrl-C always exits promptly.
+
+    Binds the first free port of `ports` (0 picks any free port) and passes the
+    bound port to `on_bound`.
+    """
     import uvicorn
+
+    # Bind once and hand that same socket to Uvicorn. A separate availability
+    # check would release the port and race with the real server bind.
+    sock = _bind_first(host, ports)
+    port = sock.getsockname()[1]
 
     stop_event = asyncio.Event()
     config = uvicorn.Config(
@@ -53,18 +63,32 @@ def serve(
             stop_event.set()
             await super().shutdown(sockets=sockets)
 
-    # Bind once and hand that same socket to Uvicorn. A separate availability
-    # check would release the port and race with the real server bind.
-    try:
-        sock = config.bind_socket()
-    except SystemExit as exc:
-        raise ServerStartError(f"cannot bind {host}:{port}") from exc
     if on_bound is not None:
-        on_bound()
+        on_bound(port)
 
     # Like uvicorn.run(): Ctrl-C is a clean exit, not a crash.
     with contextlib.suppress(KeyboardInterrupt):
         _Server(config).run(sockets=[sock])
+
+
+def _bind_first(host: str, ports: Sequence[int]) -> socket.socket:
+    """Bind like `uvicorn.Config.bind_socket`, without its log line and `sys.exit`."""
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    failure: tuple[int, OSError] | None = None
+    for port in ports:
+        sock = socket.socket(family=family)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((host, port))
+        except OSError as exc:
+            sock.close()
+            failure = (port, exc)
+            continue
+        sock.set_inheritable(True)
+        return sock
+    assert failure is not None, "no ports to bind"
+    port, exc = failure
+    raise ServerStartError(f"cannot bind {host}:{port}: {exc.strerror}") from exc
 
 
 def create_app(source: ServerSource, stop_event: asyncio.Event | None = None) -> Starlette:
