@@ -726,7 +726,7 @@ class TestJsonCommand:
 
 class TestStatsCommand:
     @pytest.mark.parametrize("as_json", [False, True])
-    @pytest.mark.parametrize("content", ["empty/", "package.json"])
+    @pytest.mark.parametrize("content", ["empty/", "package.json", "node_modules/pkg/trace.json"])
     def test_directory_without_traces_fails_with_message(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, as_json: bool, content: str
     ):
@@ -734,7 +734,8 @@ class TestStatsCommand:
             (tmp_path / content).mkdir(parents=True)
         else:
             (tmp_path / content).parent.mkdir(parents=True, exist_ok=True)
-            (tmp_path / content).write_text('{"name": "app"}')
+            text = minimal_trace() if content.endswith("trace.json") else '{"name": "app"}'
+            (tmp_path / content).write_text(text)
 
         assert cli.main(["stats", str(tmp_path), *(["--json"] if as_json else [])]) == 1
         captured = capsys.readouterr()
@@ -776,9 +777,6 @@ class TestStatsCommand:
         vendored.mkdir(parents=True)
         (vendored / "a.json").write_text(minimal_trace())
         (vendored / "b.json").write_text(minimal_trace())
-
-        assert cli.main(["stats", str(tmp_path), "--json"]) == 0
-        assert capsys.readouterr().out == ""
 
         assert cli.main(["stats", str(vendored), str(vendored / "b.json"), "--json"]) == 0
         names = [json.loads(line)["name"] for line in capsys.readouterr().out.splitlines()]

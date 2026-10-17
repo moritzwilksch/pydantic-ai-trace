@@ -180,9 +180,11 @@ examples:
         raise CliError(f"path does not exist: {root}")
     if root.is_file() and root.suffix not in scan.TRACE_SUFFIXES:
         raise CliError(f"not a trace file (expected .json or .jsonl): {root}")
-    if root.is_dir() and next(scan.iter_trace_files(root), None) is None:
-        # Keep serving: the viewer lists traces as they are written.
-        print(f"note: no .json or .jsonl traces found under {root} yet", file=sys.stderr)
+    if root.is_dir():
+        files = scan.iter_trace_files(root, ignored=scan.git_ignored(root))
+        if next(files, None) is None:
+            # Keep serving: the viewer lists traces as they are written.
+            print(f"note: no .json or .jsonl traces found under {root} yet", file=sys.stderr)
     return _serve_source(
         root,
         display_name=str(root),
