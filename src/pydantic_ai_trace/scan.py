@@ -98,6 +98,14 @@ def resolve_within(root: Path, relative_path: str) -> Path:
     return resolved
 
 
+def _trace_path(root: Path, relative_path: str) -> Path:
+    """The trace file at `relative_path` under `root`, resolved; every trace read starts here."""
+    path = resolve_within(root, relative_path)
+    if not path.is_file() or path.suffix not in TRACE_SUFFIXES:
+        raise TraceLookupError(f"no such trace: {relative_path!r}", status_code=404)
+    return path
+
+
 def build_tree(root: Path, *, ignored: frozenset[Path] = frozenset()) -> TreeNode:
     """Build the trace tree for a root directory or a single trace file.
 
@@ -108,7 +116,7 @@ def build_tree(root: Path, *, ignored: frozenset[Path] = frozenset()) -> TreeNod
     be opened.
     """
     if root.is_file():
-        return _file_node(root, root.name)[0]
+        return _file_node(root.parent, root.name)[0]
     return _dir_node(root, root, name=root.name, ignored=ignored)
 
 
@@ -155,7 +163,7 @@ def build_collection_tree(collection: TraceCollection) -> TreeNode:
                 parent["children"].append(child)
                 directories[key] = child
             parent = child
-        parent["children"].append(_file_node(selected.path, selected.key)[0])
+        parent["children"].append(_file_node(collection.root, selected.key)[0])
     _sort_tree(root)
     return root
 
@@ -177,10 +185,7 @@ def read_trace(root: Path, relative_path: str, line: int | None) -> str:
     For `.jsonl` files `line` is 1-based and required when the file has more
     than one trace. The returned string is the file's own bytes, unmodified.
     """
-    path = resolve_within(root, relative_path)
-    if not path.is_file() or path.suffix not in TRACE_SUFFIXES:
-        raise TraceLookupError(f"no such trace: {relative_path!r}", status_code=404)
-
+    path = _trace_path(root, relative_path)
     try:
         if TRACE_SUFFIXES[path.suffix] == "json":
             return select_trace(
@@ -325,7 +330,7 @@ def _dir_node(root: Path, directory: Path, name: str, ignored: frozenset[Path]) 
             if child["children"]:
                 children.append(child)
         elif entry.suffix in TRACE_SUFFIXES:
-            node, is_trace = _file_node(entry, entry.relative_to(root).as_posix())
+            node, is_trace = _file_node(root, entry.relative_to(root).as_posix())
             if is_trace:
                 children.append(node)
     return {
@@ -336,22 +341,29 @@ def _dir_node(root: Path, directory: Path, name: str, ignored: frozenset[Path]) 
     }
 
 
-def _file_node(path: Path, relative_path: str) -> tuple[TreeNode, bool]:
-    """A file and a summary of each of its traces, and whether the file is a trace.
+def _file_node(root: Path, relative_path: str) -> tuple[TreeNode, bool]:
+    """A file under `root` and a summary of each of its traces, and whether the file is a trace.
 
-    The file itself is an error when it cannot be read, holds no traces, or holds
-    one invalid trace; an invalid trace among several is flagged on its summary only.
-    A file whose first trace is not a trace at all is not a trace file.
+    The file itself is an error when it escapes `root`, cannot be read, holds no traces,
+    or holds one invalid trace; an invalid trace among several is flagged on its summary
+    only. A file whose first trace is not a trace at all is not a trace file.
     """
+    name = Path(relative_path)
     node: TreeNode = {
-        "name": path.name,
+        "name": name.name,
         "path": relative_path,
         "type": "file",
-        "format": TRACE_SUFFIXES[path.suffix],
+        "format": TRACE_SUFFIXES[name.suffix],
         "trace_count": 0,
         "error": False,
         "traces": [],
     }
+    try:
+        path = _trace_path(root, relative_path)
+    except TraceLookupError as exc:
+        node["error"] = True
+        node["error_message"] = str(exc)
+        return node, True
     try:
         if path.suffix == ".json":
             trajectory = _load(path.read_text(encoding="utf-8"), relative_path)

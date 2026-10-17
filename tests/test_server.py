@@ -228,6 +228,62 @@ class TestTrace:
         assert sibling.status_code == 404
 
 
+class TestSelectedFileReplacedBySymlink:
+    """A selected file swapped for a symlink out of the root is neither read nor served."""
+
+    @pytest.fixture
+    def outside(self, tmp_path: Path) -> Path:
+        outside = tmp_path / "outside.json"
+        outside.write_text(minimal_trace("outside secret"), encoding="utf-8")
+        return outside
+
+    def test_file_mode(self, tmp_path: Path, outside: Path):
+        root = tmp_path / "root"
+        root.mkdir()
+        selected = root / "selected.json"
+        selected.write_text(minimal_trace("inside"), encoding="utf-8")
+        client = client_for(selected)
+        _replace_with_symlink(selected, outside)
+
+        tree = client.get("/api/tree")
+        trace = client.get("/api/trace", params={"path": "selected.json"})
+
+        assert "outside secret" not in tree.text
+        assert tree.json()["error"] is True
+        assert "escapes root" in tree.json()["error_message"]
+        assert trace.status_code == 400
+        assert "outside secret" not in trace.text
+
+    def test_collection(self, tmp_path: Path, outside: Path):
+        root = tmp_path / "root"
+        root.mkdir()
+        selected = root / "selected.json"
+        selected.write_text(minimal_trace("inside"), encoding="utf-8")
+        kept = root / "kept.jsonl"
+        kept.write_text(minimal_trace("kept") + "\n", encoding="utf-8")
+        client = TestClient(create_app(scan.TraceCollection.from_paths([selected, kept])))
+        _replace_with_symlink(selected, outside)
+
+        tree = client.get("/api/tree")
+        trace = client.get("/api/trace", params={"path": "selected.json"})
+
+        nodes = {child["path"]: child for child in tree.json()["children"]}
+        assert "outside secret" not in tree.text
+        assert nodes["selected.json"]["error"] is True
+        assert "escapes root" in nodes["selected.json"]["error_message"]
+        assert nodes["kept.jsonl"]["traces"][0]["prompt"] == "kept"
+        assert trace.status_code == 400
+        assert "outside secret" not in trace.text
+
+
+def _replace_with_symlink(path: Path, target: Path) -> None:
+    path.unlink()
+    try:
+        path.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+
 def test_collection_changes_only_report_selected_files(
     fixtures_copy: Path,
     monkeypatch: pytest.MonkeyPatch,
