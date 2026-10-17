@@ -51,18 +51,37 @@ class TestBuildTree:
         assert "not valid JSON" in broken["error_message"]
         assert find_node(tree, "full_trace.json")["error"] is False
 
-    def test_jsonl_with_an_invalid_first_trace_is_flagged(self, tmp_path: Path):
-        (tmp_path / "log.jsonl").write_text(f'[{{"kind": "telepathy"}}]\n{minimal_trace()}\n')
+    def test_jsonl_flags_each_invalid_trace_not_the_file(self, tmp_path: Path):
+        (tmp_path / "log.jsonl").write_text(
+            f'{minimal_trace()}\n\n[{{"kind": "telepathy"}}]\n{minimal_trace()}\n'
+        )
         node = scan.build_tree(tmp_path / "log.jsonl")
-        assert (node["trace_count"], node["error"]) == (2, True)
+        assert (node["trace_count"], node["error"]) == (3, False)
+        assert [trace["error"] for trace in node["traces"]] == [False, True, False]
+        assert node["traces"][1]["line"] == 2
+        assert node["traces"][1]["error_message"]
+
+    def test_jsonl_with_one_invalid_trace_is_flagged(self, tmp_path: Path):
+        (tmp_path / "log.jsonl").write_text('[{"kind": "telepathy"}]\n')
+        node = scan.build_tree(tmp_path / "log.jsonl")
+        assert (node["trace_count"], node["error"]) == (1, True)
         assert node["error_message"].startswith("line 1: ")
 
-    def test_jsonl_lists_later_traces_without_validating_them(self, tmp_path: Path):
-        # Validating every trace of a large log on each listing would stall the sidebar;
-        # the server reports a later invalid trace when it is opened.
-        (tmp_path / "log.jsonl").write_text(f'{minimal_trace()}\n\n[{{"kind": "telepathy"}}]\n')
+    def test_traces_are_summarized_by_first_prompt_and_models(self, tmp_path: Path):
+        long_prompt = "What is\n  the capital " + "of Australia " * 30
+        second_trace = minimal_trace(model_name="gpt-5-nano")
+        (tmp_path / "log.jsonl").write_text(f"{minimal_trace(long_prompt)}\n{second_trace}\n")
         node = scan.build_tree(tmp_path / "log.jsonl")
-        assert (node["trace_count"], node["error"]) == (2, False)
+        first, second = node["traces"]
+        assert first["prompt"].startswith("What is the capital of Australia of")
+        assert first["prompt"].endswith("…")
+        assert len(first["prompt"]) == scan.PROMPT_PREVIEW_CHARS
+        assert (first["models"], second["models"]) == ([], ["gpt-5-nano"])
+        assert (second["line"], second["prompt"]) == (2, "hello")
+
+    def test_trajectory_summary_takes_the_first_run_prompt(self, fixtures_copy: Path):
+        [trace] = scan.build_tree(fixtures_copy / "trajectory.json")["traces"]
+        assert (trace["prompt"], trace["models"]) == ("Plan the task.", ["gpt-4o"])
 
     def test_single_file_root_yields_single_node(self, fixtures_copy: Path):
         tree = scan.build_tree(fixtures_copy / "full_trace.json")
