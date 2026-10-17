@@ -347,6 +347,14 @@ examples:
     args = parser.parse_args(argv)
 
     inputs: list[Path] = args.inputs
+    # One document per trace has no single-document form for a directory; a
+    # shell glob names its traces explicitly.
+    directory = next((path for path in inputs if path.is_dir()), None)
+    if directory is not None:
+        raise CliError(
+            f"expected .json or .jsonl trace files, got directory: {directory}; "
+            f"pass its traces instead, e.g. paitrace json {directory / '*.json'} --all"
+        )
     _require_output_not_input(args.output, inputs)
     try:
         multiple = len(inputs) > 1

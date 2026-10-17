@@ -413,9 +413,9 @@ class TestJsonCommand:
         capsys: pytest.CaptureFixture,
     ):
         assert cli.main(["json", str(fixtures_copy)]) == 1
-        assert (
-            f"expected a .json or .jsonl trace file, got directory: {fixtures_copy}"
-            in capsys.readouterr().err
+        assert capsys.readouterr().err == (
+            f"error: expected .json or .jsonl trace files, got directory: {fixtures_copy}; "
+            f"pass its traces instead, e.g. paitrace json {fixtures_copy}/*.json --all\n"
         )
 
     def test_all_renders_each_jsonl_trace_as_one_output_line(
