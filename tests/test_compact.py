@@ -1,6 +1,16 @@
+import asyncio
 import json
 from pathlib import Path
 
+import pytest
+from pydantic_ai import Agent, capture_run_messages
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelResponse,
+    ToolCallPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from traces import eval_set
 
 from pydantic_ai_trace.compact import compact_payload
@@ -115,6 +125,35 @@ def test_a_result_without_a_call_stays_in_its_request():
     messages = compact_messages(trace, "orphan.json")
 
     assert messages[0]["parts"] == [{"type": "tool_result", "name": "t", "result": 1, "id": "gone"}]
+
+
+def test_an_interrupted_request_keeps_its_state_after_its_results_fold():
+    def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(
+            parts=[
+                ToolCallPart(tool_name="ok", tool_call_id="a"),
+                ToolCallPart(tool_name="boom", tool_call_id="b"),
+            ]
+        )
+
+    agent = Agent(FunctionModel(model))
+
+    @agent.tool_plain(sequential=True)
+    def ok() -> str:
+        return "fine"
+
+    @agent.tool_plain(sequential=True)
+    def boom() -> str:
+        raise RuntimeError("broke")
+
+    with capture_run_messages() as captured, pytest.raises(RuntimeError):
+        asyncio.run(agent.run("go"))
+    trace = json.loads(ModelMessagesTypeAdapter.dump_json(captured))
+
+    messages = compact_messages(trace, "interrupted.json")
+
+    assert messages[1]["parts"][0]["result"] == "fine"
+    assert messages[2] == {"type": "request", "state": "interrupted", "parts": []}
 
 
 def test_repeated_instructions_are_only_included_when_they_change():

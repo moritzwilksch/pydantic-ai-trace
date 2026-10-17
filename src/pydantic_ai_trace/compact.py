@@ -65,7 +65,13 @@ def _compact_run(run: Run, analysis: RunAnalysis) -> dict[str, object]:
             if call is not None:
                 rendered.update(_call_outcome(call, messages))
             parts.append(rendered)
-        if message["kind"] == "request" and message["parts"] and not parts and not instructions:
+        if (
+            message["kind"] == "request"
+            and message["state"] == "complete"
+            and message["parts"]
+            and not parts
+            and not instructions
+        ):
             continue  # It only carried results, now under their calls.
         compact_messages.append(_compact_message(message, parts, instructions=instructions))
     compact["messages"] = compact_messages
