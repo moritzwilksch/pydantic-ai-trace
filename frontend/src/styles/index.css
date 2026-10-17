@@ -1037,6 +1037,16 @@ details.collapsible > summary {
   color: var(--danger);
 }
 
+.banner-warn {
+  max-width: 900px;
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  color: var(--warn);
+}
+
 /* highlight.js — minimal theme driven by the code syntax variables */
 .hljs-keyword,
 .hljs-selector-tag,

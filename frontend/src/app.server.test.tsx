@@ -19,7 +19,7 @@ vi.mock("./api", () => ({
 }));
 
 import { App } from "./app";
-import { fetchTrace, fetchTree, subscribeChanges } from "./api";
+import { fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
 import { payloadFromMessages } from "./testing/payload";
 import type { TracePayload, TreeNode } from "./types";
 
@@ -127,7 +127,7 @@ describe("App in server mode", () => {
     mockedFetchTrace.mockRejectedValue(new Error("run.json was removed"));
     const { getByText } = render(<App />);
 
-    await waitFor(() => expect(getByText("Error: run.json was removed")).toBeTruthy());
+    await waitFor(() => expect(getByText("run.json was removed")).toBeTruthy());
   });
 
   it("keeps the newest reload when an older one resolves last", async () => {
@@ -164,5 +164,45 @@ describe("App in server mode", () => {
 
     expect(getByText("new.json")).toBeTruthy();
     expect(queryByText("old.json")).toBeNull();
+  });
+
+  it("keeps the last valid trace while the file is invalid, then shows the fix", async () => {
+    const change = captureChanges();
+    mockedFetchTrace.mockResolvedValueOnce(textPayload("saved"));
+    const { getAllByText, getByRole, queryByRole } = render(<App />);
+    await waitFor(() => expect(getAllByText("saved").length).toBeGreaterThan(0));
+
+    mockedFetchTrace.mockRejectedValueOnce(new Error("'run.json' is not valid JSON"));
+    await act(async () => change(["run.json"]));
+
+    await waitFor(() =>
+      expect(getByRole("status").textContent).toBe(
+        "File currently invalid: 'run.json' is not valid JSON; showing last valid version.",
+      ),
+    );
+    getAllByText("saved");
+
+    mockedFetchTrace.mockResolvedValueOnce(textPayload("saved again"));
+    await act(async () => change(["run.json"]));
+
+    await waitFor(() => expect(getAllByText("saved again").length).toBeGreaterThan(0));
+    expect(queryByRole("status")).toBeNull();
+  });
+
+  it("keeps the file-mode layout while the file is invalid", async () => {
+    const change = captureChanges();
+    const file: TreeNode = { name: "run.json", path: "run.json", type: "file", format: "json" };
+    vi.mocked(fetchMeta).mockResolvedValueOnce({ mode: "file", root: "run.json" });
+    vi.mocked(fetchTree).mockResolvedValueOnce(file);
+    mockedFetchTrace.mockResolvedValueOnce(textPayload("saved"));
+    const { container, getAllByText, getByRole } = render(<App />);
+    await waitFor(() => expect(getAllByText("saved").length).toBeGreaterThan(0));
+
+    vi.mocked(fetchTree).mockResolvedValueOnce({ ...file, error: true, error_message: "bad" });
+    mockedFetchTrace.mockRejectedValueOnce(new Error("bad"));
+    await act(async () => change(["run.json"]));
+
+    await waitFor(() => getByRole("status"));
+    expect(container.querySelector(".tree-pane")).toBeNull();
   });
 });
