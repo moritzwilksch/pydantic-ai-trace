@@ -256,6 +256,7 @@ costs, and the viewer, so it opens offline in any browser.
         epilog="""\
 examples:
   paitrace export trace.json                 # writes trace.html
+  paitrace export runs.jsonl --line 2        # writes runs.line-2.html
   paitrace export runs.jsonl --line 2 -o run2.html
   curl -s https://example.test/trace.json | paitrace export -o trace.html""",
     )
@@ -264,14 +265,15 @@ examples:
         "-o",
         "--output",
         type=Path,
-        help="where to write the HTML (default: INPUT with an .html suffix; required for stdin)",
+        help="where to write the HTML (default: INPUT with an .html suffix, or .line-N.html "
+        "with --line on a .jsonl input; required for stdin)",
     )
     parser.add_argument("--line", type=int, help=_LINE_HELP)
     args = parser.parse_args(argv)
 
     if args.output is None and (args.input is None or args.input == Path("-")):
         raise CliError("--output is required when exporting stdin")
-    output = args.output or args.input.with_suffix(".html")
+    output = args.output or _default_export_path(args.input, args.line)
     _require_output_not_input(output, [args.input])
 
     try:
@@ -283,6 +285,13 @@ examples:
         raise CliError(str(exc)) from exc
     print(f"wrote {output}", file=sys.stderr)
     return 0
+
+
+def _default_export_path(input_path: Path, line: int | None) -> Path:
+    """INPUT as .html; each selected JSONL line gets its own file."""
+    if line is None or input_path.suffix != ".jsonl":
+        return input_path.with_suffix(".html")
+    return input_path.with_name(f"{input_path.stem}.line-{line}.html")
 
 
 def _run_text(argv: list[str]) -> int:

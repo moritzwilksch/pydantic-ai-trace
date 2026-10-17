@@ -241,6 +241,22 @@ class TestExportCommand:
         assert output.exists()
         assert capsys.readouterr() == ("", f"wrote {output}\n")
 
+    def test_default_output_names_the_selected_jsonl_line(
+        self, fixtures_copy: Path, capsys: pytest.CaptureFixture
+    ):
+        source = fixtures_copy / "runs" / "multi.jsonl"
+
+        assert cli.main(["export", str(source), "--line", "1"]) == 0
+        assert cli.main(["export", str(source), "--line", "2"]) == 0
+
+        err = capsys.readouterr().err
+        assert err.splitlines() == [
+            f"wrote {source.with_name('multi.line-1.html')}",
+            f"wrote {source.with_name('multi.line-2.html')}",
+        ]
+        assert "hello from line one" in source.with_name("multi.line-1.html").read_text()
+        assert "hello from line two" in source.with_name("multi.line-2.html").read_text()
+
     def test_invalid_trace_is_not_exported(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         source = tmp_path / "nan.json"
         source.write_text('[{"cost": NaN}]')
