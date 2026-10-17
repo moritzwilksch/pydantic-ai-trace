@@ -201,10 +201,7 @@ def _serve_source(
 
     from .server import ServerStartError, serve
 
-    if port is None:
-        ports = [DEFAULT_PORT, 0]  # 0: any free port
-    else:
-        ports = [port]
+    ports = [DEFAULT_PORT, 0] if port is None else [port]  # 0: any free port
     try:
         serve(source, host=host, ports=ports, on_bound=on_bound)
     except ServerStartError as exc:
