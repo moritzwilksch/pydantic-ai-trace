@@ -9,14 +9,15 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
-from pydantic_ai.messages import ModelMessagesTypeAdapter
+from pydantic_ai.messages import BaseToolCallPart, ModelMessagesTypeAdapter
 
 from ._format import format_bytes, format_count, format_duration, format_usd
 from .analysis import Analysis, RunAnalysis, Totals, parse_tool_args
-from .trajectory import Run, Trajectory
+from .trajectory import Run, RunId, Trajectory
 
 CAPABILITY_LOAD_KIND = "capability-load"
 TOOL_SEARCH_KIND = "tool-search"
@@ -30,39 +31,64 @@ def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> 
     move into the trace details instead, so diagnostics are never dropped.
     """
     by_id = {run.run_id: run for run in analysis.runs}
+    runs = {run.id: run for run in trajectory.runs}
     ordered = [run for run, _ in trajectory.walk()]
     details = [f"NAME: {_inline(name)}", _totals(analysis.totals)]
     if len(ordered) == 1:
         [run] = ordered
-        details.extend(_parent_lines(run, by_id[run.id]))
+        details.extend(_parent_lines(run, runs, by_id))
         if run.outcome.status != "completed":
             details.append(_outcome_line(run))
     sections = [_section(_envelope("TRACE"), "\n".join(details))]
     for run in ordered:
         if len(ordered) > 1:
             sections.append(
-                _section(_envelope(f"RUN: {_inline(run.name)}"), _run_details(run, by_id[run.id]))
+                _section(
+                    _envelope(f"RUN: {_inline(run.name)}"),
+                    _run_details(run, by_id[run.id], runs, by_id),
+                )
             )
-        sections.extend(_message_sections(run, by_id[run.id]))
+        sections.extend(_message_sections(run, by_id[run.id], runs))
     return "\n\n".join(sections) + "\n"
 
 
-def _run_details(run: Run, analysis: RunAnalysis) -> str:
+def _run_details(
+    run: Run,
+    analysis: RunAnalysis,
+    runs: Mapping[RunId, Run],
+    analyses: Mapping[RunId, RunAnalysis],
+) -> str:
     lines = [
         f"ID: {run.id}",
-        *_parent_lines(run, analysis),
+        *_parent_lines(run, runs, analyses),
         _outcome_line(run),
         _totals(analysis.totals),
     ]
     return "\n".join(lines)
 
 
-def _parent_lines(run: Run, analysis: RunAnalysis) -> list[str]:
+def _parent_lines(
+    run: Run,
+    runs: Mapping[RunId, Run],
+    analyses: Mapping[RunId, RunAnalysis],
+) -> list[str]:
+    """The parent, named by the run and the response and tool call that started this run."""
     if run.parent is None:
         return []
-    via = f" via tool call {run.parent.tool_call_id}" if run.parent.tool_call_id else ""
-    missing = " (not recorded)" if analysis.parent_missing else ""
-    return [f"PARENT: {run.parent.run_id}{missing}{via}"]
+    parent = runs.get(run.parent.run_id)
+    if parent is None:
+        via = f" via tool call {run.parent.tool_call_id}" if run.parent.tool_call_id else ""
+        return [f"PARENT: {run.parent.run_id} (not recorded){via}"]
+    line = f"PARENT: {_inline(parent.name)} ({parent.id})"
+    parent_analysis = analyses[parent.id]
+    call = next((info for info in parent_analysis.tool_calls if run.id in info.child_run_ids), None)
+    if call is None:
+        return [line]
+    response = [info.message for info in parent_analysis.responses].index(call.call.message) + 1
+    part = parent.messages[call.call.message].parts[call.call.part]
+    assert isinstance(part, BaseToolCallPart)
+    tool = f"{_tool_call_label(part.part_kind)}: {_inline(part.tool_name)}"
+    return [f"{line} · RESPONSE {response} · {tool}"]
 
 
 def _outcome_line(run: Run) -> str:
@@ -85,7 +111,7 @@ def _totals(totals: Totals) -> str:
     return " | ".join(summary)
 
 
-def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
+def _message_sections(run: Run, analysis: RunAnalysis, runs: Mapping[RunId, Run]) -> list[str]:
     messages: list[dict[str, Any]] = ModelMessagesTypeAdapter.dump_python(
         list(run.messages), mode="json"
     )
@@ -93,6 +119,9 @@ def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
     outputs = [info for info in analysis.tool_calls if info.is_output]
     output_calls = {(info.call.message, info.call.part) for info in outputs}
     output_returns = {(info.result.message, info.result.part) for info in outputs if info.result}
+    started = {
+        (info.call.message, info.call.part): info.child_run_ids for info in analysis.tool_calls
+    }
     sections: list[str] = []
     request_number = 0
     response_number = 0
@@ -110,6 +139,13 @@ def _message_sections(run: Run, analysis: RunAnalysis) -> list[str]:
                 formatted = _format_output_return(part)
             else:
                 formatted = _format_part(part)
+            child_ids = started.get(position, ())
+            # Recorded children only; the child's PARENT line points back here.
+            formatted += "".join(
+                f"\n\nSTARTED RUN: {_inline(runs[child].name)} ({child})"
+                for child in child_ids
+                if child in runs
+            )
             if formatted:
                 parts.append(formatted)
 
@@ -191,8 +227,12 @@ def _format_part(part: dict[str, Any]) -> str:
     return _part_section(f"UNKNOWN PART: {_inline(kind)}", _json(part))
 
 
+def _tool_call_label(part_kind: str) -> str:
+    return "BUILTIN TOOL CALL" if part_kind == "builtin-tool-call" else "TOOL CALL"
+
+
 def _format_tool_call(part: dict[str, Any]) -> str:
-    kind = "BUILTIN TOOL CALL" if part["part_kind"] == "builtin-tool-call" else "TOOL CALL"
+    kind = _tool_call_label(part["part_kind"])
     tool_kind = f" [{_inline(part['tool_kind']).upper()}]" if part.get("tool_kind") else ""
     return _part_section(
         f"{kind}: {_inline(part.get('tool_name'))}{tool_kind}",
