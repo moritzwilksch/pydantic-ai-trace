@@ -11,7 +11,7 @@ import {
   type PartRef,
   type ToolSearchReturnContent,
 } from "../../types";
-import { Block } from "../Block";
+import { Block, MoreHint } from "../Block";
 import { ChildRunCard } from "../ChildRunCard";
 import { focusPart } from "../KeyboardNav";
 import { ToolReturnValue, ValueView } from "./common";
@@ -60,10 +60,9 @@ export function ToolCallGroup({
   onOpenRun: (runId: string) => void;
 }) {
   const argsPreview = callPreview(part, args);
-  const hasTruncatedPreview = argsPreview.length > 96 || argsPreview.endsWith("…");
   return (
     <details class="content-block tone-tool tool-group">
-      <summary aria-label={hasTruncatedPreview ? "Expand to view full tool arguments" : undefined}>
+      <summary>
         <span class="block-label">
           <Wrench size={13} /> Tool call
         </span>
@@ -71,11 +70,7 @@ export function ToolCallGroup({
         {part.part_kind === "builtin-tool-call" ? <span class="badge">builtin</span> : null}
         {part.tool_kind ? <span class="badge">{part.tool_kind}</span> : null}
         {result !== null ? <ResultBadge result={result.part} /> : null}
-        {hasTruncatedPreview ? (
-          <span class="preview-more" title="Expand to view full tool arguments">
-            more
-          </span>
-        ) : null}
+        <MoreHint text={argsPreview} />
         <span class="pair-end">
           {childRuns.map((child) => (
             <ChildRunLink key={child.run.id} entry={child} onOpen={onOpenRun} />

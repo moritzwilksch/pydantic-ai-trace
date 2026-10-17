@@ -28,29 +28,51 @@ export function Block({
   defaultOpen?: boolean;
   children: ComponentChildren;
 }) {
-  const hasTruncatedPreview =
-    preview !== undefined && (preview.length > 96 || preview.endsWith("…"));
   return (
     <details class={`content-block${tone ? ` tone-${tone}` : ""}`} open={defaultOpen}>
-      <summary aria-label={hasTruncatedPreview ? "Expand to view the full value" : undefined}>
+      <summary>
         <span class="block-label">{label}</span>
         {badges}
-        {preview ? (
-          <span
-            class="block-preview"
-            title={hasTruncatedPreview ? "Expand to view the full value" : preview}
-          >
-            {preview}
-          </span>
-        ) : null}
-        {hasTruncatedPreview ? (
-          <span class="preview-more" title="Expand to view the full value">
-            more
-          </span>
-        ) : null}
+        <BlockPreview text={preview} />
         {trailing}
       </summary>
       <div class="block-body">{children}</div>
     </details>
   );
+}
+
+const EXPAND_HINT = "Expand to view the full value";
+
+/**
+ * The collapsed teaser of a content block's summary, with a "more" hint when
+ * the text is likely cut off. Both hide while the block is open.
+ */
+export function BlockPreview({ text }: { text: string | undefined }) {
+  if (!text) return null;
+  return (
+    <>
+      <span class="block-preview" title={isCutOff(text) ? EXPAND_HINT : text}>
+        {text}
+      </span>
+      <MoreHint text={text} />
+    </>
+  );
+}
+
+/**
+ * "more" after a header teaser that is likely cut off; hidden while the block
+ * is open. For headers whose teaser is not a `BlockPreview`, such as a tool
+ * call's signature.
+ */
+export function MoreHint({ text }: { text: string }) {
+  if (!isCutOff(text)) return null;
+  return (
+    <span class="preview-more" title={EXPAND_HINT}>
+      more
+    </span>
+  );
+}
+
+function isCutOff(text: string): boolean {
+  return text.length > 96 || text.endsWith("…");
 }
