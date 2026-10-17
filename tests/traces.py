@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 
-def minimal_trace(content: str = "hello") -> str:
+def minimal_trace(content: str = "hello", model_name: str | None = None) -> str:
     """A one-line canonical dump: a prompt and its answer."""
     from pydantic_ai.messages import (
         ModelMessagesTypeAdapter,
@@ -16,6 +16,10 @@ def minimal_trace(content: str = "hello") -> str:
     at = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
     messages = [
         ModelRequest(parts=[UserPromptPart(content=content, timestamp=at)]),
-        ModelResponse(parts=[TextPart(content="ok")], timestamp=at + timedelta(seconds=1)),
+        ModelResponse(
+            parts=[TextPart(content="ok")],
+            model_name=model_name,
+            timestamp=at + timedelta(seconds=1),
+        ),
     ]
     return ModelMessagesTypeAdapter.dump_json(messages).decode()

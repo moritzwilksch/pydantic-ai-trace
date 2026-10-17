@@ -14,7 +14,7 @@ Inspect [Pydantic AI](https://ai.pydantic.dev) agent runs in your browser. Point
 - Tool calls paired with their results, also when a result arrives in a later message
 - Model, provider, timing, token usage, and cost (from [genai-prices](https://github.com/pydantic/genai-prices))
 - Trajectories: workflow steps and subagents as a tree of runs, each subagent linked from the tool call that started it, with costs summed up the tree
-- A searchable directory tree of `.json` and `.jsonl` traces
+- A collapsible directory tree of `.json` and `.jsonl` traces, each labelled by its first prompt and filterable by path, prompt, final answer, or model
 - Collapsible large values, rendered Markdown, keyboard navigation, and in-trace search with `/`
 - A compact text transcript, copied from the viewer or printed with `paitrace text`
 

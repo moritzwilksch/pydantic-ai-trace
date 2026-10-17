@@ -1,9 +1,36 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, within } from "@testing-library/preact";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, within } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TRACE_LINE_PAGE, TreePane } from "./TreePane";
-import type { TreeNode } from "../types";
+import type { TraceSummary, TreeNode } from "../types";
+
+function jsonl(path: string, traces: Partial<TraceSummary>[]): TreeNode {
+  return {
+    name: path.split("/").at(-1)!,
+    path,
+    type: "file",
+    format: "jsonl",
+    trace_count: traces.length,
+    error: false,
+    traces: traces.map((trace, i) => ({
+      line: i + 1,
+      error: false,
+      prompt: null,
+      answer: null,
+      models: [],
+      ...trace,
+    })),
+  };
+}
+
+/** A JSONL file of `count` traces without prompts, labelled "trace N". */
+function unlabelled(path: string, count: number): TreeNode {
+  return jsonl(
+    path,
+    Array.from({ length: count }, () => ({})),
+  );
+}
 
 const TREE: TreeNode = {
   name: "fixtures",
@@ -30,6 +57,10 @@ const TREE: TreeNode = {
 };
 
 describe("TreePane", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("filters by filename and explains when no traces match", () => {
     const { getByPlaceholderText, getByText, queryByText } = render(
       <TreePane root={TREE} rootLabel="fixtures" selection={null} onSelect={() => undefined} />,
@@ -61,9 +92,7 @@ describe("TreePane", () => {
       name: "fixtures",
       path: ".",
       type: "dir",
-      children: [
-        { name: "runs.jsonl", path: "runs.jsonl", type: "file", format: "jsonl", trace_count: 2 },
-      ],
+      children: [unlabelled("runs.jsonl", 2)],
     };
     const { getByRole } = render(
       <TreePane
@@ -82,13 +111,7 @@ describe("TreePane", () => {
   });
 
   it("lists a large JSONL file one page at a time", () => {
-    const log: TreeNode = {
-      name: "evals.jsonl",
-      path: "evals.jsonl",
-      type: "file",
-      format: "jsonl",
-      trace_count: TRACE_LINE_PAGE * 2 + 50,
-    };
+    const log = unlabelled("evals.jsonl", TRACE_LINE_PAGE * 2 + 50);
     const { container, rerender } = render(
       <TreePane root={log} rootLabel="evals" selection={null} onSelect={() => undefined} />,
     );
@@ -113,5 +136,96 @@ describe("TreePane", () => {
     );
     expect(traceButtons()).toHaveLength(TRACE_LINE_PAGE + 1);
     expect(getByRole("button", { name: "trace 240" }).className).toContain("selected");
+  });
+
+  it("labels JSONL traces by line and prompt, and flags an invalid one", () => {
+    const log = jsonl("evals.jsonl", [
+      { prompt: "What is the capital of Australia?", answer: "Canberra.", models: ["gpt-5-nano"] },
+      { error: true, error_message: "not valid JSON" },
+    ]);
+    const { getByRole } = render(
+      <TreePane root={log} rootLabel="evals" selection={null} onSelect={() => undefined} />,
+    );
+
+    const first = getByRole("button", { name: "1What is the capital of Australia?" });
+    expect(first.getAttribute("title")).toBe(
+      "trace 1 · gpt-5-nano\nWhat is the capital of Australia?\n→ Canberra.",
+    );
+    const broken = getByRole("button", { name: "trace 2invalid" });
+    expect(broken.getAttribute("aria-invalid")).toBe("true");
+    expect(broken.getAttribute("title")).toBe("not valid JSON");
+    expect(getByRole("button", { name: "evals.jsonl21 invalid" })).not.toBeNull();
+  });
+
+  it("collapses folders and starts a JSONL file collapsed unless it holds the selection", () => {
+    const tree: TreeNode = {
+      name: "fixtures",
+      path: ".",
+      type: "dir",
+      children: [
+        { name: "evals", path: "evals", type: "dir", children: [unlabelled("evals/a.jsonl", 2)] },
+        unlabelled("b.jsonl", 2),
+      ],
+    };
+    const { getByRole, queryAllByRole } = render(
+      <TreePane
+        root={tree}
+        rootLabel="fixtures"
+        selection={{ path: "b.jsonl", line: 2 }}
+        onSelect={() => undefined}
+      />,
+    );
+    const traceButtons = () => queryAllByRole("button", { name: /^trace \d+$/ });
+    const folder = getByRole("button", { name: "evals" });
+    const evalsLog = getByRole("button", { name: "a.jsonl2" });
+
+    expect(evalsLog.getAttribute("aria-expanded")).toBe("false");
+    expect(traceButtons()).toHaveLength(2); // b.jsonl's
+    fireEvent.click(evalsLog);
+    expect(traceButtons()).toHaveLength(4);
+
+    fireEvent.click(folder);
+    expect(folder.getAttribute("aria-expanded")).toBe("false");
+    expect(queryAllByRole("button", { name: "a.jsonl2" })).toHaveLength(0);
+    expect(traceButtons()).toHaveLength(2);
+  });
+
+  it("filters traces by prompt, answer, and model, keeping only the matching lines", () => {
+    const tree: TreeNode = {
+      name: "fixtures",
+      path: ".",
+      type: "dir",
+      children: [
+        jsonl("evals.jsonl", [
+          {
+            prompt: "What is the capital of Australia?",
+            answer: "Canberra.",
+            models: ["gpt-5-nano"],
+          },
+          { prompt: "Sum the numbers 1 to 100.", answer: "5050", models: ["claude-haiku"] },
+        ]),
+        {
+          ...jsonl("chat.json", [{ prompt: "Refund order A-1043", models: ["gpt-5-mini"] }]),
+          name: "chat.json",
+          format: "json",
+        },
+      ],
+    };
+    const { getByPlaceholderText, getByRole, queryByRole, queryByText } = render(
+      <TreePane root={tree} rootLabel="fixtures" selection={null} onSelect={() => undefined} />,
+    );
+    const filter = getByPlaceholderText("Filter traces…");
+
+    for (const query of ["AUSTRALIA", "canberra"]) {
+      fireEvent.input(filter, { target: { value: query } });
+      expect(getByRole("button", { name: "1What is the capital of Australia?" })).not.toBeNull();
+      expect(queryByRole("button", { name: "2Sum the numbers 1 to 100." })).toBeNull();
+      expect(queryByText("chat.json")).toBeNull();
+    }
+
+    fireEvent.input(filter, { target: { value: "gpt-5" } });
+    expect(getByRole("button", { name: "1What is the capital of Australia?" })).not.toBeNull();
+    expect(queryByRole("button", { name: "2Sum the numbers 1 to 100." })).toBeNull();
+    expect(queryByText("chat.json")).not.toBeNull();
   });
 });
