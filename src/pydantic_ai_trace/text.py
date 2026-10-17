@@ -366,7 +366,11 @@ def _format_media(item: object) -> str:
     if kind == "binary":
         media_type = _js_string(item.get("media_type") or "application/octet-stream")
         size = base64_byte_length(_js_string(item.get("data")))
-        return f"[binary: {media_type}, {format_bytes(size)}, payload omitted]"
+        # Pydantic AI defaults the identifier to a short hash of the data; the model
+        # refers to the file by it.
+        identifier = _js_string(item.get("identifier"))
+        name = f"{identifier}, " if identifier else ""
+        return f"[binary: {name}{media_type}, {format_bytes(size)}, payload omitted]"
     return f"[{kind.removesuffix('-url')}] {_js_string(item.get('url'))}"
 
 

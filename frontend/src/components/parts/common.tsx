@@ -28,10 +28,13 @@ export function MediaContent({ item }: { item: Record<string, unknown> }) {
   const kind = String(item.kind);
   if (kind === "binary") {
     const mediaType = String(item.media_type ?? "application/octet-stream");
+    // Pydantic AI defaults the identifier to a short hash of the data, so it is
+    // always present in a dump; the model refers to the file by it.
+    const name = typeof item.identifier === "string" ? item.identifier : "binary";
     if (mediaType.startsWith("image/")) {
-      return <InlineImage mediaType={mediaType} data={item.data} alt="inline image" />;
+      return <InlineImage mediaType={mediaType} data={String(item.data)} name={name} />;
     }
-    return <MediaChip icon={<Paperclip size={13} />} label={`binary · ${mediaType}`} />;
+    return <MediaChip icon={<Paperclip size={13} />} label={`${name} · ${mediaType}`} />;
   }
   const url = item.url as string;
   if (kind === "image-url") {
@@ -88,37 +91,50 @@ export function MediaImage({
   src,
   alt,
   chipLabel,
+  caption,
 }: {
   src: string;
   alt: string;
   chipLabel: string;
+  caption?: string;
 }) {
   const [failed, setFailed] = useState(false);
   if (failed) return <MediaChip icon={<ImageOff size={13} />} label={chipLabel} />;
   return (
     <div class="media-item">
       <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />
+      {caption && <div class="media-caption">{caption}</div>}
     </div>
   );
 }
 
-/** Base64 payload rendered as an inline image. */
+/** A dumped `BinaryContent` image, captioned with its identifier. */
 export function InlineImage({
   mediaType,
   data,
-  alt,
+  name,
 }: {
   mediaType: string;
-  data: unknown;
-  alt: string;
+  data: string;
+  name: string;
 }) {
   return (
     <MediaImage
-      src={`data:${mediaType};base64,${data}`}
-      alt={alt}
-      chipLabel={`image · ${mediaType}`}
+      src={base64DataUrl(mediaType, data)}
+      alt={name}
+      chipLabel={`${name} · ${mediaType}`}
+      caption={name}
     />
   );
+}
+
+/**
+ * A `data:` URL for bytes from the payload. Pydantic serializes bytes as URL-safe
+ * base64 (`-`, `_`); `data:` URLs need the standard alphabet (`+`, `/`).
+ */
+export function base64DataUrl(mediaType: string, data: string): string {
+  const standard = data.replaceAll("-", "+").replaceAll("_", "/");
+  return `data:${mediaType};base64,${standard}`;
 }
 
 /**
