@@ -55,7 +55,7 @@ export function MessageCard({
     .filter(({ part }) => !isInvisible(part));
 
   return (
-    <div class="card" data-card>
+    <div class={`card card-${message.kind}`} data-card>
       <div class={`card-kind kind-${message.kind}`}>
         {message.kind === "request" ? "Request" : "Response"}
         {message.state !== "complete" ? <span class="badge warn">{message.state}</span> : null}

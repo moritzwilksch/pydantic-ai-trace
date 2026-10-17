@@ -31,6 +31,10 @@
   --radius: 8px;
   /* The trace header and the sidebar's brand row: one bar across the window. */
   --header-height: 48px;
+  /* Response cards: a faint wash of the "Response" heading's color, so requests and
+     responses tell apart while skimming. Dark mode needs less. */
+  --card-response-bg: color-mix(in srgb, var(--assistant) 5%, var(--bg-card));
+  --card-response-border: color-mix(in srgb, var(--assistant) 22%, var(--border));
   --content-max-height: 320px;
   --font-mono:
     ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -64,6 +68,8 @@
   --code-number: #fbbf24;
   --code-keyword: #c4b5fd;
   --shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+  --card-response-bg: color-mix(in srgb, var(--assistant) 3%, var(--bg-card));
+  --card-response-border: color-mix(in srgb, var(--assistant) 16%, var(--border));
 }
 
 * {
@@ -582,6 +588,16 @@ body {
   box-shadow: var(--shadow);
   content-visibility: auto;
   contain-intrinsic-size: auto 120px;
+}
+
+.card-response {
+  background: var(--card-response-bg);
+  border-color: var(--card-response-border);
+}
+
+.card-response > .card-kind,
+.card-response > .card-footer {
+  border-color: var(--card-response-border);
 }
 
 /* Card header names the pydantic-ai message type: Request or Response. */
