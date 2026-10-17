@@ -283,7 +283,7 @@ describe("App in exported-trace mode", () => {
     const link = within(toolCall.querySelector("summary")!).getByRole("button", {
       name: /fact_checker/,
     });
-    expect(link.textContent).toContain("failed");
+    expect(link.textContent).toBe("→ fact_checker failed");
 
     // Cancelling the click keeps <summary> from also toggling the call; jsdom does not toggle.
     expect(fireEvent.click(link)).toBe(false);

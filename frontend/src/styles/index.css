@@ -541,42 +541,6 @@ body {
   background: var(--bg-hover);
 }
 
-/* The same link, inline in a collapsed tool call's header. */
-.child-run-link {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-  padding: 0 6px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--bg-inset);
-  color: var(--text);
-  font: inherit;
-  font-size: 11px;
-  line-height: 16px;
-  white-space: nowrap;
-  max-width: 45%;
-  min-width: 0;
-  cursor: pointer;
-}
-
-.child-run-link svg {
-  flex-shrink: 0;
-}
-
-.child-run-link-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-mono);
-  font-weight: 600;
-}
-
-.child-run-link:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .child-run-stats {
   margin-left: auto;
   color: var(--text-dim);
@@ -1221,6 +1185,20 @@ details.collapsible > summary {
 
 .pair-link:hover {
   text-decoration: underline;
+}
+
+/* A run the call started, named in its header; long names truncate. */
+.child-run-link {
+  display: inline-flex;
+  gap: 0.5ch;
+  max-width: 28ch;
+  white-space: nowrap;
+}
+
+.child-run-link-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
 }
 
 /* ---- narrow screens: the sidebar overlays the trace ---- */

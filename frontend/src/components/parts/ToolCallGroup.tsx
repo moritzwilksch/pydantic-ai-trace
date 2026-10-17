@@ -1,4 +1,4 @@
-import { Bot, Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
+import { Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
 import { compactJson } from "../../format";
 import type { RunEntry, RunIndex } from "../../runIndex";
 import {
@@ -12,7 +12,7 @@ import {
   type ToolSearchReturnContent,
 } from "../../types";
 import { Block } from "../Block";
-import { ChildRunCard, OutcomeBadge } from "../ChildRunCard";
+import { ChildRunCard } from "../ChildRunCard";
 import { focusPart } from "../KeyboardNav";
 import { ToolReturnValue, ValueView } from "./common";
 
@@ -68,15 +68,15 @@ export function ToolCallGroup({
         {part.part_kind === "builtin-tool-call" ? <span class="badge">builtin</span> : null}
         {part.tool_kind ? <span class="badge">{part.tool_kind}</span> : null}
         {result !== null ? <ResultBadge result={result.part} /> : null}
-        {childRuns.map((child) => (
-          <ChildRunLink key={child.run.id} entry={child} onOpen={onOpenRun} />
-        ))}
         {hasTruncatedPreview ? (
           <span class="preview-more" title="Expand to view full tool arguments">
             more
           </span>
         ) : null}
         <span class="pair-end">
+          {childRuns.map((child) => (
+            <ChildRunLink key={child.run.id} entry={child} onOpen={onOpenRun} />
+          ))}
           {result === null ? <span class="pair-missing">no return recorded</span> : null}
           <PairNumber
             number={number}
@@ -160,7 +160,7 @@ function ChildRunLink({ entry, onOpen }: { entry: RunEntry; onOpen: (runId: stri
   return (
     <button
       type="button"
-      class="child-run-link"
+      class="pair-link child-run-link"
       title={`Open run ${run.name}`}
       onClick={(event) => {
         event.preventDefault(); // a click inside <summary> would also toggle the call
@@ -168,9 +168,8 @@ function ChildRunLink({ entry, onOpen }: { entry: RunEntry; onOpen: (runId: stri
         onOpen(run.id);
       }}
     >
-      <Bot size={12} />
-      <span class="child-run-link-name">{run.name}</span>
-      <OutcomeBadge status={run.outcome.status} />
+      → <span class="child-run-link-name">{run.name}</span>
+      {run.outcome.status !== "completed" ? ` ${run.outcome.status}` : null}
     </button>
   );
 }
