@@ -16,6 +16,7 @@ import threading
 import webbrowser
 from collections.abc import Iterable
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol, TextIO
 
@@ -134,10 +135,20 @@ examples:
     )
     parser.add_argument("--no-open", action="store_true", help="do not open a browser tab")
     parser.add_argument("--version", action="version", version=f"paitrace {__version__}")
+    parser.add_argument(
+        "--skill",
+        action="store_true",
+        help="print a Markdown skill that teaches AI agents to inspect traces with "
+        "`paitrace json`, `text`, and `stats`, then exit",
+    )
     if not argv and sys.stdin.isatty():
         parser.print_help()
         return 0
     args = parser.parse_args(argv)
+    if args.skill:
+        skill = resources.files("pydantic_ai_trace").joinpath("skill.md")
+        sys.stdout.write(skill.read_text(encoding="utf-8"))
+        return 0
 
     paths: list[Path] = args.paths
     if not paths or paths == [Path("-")]:
@@ -334,9 +345,10 @@ def _run_json(argv: list[str]) -> int:
         "paitrace json",
         description=f"""\
 Print traces as compact, structured JSON for jq, scripts, and AI agents. Each
-document has the trace's name, its stats, and its runs with their messages,
-outcomes, stats, and costs. Display headings, repeated instructions, provider
-response IDs, and binary payloads are left out.
+document has the trace's name, its stats, and its runs in tree order with their
+messages, outcomes, stats, and costs. Each tool call carries its result or retry,
+whether it gave the run's output, and the runs it started. Display headings,
+repeated instructions, provider response IDs, and binary payloads are left out.
 
 One input prints one JSON document. Several inputs, or --all, print JSONL with
 one document per trace.

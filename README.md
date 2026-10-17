@@ -36,6 +36,7 @@ pixi run paitrace trace.json
 | `paitrace text [INPUT]` | Prints one trace as a plain-text transcript |
 | `paitrace json [INPUTS ...]` | Prints traces as compact JSON for jq, scripts, and AI agents |
 | `paitrace stats [PATHS ...]` | Prints LLM calls, tokens, cost, and wall time per trace |
+| `paitrace --skill` | Prints an agent skill for inspecting traces with the commands above |
 
 `paitrace COMMAND --help` lists every option with examples. From a checkout, prefix commands
 with `pixi run`. With no input, a command reads piped stdin; bare `paitrace` in a terminal prints
@@ -47,60 +48,28 @@ help.
 
 ### Query with jq
 
-`paitrace json` prints one document per trace: its `name`, aggregate `stats`, and `runs`, each
-with its own `stats` and `messages`. `paitrace stats --json` prints the same `stats` for each
-trace and run, without messages.
+`paitrace json` prints one document per trace: its `name`, aggregate `stats`, and `runs` in tree
+order, each with its own `stats` and `messages`. Each tool call carries what became of it: its
+`result` and `outcome`, a `retry`, `output: true` when its arguments are the run's output, and the
+`child_runs` it started. `paitrace stats --json` prints the same `stats` for each trace and run,
+without messages.
 
 ```bash
-# The last assistant text, with runs in the order they ended
-paitrace json trace.json \
-  | jq -r '[.runs[].messages[].parts[] | select(.type == "text") | .content] | last'
-
-# Tool calls, results, and retries, in order within each run
-paitrace json trace.json \
-  | jq '[.runs[].messages[].parts[] | select(.type == "tool_call" or .type == "tool_result" or .type == "retry")]'
-
-# Each tool call with its result or retry, within its run
-# (takes the first result with the call's ID, so assumes IDs are unique within a run)
-paitrace json trace.json | jq '
-  [.runs[]
-    | .id as $run
-    | [.messages[].parts[]] as $parts
-    | [$parts[] | select(.type == "tool_result" or .type == "retry")] as $results
-    | $parts[]
-    | select(.type == "tool_call")
-    | . as $call
-    | {
-        run: $run,
-        id,
-        name,
-        args,
-        result: ($results | map(select(.id == $call.id)) | first)
-      }
-  ]
-'
-
-# Aggregate LLM calls, tokens, and cost
 paitrace json trace.json | jq '.stats'
-
-# Several documents as one JSON array
-paitrace json first.json second.json | jq -s '.'
-
-# Each agent's share of the cost across traces, grouping runs by name. A message list
-# records no agent name, so its run, named after its trace, counts as "(unnamed)".
-paitrace stats ./traces/ --json | jq -s '
-  [.[] | .name as $trace | .runs[]? | .agent = (if .name == $trace then "(unnamed)" else .name end)]
-  | group_by(.agent)
-  | map({agent: .[0].agent, cost_usd: (map(.stats.cost_usd // 0) | add)})
-  | (map(.cost_usd) | add) as $total
-  | map(.share = (if $total > 0 then 100 * .cost_usd / $total | round else null end))
-  | sort_by(-.cost_usd)
-'
 ```
 
 A run's `stats` count only its own calls, not the runs it started, so summing runs by name
 counts no subagent twice. `cost_usd` is missing when genai-prices knows none of the models;
 `unpriced_calls` counts the responses it could not price.
+
+`paitrace --skill` prints the full shape and tested jq recipes as an agent skill: runs and their
+outcomes, failed tool calls, a tool's calls with their results, final outputs, cost per agent, and
+searching an eval set. Install it for an agent, adding the frontmatter header its host requires:
+
+```bash
+mkdir -p .claude/skills/paitrace
+paitrace --skill > .claude/skills/paitrace/SKILL.md
+```
 
 ## Trajectories
 

@@ -7,7 +7,7 @@ from typing import Any
 from pydantic_ai.messages import ModelMessagesTypeAdapter
 
 from ._json import dumps_readable
-from .analysis import Totals, parse_tool_args
+from .analysis import PartRef, RunAnalysis, ToolCallInfo, Totals, parse_tool_args
 from .payload import TracePayload
 from .text import (
     COMPACTION_PLACEHOLDER,
@@ -20,12 +20,12 @@ from .trajectory import Run
 
 
 def compact_payload(payload: TracePayload) -> dict[str, object]:
-    """Runs in recorded order, each with its messages in order and its own stats."""
+    """Runs in tree order, each with its messages in order and its own stats."""
     analyses = {run.run_id: run for run in payload.analysis.runs}
     return {
         "name": payload.name,
         "stats": compact_totals(payload.analysis.totals),
-        "runs": [_compact_run(run, analyses[run.id].totals) for run in payload.trajectory.runs],
+        "runs": [_compact_run(run, analyses[run.id]) for run, _ in payload.trajectory.walk()],
     }
 
 
@@ -35,23 +35,64 @@ def format_compact_json(payload: TracePayload, *, indent: int | None = None) -> 
     return dumps_readable(compact_payload(payload), indent=indent, separators=separators) + "\n"
 
 
-def _compact_run(run: Run, totals: Totals) -> dict[str, object]:
+def _compact_run(run: Run, analysis: RunAnalysis) -> dict[str, object]:
     compact: dict[str, object] = {"id": run.id, "name": run.name}
     if run.parent is not None:
         compact["parent"] = run.parent.model_dump(mode="json", exclude_none=True)
     compact["outcome"] = run.outcome.model_dump(mode="json")
     compact["started_at"] = run.started_at.isoformat()
     compact["ended_at"] = run.ended_at.isoformat()
-    compact["stats"] = compact_totals(totals)
+    compact["stats"] = compact_totals(analysis.totals)
 
     messages: list[dict[str, Any]] = ModelMessagesTypeAdapter.dump_python(
         list(run.messages), mode="json"
     )
-    compact["messages"] = [
-        _compact_message(message, instructions=instructions)
-        for message, instructions in zip(messages, changed_instructions(messages), strict=True)
-    ]
+    # A paired result or retry is folded into its call, so it leaves its own message.
+    calls = {(info.call.message, info.call.part): info for info in analysis.tool_calls}
+    paired = {(ref.message, ref.part) for ref in analysis.matched_results}
+    compact_messages: list[dict[str, object]] = []
+    for index, (message, instructions) in enumerate(
+        zip(messages, changed_instructions(messages), strict=True)
+    ):
+        parts: list[dict[str, object]] = []
+        for part_index, part in enumerate(message["parts"]):
+            if (index, part_index) in paired:
+                continue
+            rendered = _compact_part(part)
+            if rendered is None:
+                continue
+            call = calls.get((index, part_index))
+            if call is not None:
+                rendered.update(_call_outcome(call, messages))
+            parts.append(rendered)
+        if message["kind"] == "request" and message["parts"] and not parts and not instructions:
+            continue  # It only carried results, now under their calls.
+        compact_messages.append(_compact_message(message, parts, instructions=instructions))
+    compact["messages"] = compact_messages
     return compact
+
+
+def _call_outcome(call: ToolCallInfo, messages: list[dict[str, Any]]) -> dict[str, object]:
+    """What became of a call: its result or retry, the output it gave, the runs it started."""
+    compact: dict[str, object] = {}
+    if call.is_output:
+        compact["output"] = True  # its args; the result is a fixed acknowledgement
+    elif call.result is not None:
+        result = _compact_part(_part_at(messages, call.result))
+        assert result is not None  # a return or retry always renders
+        if result["type"] == "retry":
+            compact["retry"] = result["content"]
+        else:
+            compact["result"] = result["result"]
+            if "outcome" in result:
+                compact["outcome"] = result["outcome"]
+    if call.child_run_ids:
+        compact["child_runs"] = list(call.child_run_ids)
+    return compact
+
+
+def _part_at(messages: list[dict[str, Any]], ref: PartRef) -> dict[str, Any]:
+    return messages[ref.message]["parts"][ref.part]
 
 
 def compact_totals(totals: Totals) -> dict[str, object]:
@@ -73,7 +114,9 @@ def compact_totals(totals: Totals) -> dict[str, object]:
     return stats
 
 
-def _compact_message(message: dict[str, Any], *, instructions: object | None) -> dict[str, object]:
+def _compact_message(
+    message: dict[str, Any], parts: list[dict[str, object]], *, instructions: object | None
+) -> dict[str, object]:
     compact: dict[str, object] = {"type": message["kind"]}
     if message.get("state") not in {None, "complete"}:
         compact["state"] = message["state"]
@@ -84,9 +127,7 @@ def _compact_message(message: dict[str, Any], *, instructions: object | None) ->
         _copy_nonempty(message, compact, "provider_name", "provider")
         _copy_nonempty(message, compact, "finish_reason", "finish_reason")
         compact["usage"] = _compact_usage(message["usage"])
-    compact["parts"] = [
-        rendered for part in message["parts"] if (rendered := _compact_part(part)) is not None
-    ]
+    compact["parts"] = parts
     return compact
 
 
