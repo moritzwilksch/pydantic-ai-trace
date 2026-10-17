@@ -19,20 +19,24 @@ export type TraceState =
   | { status: "unselected" }
   | { status: "loading"; previous: ShownTrace | null }
   | ShownTrace
-  | { status: "stale"; shown: ShownTrace; message: string }
-  | { status: "error"; message: string };
+  | { status: "stale"; shown: ShownTrace; message: string; details: string[] }
+  | { status: "error"; message: string; details: string[] };
 
-/** The state after loading `selection` failed with `message`. */
+/**
+ * The state after loading `selection` failed with `message`. `details` lists every
+ * validation error of a broken trace.
+ */
 export function traceFailed(
   current: TraceState,
   selection: TraceSelection,
   message: string,
+  details: string[] = [],
 ): TraceState {
   const shown = shownTrace(current);
   if (shown && sameSelection(shown.selection, selection)) {
-    return { status: "stale", shown, message };
+    return { status: "stale", shown, message, details };
   }
-  return { status: "error", message };
+  return { status: "error", message, details };
 }
 
 export function shownTrace(trace: TraceState): ShownTrace | null {

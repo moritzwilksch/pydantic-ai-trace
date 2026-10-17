@@ -1098,6 +1098,24 @@ details.collapsible > summary {
   color: var(--warn);
 }
 
+.error-details {
+  margin-top: 8px;
+}
+
+.error-details summary {
+  cursor: pointer;
+}
+
+.error-details ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
 /* highlight.js — minimal theme driven by the code syntax variables */
 .hljs-keyword,
 .hljs-selector-tag,

@@ -15,6 +15,7 @@ describe("traceFailed", () => {
       status: "stale",
       shown: ready,
       message: "not valid JSON",
+      details: [],
     });
   });
 
@@ -24,6 +25,7 @@ describe("traceFailed", () => {
       status: "stale",
       shown: ready,
       message: "second",
+      details: [],
     });
   });
 
@@ -31,11 +33,20 @@ describe("traceFailed", () => {
     const states: TraceState[] = [
       { status: "unselected" },
       { status: "loading", previous: null },
-      { status: "error", message: "old" },
+      { status: "error", message: "old", details: [] },
     ];
     for (const state of states) {
-      expect(traceFailed(state, run, "broken")).toEqual({ status: "error", message: "broken" });
+      expect(traceFailed(state, run, "broken")).toEqual({
+        status: "error",
+        message: "broken",
+        details: [],
+      });
     }
+  });
+
+  it("keeps every validation error of a failed reload", () => {
+    const details = ["runs.0.parent: Field required", "runs.0.outcome: Field required"];
+    expect(traceFailed(ready, run, "broken", details)).toMatchObject({ status: "stale", details });
   });
 
   it("shows the error when another trace fails to load", () => {
@@ -43,6 +54,7 @@ describe("traceFailed", () => {
     expect(traceFailed(loading, { path: "other.json" }, "broken")).toEqual({
       status: "error",
       message: "broken",
+      details: [],
     });
     expect(traceFailed(ready, { path: "run.json", line: 2 }, "broken").status).toBe("error");
   });
