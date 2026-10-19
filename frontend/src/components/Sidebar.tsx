@@ -106,7 +106,9 @@ export function SidebarResizer({ sidebar }: { sidebar: Sidebar }) {
       onKeyDown={(event) => {
         const next = keyedSidebarWidth(sidebar.width, event.key, event.shiftKey);
         if (next === null) return;
+        // The keys are the handle's own; the trace's arrow-key navigation must not see them.
         event.preventDefault();
+        event.stopPropagation();
         sidebar.setWidth(next);
       }}
     />

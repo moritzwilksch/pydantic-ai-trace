@@ -69,6 +69,14 @@ describe("sidebar resizing", () => {
     expect(renderSidebar().width()).toBe(SIDEBAR_WIDTH.max);
   });
 
+  it("keeps focus on the handle instead of triggering the trace's arrow-key shortcuts", () => {
+    const { handle, width } = renderSidebar();
+    handle.focus();
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(width()).toBe(SIDEBAR_WIDTH.default - SIDEBAR_STEP);
+    expect(document.activeElement).toBe(handle);
+  });
+
   it("follows a drag, clamped to the minimum, and resets on double-click", () => {
     const { handle, width } = renderSidebar();
     handle.setPointerCapture = vi.fn();
