@@ -26,6 +26,8 @@ import { RunTree } from "./components/RunTree";
 import {
   SIDEBAR_ID,
   SidebarBackdrop,
+  SidebarResizer,
+  sidebarStyle,
   SidebarToggle,
   useSidebar,
   type Sidebar,
@@ -53,7 +55,7 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
   const runs = useRuns(payload, view.run, (run) => navigate({ trace: null, run }));
   const sidebar = useSidebar();
   return (
-    <div class={layoutClass(sidebar)}>
+    <div class={layoutClass(sidebar)} style={sidebarStyle(sidebar)}>
       {runs?.multiRun ? (
         <nav class="tree-pane" id={SIDEBAR_ID}>
           <Brand />
@@ -67,6 +69,7 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
           </div>
         </nav>
       ) : null}
+      {runs?.multiRun ? <SidebarResizer sidebar={sidebar} /> : null}
       <SidebarBackdrop sidebar={sidebar} />
       <TracePane
         title={payload.name}
@@ -320,7 +323,7 @@ function ServerApp() {
     Boolean(runs?.multiRun);
 
   return (
-    <div class={layoutClass(sidebar)}>
+    <div class={layoutClass(sidebar)} style={sidebarStyle(sidebar)}>
       {showTree && tree ? (
         <TreePane
           id={SIDEBAR_ID}
@@ -335,6 +338,7 @@ function ServerApp() {
           }
         />
       ) : null}
+      {showTree && tree ? <SidebarResizer sidebar={sidebar} /> : null}
       <SidebarBackdrop sidebar={sidebar} />
       <TracePane
         key={title}
