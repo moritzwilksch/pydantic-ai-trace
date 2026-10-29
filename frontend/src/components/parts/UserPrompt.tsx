@@ -3,7 +3,7 @@ import { markdownPreview } from "../../format";
 import type { UserContentItem, UserPromptPart } from "../../types";
 import { Block } from "../Block";
 import { JsonTree } from "../JsonTree";
-import { isMediaItem, MediaChip, MediaContent, ValueView } from "./common";
+import { isMediaItem, MEDIA_ITEM_CLASS, MediaChip, MediaContent, ValueView } from "./common";
 
 export function UserPrompt({ part }: { part: UserPromptPart }) {
   const items = userContentItems(part.content);
@@ -57,7 +57,7 @@ function userContentText(item: UserContentItem | string): string | null {
 function ContentItem({ item }: { item: UserContentItem }) {
   if (typeof item === "string") {
     return (
-      <div class="media-item">
+      <div class={MEDIA_ITEM_CLASS}>
         <ValueView value={item} markdown preserveNewlines />
       </div>
     );
@@ -70,7 +70,7 @@ function ContentItem({ item }: { item: UserContentItem }) {
   switch (item.kind) {
     case "text-content":
       return (
-        <div class="media-item">
+        <div class={MEDIA_ITEM_CLASS}>
           <ValueView value={userContentText(item) ?? ""} markdown preserveNewlines />
         </div>
       );
@@ -80,7 +80,7 @@ function ContentItem({ item }: { item: UserContentItem }) {
       return <MediaChip icon={<Bookmark size={13} />} label="cache point" />;
     default:
       return (
-        <div class="media-item">
+        <div class={MEDIA_ITEM_CLASS}>
           <JsonTree value={item} />
         </div>
       );

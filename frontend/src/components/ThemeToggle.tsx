@@ -1,5 +1,8 @@
 import { Moon, Sun } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
+import { storage } from "../storage";
+import { Hint } from "./Hint";
+import { Button } from "./ui/button";
 
 type Theme = "light" | "dark";
 
@@ -7,15 +10,6 @@ function initialTheme(): Theme {
   const stored = storage((s) => s.getItem("paitrace-theme"));
   if (stored === "light" || stored === "dark") return stored;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-/** localStorage can be entirely absent or throw on access (sandboxed iframe). */
-function storage<T>(use: (s: Storage) => T): T | null {
-  try {
-    return use(globalThis.localStorage);
-  } catch {
-    return null;
-  }
 }
 
 export function ThemeToggle() {
@@ -27,12 +21,15 @@ export function ThemeToggle() {
   }, [theme]);
 
   return (
-    <button
-      class="icon-button"
-      title="Toggle theme"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-    >
-      {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-    </button>
+    <Hint label="Toggle theme">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Toggle theme"
+        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      >
+        {theme === "dark" ? <Sun /> : <Moon />}
+      </Button>
+    </Hint>
   );
 }

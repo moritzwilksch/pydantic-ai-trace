@@ -143,7 +143,7 @@ function embedWorkerWithHelper() {
 }
 
 describe("App in exported-trace mode", () => {
-  it("switches between the runs of an embedded trajectory", () => {
+  it("switches between the runs of an embedded run tree", () => {
     embed(
       payloadFromRuns(
         [
@@ -433,7 +433,7 @@ describe("App in exported-trace mode", () => {
     expect(child.getAttribute("title")).toContain("parent not recorded");
   });
 
-  it("renders a trajectory whose root run has an empty ID", () => {
+  it("renders a run tree whose root run has an empty ID", () => {
     embed(
       payloadFromRuns([
         {
@@ -722,8 +722,8 @@ describe("App in exported-trace mode", () => {
 
     const { container, getAllByText } = render(<App />);
 
-    const responseCard = container.querySelector(".kind-response")!.closest(".card")!;
-    const requestCard = container.querySelector(".kind-request")!.closest(".card")!;
+    const responseCard = container.querySelector(".kind-response")!.closest("[data-card]")!;
+    const requestCard = container.querySelector(".kind-request")!.closest("[data-card]")!;
     expect(responseCard.textContent).not.toContain("found");
     expect(requestCard.textContent).toContain("found");
     getAllByText("found");
@@ -771,7 +771,7 @@ describe("App in exported-trace mode", () => {
 
     const { container, getAllByText } = render(<App />);
     const requestCards = Array.from(container.querySelectorAll(".kind-request")).map((header) =>
-      header.closest(".card")!,
+      header.closest("[data-card]")!,
     );
 
     expect(requestCards.map((card) => card.textContent?.includes("Instructions"))).toEqual([

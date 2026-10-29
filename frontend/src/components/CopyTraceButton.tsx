@@ -1,5 +1,7 @@
 import { Check, Copy, TriangleAlert } from "lucide-preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { Hint } from "./Hint";
+import { Button } from "./ui/button";
 
 type CopyState = "idle" | "copied" | "error";
 
@@ -30,15 +32,14 @@ export function CopyTraceButton({ text }: { text: string }) {
   const title = state === "error" ? "Could not copy trace" : "Copy trace as structured plain text";
 
   return (
-    <button class="icon-button copy-trace-button" title={title} onClick={copyTrace}>
-      {state === "copied" ? (
-        <Check size={14} />
-      ) : state === "error" ? (
-        <TriangleAlert size={14} />
-      ) : (
-        <Copy size={14} />
-      )}
-      <span aria-live="polite">{label}</span>
-    </button>
+    <Hint label={title}>
+      <Button variant="outline" size="sm" onClick={() => void copyTrace()}>
+        {state === "copied" ? <Check /> : state === "error" ? <TriangleAlert /> : <Copy />}
+        {/* A narrow header hides the label visually only: it stays the name and live region. */}
+        <span class="@max-[640px]/main:sr-only" aria-live="polite">
+          {label}
+        </span>
+      </Button>
+    </Hint>
   );
 }

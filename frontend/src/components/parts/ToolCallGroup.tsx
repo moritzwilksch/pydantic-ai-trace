@@ -1,4 +1,5 @@
 import { Check, PackageCheck, SquarePlay, Wrench } from "lucide-preact";
+import type { ComponentChildren } from "preact";
 import { compactJson, markdownPreview } from "../../format";
 import type { RunEntry, RunIndex } from "../../runIndex";
 import {
@@ -11,10 +12,33 @@ import {
   type PartRef,
   type ToolSearchReturnContent,
 } from "../../types";
-import { Block, MoreHint } from "../Block";
+import { Block, BlockSummary, blockClass, MoreHint } from "../Block";
 import { ChildRunCard } from "../ChildRunCard";
 import { focusPart } from "../KeyboardNav";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import { ToolReturnValue, ValueView } from "./common";
+
+const TOOL_NAME_CLASS = "tool-name font-mono text-xs font-semibold text-tool";
+export const PAIR_ARROW_CLASS = "pair-arrow shrink-0 text-muted-foreground";
+/** Named values a tool part carries as structure rather than free-form JSON:
+    search queries, discovered tools, revealed tool names. */
+export const CHIPS_CLASS = "flex flex-wrap gap-1.5";
+/** The call's number (a link to the other end of the pair) at the header's right edge. */
+const PAIR_END_CLASS = "ml-auto inline-flex shrink-0 gap-2 text-[11px] text-muted-foreground";
+/** Header links: inline text sized like the header around them. */
+const PAIR_LINK_CLASS =
+  "pair-link h-auto p-0 text-[11px] font-normal text-inherit sm:h-auto sm:text-[11px]";
+const SECTION_CLASS = "border-t px-2.5 py-2";
+const SECTION_LABEL_CLASS = "mb-1.5 text-[11px] font-semibold text-muted-foreground";
+
+export function ToolChip({ children }: { children: ComponentChildren }) {
+  return (
+    <Badge variant="secondary" className="tool-chip font-mono font-normal text-tool">
+      {children}
+    </Badge>
+  );
+}
 
 /** The call a tool return or retry prompt answers, as its header shows it. */
 export interface CallLink {
@@ -61,30 +85,34 @@ export function ToolCallGroup({
 }) {
   const argsPreview = callPreview(part, args);
   return (
-    <details class="content-block tone-tool tool-group">
-      <summary>
-        <span class="block-label">
-          <Wrench size={13} /> Tool call
-        </span>
+    <details class={blockClass("tool", "tool-group")}>
+      <BlockSummary
+        tone="tool"
+        label={
+          <>
+            <Wrench size={13} /> Tool call
+          </>
+        }
+      >
         <ToolSignature name={part.tool_name} args={argsPreview} />
-        {part.part_kind === "builtin-tool-call" ? <span class="badge">builtin</span> : null}
-        {part.tool_kind ? <span class="badge">{part.tool_kind}</span> : null}
+        {part.part_kind === "builtin-tool-call" ? <Badge variant="outline">builtin</Badge> : null}
+        {part.tool_kind ? <Badge variant="outline">{part.tool_kind}</Badge> : null}
         {result !== null ? <ResultBadge result={result.part} /> : null}
         <MoreHint text={argsPreview} />
-        <span class="pair-end">
+        <span class={PAIR_END_CLASS}>
           {childRuns.map((child) => (
             <ChildRunLink key={child.run.id} entry={child} onOpen={onOpenRun} />
           ))}
-          {result === null ? <span class="pair-missing">no return recorded</span> : null}
+          {result === null ? <span>no return recorded</span> : null}
           <PairNumber
             number={number}
             to={result?.ref ?? null}
             label={`Jump to result of call #${number}`}
           />
         </span>
-      </summary>
-      <div class="tool-group-section">
-        <div class="part-label">arguments</div>
+      </BlockSummary>
+      <div class={SECTION_CLASS}>
+        <div class={SECTION_LABEL_CLASS}>arguments</div>
         <ToolCallArgs part={part} args={args} />
       </div>
       <StartedRuns childRuns={childRuns} onOpenRun={onOpenRun} />
@@ -120,10 +148,10 @@ export function OutputCall({
         </>
       }
       tone="assistant"
-      badges={<span class="tool-name">{part.tool_name}</span>}
+      badges={<span class={TOOL_NAME_CLASS}>{part.tool_name}</span>}
       preview={compactJson(args)}
       trailing={
-        <span class="pair-end">
+        <span class={PAIR_END_CLASS}>
           <PairNumber number={number} to={result} label={`Jump to result of call #${number}`} />
         </span>
       }
@@ -138,8 +166,12 @@ export function OutputCall({
 /** Pydantic AI's fixed status return for the accepted output call; boilerplate, so muted. */
 export function OutputAccepted({ part, call }: { part: AnyToolReturnPart; call: CallLink }) {
   return (
-    <div class="output-accepted" title={compactJson(part.content)}>
-      <Check size={13} /> Output accepted <span class="tool-name">{part.tool_name}</span>
+    <div
+      class="output-accepted flex items-center gap-1.5 px-2.5 py-0.5 text-xs text-muted-foreground"
+      title={compactJson(part.content)}
+    >
+      <Check size={13} /> Output accepted{" "}
+      <span class="tool-name font-mono text-xs font-medium">{part.tool_name}</span>
       <CallEnd call={call} />
     </div>
   );
@@ -154,8 +186,8 @@ function StartedRuns({
 }) {
   if (childRuns.length === 0) return null;
   return (
-    <div class="tool-group-section">
-      <div class="part-label">started</div>
+    <div class={SECTION_CLASS}>
+      <div class={SECTION_LABEL_CLASS}>started</div>
       {childRuns.map((child) => (
         <ChildRunCard key={child.run.id} entry={child} onOpen={onOpenRun} />
       ))}
@@ -167,9 +199,10 @@ function StartedRuns({
 function ChildRunLink({ entry, onOpen }: { entry: RunEntry; onOpen: (runId: string) => void }) {
   const { run } = entry;
   return (
-    <button
-      type="button"
-      class="pair-link child-run-link"
+    <Button
+      variant="link"
+      size="xs"
+      className={`${PAIR_LINK_CLASS} max-w-[28ch] gap-[0.5ch]`}
       title={`Open run ${run.name}`}
       onClick={(event) => {
         event.preventDefault(); // a click inside <summary> would also toggle the call
@@ -177,9 +210,9 @@ function ChildRunLink({ entry, onOpen }: { entry: RunEntry; onOpen: (runId: stri
         onOpen(run.id);
       }}
     >
-      → <span class="child-run-link-name">{run.name}</span>
+      → <span class="truncate font-mono">{run.name}</span>
       {run.outcome.status !== "completed" ? ` ${run.outcome.status}` : null}
-    </button>
+    </Button>
   );
 }
 
@@ -197,8 +230,8 @@ export function ToolReturn({ part, call }: { part: AnyToolReturnPart; call: Call
       badges={
         <>
           <ToolSignature name={part.tool_name} args={call?.argsPreview ?? null} />
-          {part.tool_kind ? <span class="badge">{part.tool_kind}</span> : null}
-          {preview ? <span class="pair-arrow">→</span> : null}
+          {part.tool_kind ? <Badge variant="outline">{part.tool_kind}</Badge> : null}
+          {preview ? <span class={PAIR_ARROW_CLASS}>→</span> : null}
         </>
       }
       preview={preview}
@@ -215,9 +248,9 @@ export function ToolReturn({ part, call }: { part: AnyToolReturnPart; call: Call
  */
 export function ToolSignature({ name, args }: { name: string; args: string | null }) {
   return (
-    <span class="tool-signature">
-      <span class="tool-name">{name}</span>
-      {args !== null ? <span class="tool-args">({args})</span> : null}
+    <span class="tool-signature inline-flex min-w-0 font-mono text-xs">
+      <span class={`${TOOL_NAME_CLASS} shrink-0`}>{name}</span>
+      {args !== null ? <span class="min-w-0 truncate text-muted-foreground">({args})</span> : null}
     </span>
   );
 }
@@ -225,9 +258,9 @@ export function ToolSignature({ name, args }: { name: string; args: string | nul
 /** The right edge of a result header: its call's number as a link, or an unpaired mark. */
 export function CallEnd({ call }: { call: CallLink | null }) {
   return (
-    <span class="pair-end">
+    <span class={PAIR_END_CLASS}>
       {call === null ? (
-        <span class="pair-missing">no matching call</span>
+        <span>no matching call</span>
       ) : (
         <PairNumber number={call.number} to={call.ref} label={`Jump to call #${call.number}`} />
       )}
@@ -237,11 +270,12 @@ export function CallEnd({ call }: { call: CallLink | null }) {
 
 /** A call's number; a link to the other end of the pair when that end exists. */
 function PairNumber({ number, to, label }: { number: number; to: PartRef | null; label: string }) {
-  if (to === null) return <span class="pair-number">#{number}</span>;
+  if (to === null) return <span class="pair-number font-mono">#{number}</span>;
   return (
-    <button
-      type="button"
-      class="pair-number pair-link"
+    <Button
+      variant="link"
+      size="xs"
+      className={`pair-number ${PAIR_LINK_CLASS} font-mono`}
       aria-label={label}
       title={label}
       onClick={(event) => {
@@ -251,7 +285,7 @@ function PairNumber({ number, to, label }: { number: number; to: PartRef | null;
       }}
     >
       #{number}
-    </button>
+    </Button>
   );
 }
 
@@ -266,17 +300,15 @@ function ToolCallArgs({ part, args }: { part: AnyToolCallPart; args: unknown }) 
   const queries = searchQueries(part, args);
   if (queries !== null) {
     return (
-      <div class="tool-chips">
+      <div class={CHIPS_CLASS}>
         {queries.map((query, i) => (
-          <span class="tool-chip" key={i}>
-            {query}
-          </span>
+          <ToolChip key={i}>{query}</ToolChip>
         ))}
       </div>
     );
   }
   const capability = capabilityId(part, args);
-  if (capability !== null) return <span class="tool-chip">{capability}</span>;
+  if (capability !== null) return <ToolChip>{capability}</ToolChip>;
   return <ValueView value={args} />;
 }
 
@@ -287,11 +319,9 @@ function ToolReturnContent({ part }: { part: AnyToolReturnPart }) {
     return (
       <div>
         {discovered.length > 0 ? (
-          <div class="tool-chips">
+          <div class={CHIPS_CLASS}>
             {discovered.map((name) => (
-              <span class="tool-chip" key={name}>
-                {name}
-              </span>
+              <ToolChip key={name}>{name}</ToolChip>
             ))}
           </div>
         ) : null}
@@ -363,10 +393,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Only problems are badged — success is the unremarkable default. */
 function ResultBadge({ result }: { result: Part }) {
-  if (result.part_kind === "retry-prompt") return <span class="badge error">retry</span>;
+  if (result.part_kind === "retry-prompt") return <Badge variant="error">retry</Badge>;
   const outcome = "outcome" in result ? result.outcome : undefined;
   if (outcome === "failed" || outcome === "denied") {
-    return <span class="badge error">{outcome}</span>;
+    return <Badge variant="error">{outcome}</Badge>;
   }
   return null;
 }

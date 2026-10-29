@@ -1,27 +1,29 @@
 import { Ban, Bot, TriangleAlert, Unlink, Workflow } from "lucide-preact";
 import { formatCount, formatDuration, formatTotalsCost } from "../format";
-import type { RunEntry, TrajectoryIndex } from "../runIndex";
+import { cn } from "../lib/utils";
+import type { RunEntry, RunTreeIndex } from "../runIndex";
+import { ICON_CLASS, TREE_CHILDREN_CLASS, treeRowClass } from "./TreePane";
 
 /**
- * The trajectory's runs, styled as sidebar tree rows so they can nest under
+ * The run tree's runs, styled as sidebar tree rows so they can nest under
  * the file that holds them.
  */
 export function RunTree({
-  trajectory,
+  runTree,
   selected,
   onSelect,
 }: {
-  trajectory: TrajectoryIndex;
+  runTree: RunTreeIndex;
   selected: string;
   onSelect: (runId: string) => void;
 }) {
   return (
     <div role="group" aria-label="Runs">
-      {trajectory.roots.map((entry) => (
+      {runTree.roots.map((entry) => (
         <RunNode
           key={entry.run.id}
           entry={entry}
-          trajectory={trajectory}
+          runTree={runTree}
           selected={selected}
           onSelect={onSelect}
         />
@@ -32,41 +34,56 @@ export function RunTree({
 
 function RunNode({
   entry,
-  trajectory,
+  runTree,
   selected,
   onSelect,
 }: {
   entry: RunEntry;
-  trajectory: TrajectoryIndex;
+  runTree: RunTreeIndex;
   selected: string;
   onSelect: (runId: string) => void;
 }) {
   const { run, analysis } = entry;
-  const children = trajectory.children(run.id);
+  const children = runTree.children(run.id);
   const cost = formatTotalsCost(analysis.subtree_totals);
   const isSelected = run.id === selected;
   return (
     <div>
       <button
         type="button"
-        class={`tree-node run-node ${run.outcome.status} ${isSelected ? "selected" : ""}`}
+        // A selected run is a position within the selected file: instead of the file's
+        // full highlight, it gets bold text and a segment on the tree's guide line.
+        class={cn(
+          treeRowClass({ selected: isSelected }),
+          "relative overflow-visible",
+          isSelected &&
+            "bg-transparent before:absolute before:inset-y-0 before:-left-1.25 before:w-px before:bg-foreground",
+        )}
         aria-current={isSelected ? "true" : undefined}
         title={runSummary(entry)}
         onClick={() => onSelect(run.id)}
       >
-        <span class="icon">
+        <span
+          class={cn(
+            ICON_CLASS,
+            run.outcome.status === "failed" && "text-destructive-foreground",
+            run.outcome.status === "cancelled" && "text-muted-foreground",
+          )}
+        >
           <RunIcon entry={entry} />
         </span>
-        <span class="run-name">{run.name}</span>
-        {cost !== null ? <span class="count">{cost}</span> : null}
+        <span class="truncate">{run.name}</span>
+        {cost !== null ? (
+          <span class="ml-auto text-[11px] text-muted-foreground">{cost}</span>
+        ) : null}
       </button>
       {children.length > 0 ? (
-        <div class="tree-children">
+        <div class={TREE_CHILDREN_CLASS}>
           {children.map((child) => (
             <RunNode
               key={child.run.id}
               entry={child}
-              trajectory={trajectory}
+              runTree={runTree}
               selected={selected}
               onSelect={onSelect}
             />

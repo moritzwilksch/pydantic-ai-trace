@@ -7,29 +7,41 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest",
-    "lint": "prettier --check src && eslint src",
-    "fmt": "prettier --write src && eslint --fix src",
+    "lint": "prettier --check src && oxlint --type-aware --deny-warnings src",
+    "fmt": "prettier --write src && oxlint --type-aware --fix src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@preact/signals": "^2.0.0",
+    "@base-ui/react": "^1.9.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "dompurify": "^3.2.0",
     "highlight.js": "^11.11.0",
-    "lucide-preact": "^1.24.0",
+    "lucide-preact": "^1.64.0",
     "marked": "^15.0.0",
-    "preact": "^10.25.0"
+    "preact": "^11.1.0",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.9.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@testing-library/preact": "^3.2.4",
-    "eslint": "^9.17.0",
     "jsdom": "^29.1.1",
     "json-schema-to-typescript": "^16.0.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "prettier": "^3.4.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.19.0",
     "vite": "^6.0.0",
     "vite-plugin-singlefile": "^2.1.0",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "lightningcss": "1.33.0"
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "fsevents": false
   }
 }

@@ -11,6 +11,7 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import { marked } from "marked";
 import { useMemo, useState } from "preact/hooks";
+import { Toggle } from "./ui/toggle";
 
 for (const [name, lang] of Object.entries({
   bash,
@@ -65,6 +66,9 @@ function renderMarkdown(source: string, preserveNewlines: boolean): string {
   );
 }
 
+export const RAW_TEXT_CLASS =
+  "raw-text m-0 font-mono text-[12.5px] break-words whitespace-pre-wrap";
+
 /** Markdown with code highlighting and a toggle to the raw text. */
 export function Markdown({
   source,
@@ -81,15 +85,17 @@ export function Markdown({
 
   return (
     <div>
-      <button
-        class="md-toggle"
+      <Toggle
+        size="sm"
+        className="float-right h-5 min-w-0 px-1.5 text-[10.5px] font-normal text-muted-foreground sm:h-5 sm:min-w-0 sm:text-[10.5px]"
         title={showRaw ? "Render markdown" : "Show raw text"}
-        onClick={() => setShowRaw(!showRaw)}
+        pressed={showRaw}
+        onPressedChange={setShowRaw}
       >
-        {showRaw ? "md" : "raw"}
-      </button>
+        raw
+      </Toggle>
       {showRaw ? (
-        <pre class="raw-text">{source}</pre>
+        <pre class={RAW_TEXT_CLASS}>{source}</pre>
       ) : (
         <div class="markdown" dangerouslySetInnerHTML={{ __html: html }} />
       )}

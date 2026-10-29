@@ -2,10 +2,11 @@ import { FileText, Film, ImageIcon, ImageOff, Paperclip, Volume2 } from "lucide-
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { JsonTree } from "../JsonTree";
-import { Markdown } from "../Markdown";
+import { Markdown, RAW_TEXT_CLASS } from "../Markdown";
+import { Badge } from "../ui/badge";
 
 /** Linked-chip icons for `*-url` attachments; unknown url kinds get a paperclip. */
-export const URL_KIND_ICONS: Record<string, ComponentChildren> = {
+const URL_KIND_ICONS: Record<string, ComponentChildren> = {
   "audio-url": <Volume2 size={13} />,
   "video-url": <Film size={13} />,
   "document-url": <FileText size={13} />,
@@ -26,7 +27,8 @@ export function isMediaItem(value: unknown): boolean {
 export function MediaContent({ item }: { item: Record<string, unknown> }) {
   const kind = String(item.kind);
   if (kind === "binary") {
-    const mediaType = String(item.media_type ?? "application/octet-stream");
+    const mediaType =
+      typeof item.media_type === "string" ? item.media_type : "application/octet-stream";
     // Pydantic AI defaults the identifier to a short hash of the data, so it is
     // always present in a dump; the model refers to the file by it.
     const name = typeof item.identifier === "string" ? item.identifier : "binary";
@@ -48,7 +50,7 @@ export function MediaContent({ item }: { item: Record<string, unknown> }) {
 }
 
 /** `url` when it is safe to link (http or https); trace URLs are untrusted, e.g. `javascript:`. */
-export function linkableUrl(url: string): string | undefined {
+function linkableUrl(url: string): string | undefined {
   try {
     const { protocol } = new URL(url);
     return protocol === "http:" || protocol === "https:" ? url : undefined;
@@ -68,25 +70,23 @@ export function MediaChip({
   href?: string;
 }) {
   const body = (
-    <span class="media-chip">
-      {icon} {label}
-    </span>
+    <Badge
+      variant="outline"
+      size="lg"
+      className="media-chip max-w-full font-normal text-muted-foreground"
+      render={href ? <a href={href} target="_blank" rel="noreferrer noopener" /> : undefined}
+    >
+      {icon} <span class="truncate">{label}</span>
+    </Badge>
   );
-  return (
-    <div class="media-item">
-      {href ? (
-        <a href={href} target="_blank" rel="noreferrer noopener">
-          {body}
-        </a>
-      ) : (
-        body
-      )}
-    </div>
-  );
+  return <div class={MEDIA_ITEM_CLASS}>{body}</div>;
 }
 
+/** One attachment or value among a message's content items. */
+export const MEDIA_ITEM_CLASS = "my-1.5";
+
 /** An image that degrades to a MediaChip instead of the browser's broken-image icon. */
-export function MediaImage({
+function MediaImage({
   src,
   alt,
   chipLabel,
@@ -100,23 +100,21 @@ export function MediaImage({
   const [failed, setFailed] = useState(false);
   if (failed) return <MediaChip icon={<ImageOff size={13} />} label={chipLabel} />;
   return (
-    <div class="media-item">
-      <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />
-      {caption && <div class="media-caption">{caption}</div>}
+    <div class={MEDIA_ITEM_CLASS}>
+      <img
+        class="max-h-100 max-w-full rounded-md border"
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+      {caption && <div class="text-xs text-muted-foreground">{caption}</div>}
     </div>
   );
 }
 
 /** A dumped `BinaryContent` image, captioned with its identifier. */
-export function InlineImage({
-  mediaType,
-  data,
-  name,
-}: {
-  mediaType: string;
-  data: string;
-  name: string;
-}) {
+function InlineImage({ mediaType, data, name }: { mediaType: string; data: string; name: string }) {
   return (
     <MediaImage
       src={base64DataUrl(mediaType, data)}
@@ -131,7 +129,7 @@ export function InlineImage({
  * A `data:` URL for bytes from the payload. Pydantic serializes bytes as URL-safe
  * base64 (`-`, `_`); `data:` URLs need the standard alphabet (`+`, `/`).
  */
-export function base64DataUrl(mediaType: string, data: string): string {
+function base64DataUrl(mediaType: string, data: string): string {
   const standard = data.replaceAll("-", "+").replaceAll("_", "/");
   return `data:${mediaType};base64,${standard}`;
 }
@@ -150,7 +148,7 @@ export function ToolReturnValue({ content }: { content: unknown }) {
           isMediaItem(item) ? (
             <MediaContent key={i} item={item as Record<string, unknown>} />
           ) : (
-            <div class="media-item" key={i}>
+            <div class={MEDIA_ITEM_CLASS} key={i}>
               <ValueView value={item} />
             </div>
           ),
@@ -160,6 +158,9 @@ export function ToolReturnValue({ content }: { content: unknown }) {
   }
   return <ValueView value={content} />;
 }
+
+/** A block body already scrolls; a nested clamp would add a second scrollbar. */
+const CLAMP_CLASS = "max-h-80 overflow-y-auto in-[.block-body]:max-h-none";
 
 /**
  * Markdown for strings, JsonTree for anything else. Every rendering is clamped
@@ -176,17 +177,17 @@ export function ValueView({
 }) {
   if (typeof value === "string") {
     return (
-      <div class="clamp">
+      <div class={CLAMP_CLASS}>
         {markdown ? (
           <Markdown source={value} preserveNewlines={preserveNewlines} />
         ) : (
-          <pre class="raw-text">{value}</pre>
+          <pre class={RAW_TEXT_CLASS}>{value}</pre>
         )}
       </div>
     );
   }
   return (
-    <div class="clamp">
+    <div class={CLAMP_CLASS}>
       <JsonTree value={value} />
     </div>
   );

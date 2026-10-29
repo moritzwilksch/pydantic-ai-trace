@@ -18,7 +18,7 @@ class TracePayload(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid") | MESSAGE_BYTES_CONFIG
 
     name: str
-    trajectory: RunTree
+    run_tree: RunTree
     analysis: Analysis
     transcript: str
 
@@ -31,7 +31,7 @@ def build_payload(run_tree: RunTree, *, name: str) -> TracePayload:
     analysis = analyze(run_tree)
     return TracePayload(
         name=name,
-        trajectory=run_tree,
+        run_tree=run_tree,
         analysis=analysis,
         transcript=format_transcript(run_tree, analysis, name),
     )

@@ -46,7 +46,7 @@ class TestRenderHtml:
         payload = injected_payload(render_html(run_tree, name="workflow"))
 
         assert payload["name"] == "workflow"
-        assert RunTree.model_validate(payload["trajectory"]) == run_tree
+        assert RunTree.model_validate(payload["run_tree"]) == run_tree
         assert [run["run_id"] for run in payload["analysis"]["runs"]] == [
             "planner",
             "subagent",
@@ -65,4 +65,4 @@ class TestRenderHtml:
         payload = injected_payload(render_html(RunTree.from_messages(messages)))
 
         assert payload["name"] == "trace"
-        assert [run["name"] for run in payload["trajectory"]["runs"]] == ["run"]
+        assert [run["name"] for run in payload["run_tree"]["runs"]] == ["run"]

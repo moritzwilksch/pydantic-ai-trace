@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { jsonEntries } from "../json";
+import { Button } from "./ui/button";
 import { searchPattern, useSearchQuery } from "./TraceSearch";
 
 /** Entries an array or object shows before a "show more" button; keeps huge tool results cheap. */
@@ -14,7 +15,7 @@ export const JSON_PAGE_SIZE = 100;
  */
 export function JsonTree({ value }: { value: unknown }) {
   return (
-    <div class="json-tree">
+    <div class="json-tree overflow-x-auto font-mono text-[12.5px]">
       <JsonNode value={value} />
     </div>
   );
@@ -23,8 +24,8 @@ export function JsonTree({ value }: { value: unknown }) {
 function JsonNode({ value, label }: { value: unknown; label?: string }) {
   const prefix = label !== undefined && (
     <>
-      <span class="json-key">{label}</span>
-      <span class="json-punct">: </span>
+      <span class="text-code-key">{label}</span>
+      <span class="text-muted-foreground">: </span>
     </>
   );
 
@@ -42,14 +43,14 @@ function JsonNode({ value, label }: { value: unknown; label?: string }) {
     return (
       <div>
         {prefix}
-        <span class="json-punct">{Array.isArray(value) ? "[]" : "{}"}</span>
+        <span class="text-muted-foreground">{Array.isArray(value) ? "[]" : "{}"}</span>
       </div>
     );
   }
   return (
     <div>
       {prefix ? <div>{prefix}</div> : null}
-      <div class={label !== undefined ? "json-children" : undefined}>
+      <div class={label !== undefined ? "ml-4" : undefined}>
         <JsonEntries entries={entries} />
       </div>
     </div>
@@ -78,9 +79,14 @@ function JsonEntries({ entries }: { entries: Entries }) {
         <JsonNode key={key} label={key} value={child} />
       ))}
       {hidden > 0 ? (
-        <button type="button" class="json-more" onClick={() => setExpanded(entries.length)}>
+        <Button
+          variant="link"
+          size="xs"
+          className="h-auto p-0 font-mono text-muted-foreground sm:h-auto"
+          onClick={() => setExpanded(entries.length)}
+        >
           show {hidden} more
-        </button>
+        </Button>
       ) : null}
     </>
   );
@@ -119,16 +125,20 @@ function primitiveText(value: unknown): string {
 
 function JsonPrimitive({ value }: { value: unknown }) {
   if (typeof value === "string") return <JsonString value={value} />;
-  if (typeof value === "number") return <span class="json-num">{String(value)}</span>;
-  if (typeof value === "boolean") return <span class="json-bool">{String(value)}</span>;
-  return <span class="json-null">null</span>;
+  if (typeof value === "number") return <span class="text-code-number">{String(value)}</span>;
+  if (typeof value === "boolean") return <span class="text-code-keyword">{String(value)}</span>;
+  return <span class="text-code-keyword">null</span>;
 }
+
+const STRING_CLASS = "json-string break-words whitespace-pre-wrap text-code-string";
 
 /**
  * A one-line string stays a quoted JSON literal; a multi-line string is shown verbatim as a
  * block below its key, so code, diffs, and prose keep their line breaks.
  */
 function JsonString({ value }: { value: string }) {
-  if (value.includes("\n")) return <div class="json-string json-block">{value}</div>;
-  return <span class="json-string">{JSON.stringify(value)}</span>;
+  if (value.includes("\n")) {
+    return <div class={`${STRING_CLASS} json-block my-0.5 ml-4 border-l-2 pl-2`}>{value}</div>;
+  }
+  return <span class={STRING_CLASS}>{JSON.stringify(value)}</span>;
 }

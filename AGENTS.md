@@ -10,6 +10,7 @@
 
 - `src/pydantic_ai_trace/`: the public `RunTree` format (`run_tree.py`), the `RunCapture` format converted into it at load time (`run_capture.py`), strict loading (`load.py`), derived facts such as tool pairing, cost, and totals (`analysis.py`), the viewer contract `TracePayload` (`payload.py`), renderers (`text.py`, `compact.py`, `stats.py`, `_html.py`), and the CLI, scanning, and Starlette API/SSE.
 - `frontend/src/`: Preact viewer. It renders a `TracePayload`; `generated/payload.ts` holds its types, `runIndex.ts` joins the analysis to message positions, and `components/` renders it.
+- `frontend/src/components/ui/`: [coss.com/ui](https://coss.com/ui) components (Base UI and Tailwind), copied in with `npx shadcn@latest add @coss/<name>` per `frontend/components.json` and owned here. They run on `preact/compat`; `vite.config.ts` and `src/react-compat.d.ts` explain the shims this needs.
 - `tests/`: Python tests and trace fixtures. Frontend tests live beside their source as `*.test.ts[x]`.
 - `hatch_build.py`: package-build guard for the bundled frontend.
 

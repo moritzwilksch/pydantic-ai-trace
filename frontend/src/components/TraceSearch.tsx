@@ -1,13 +1,17 @@
 import { ChevronDown, ChevronUp, Search, X } from "lucide-preact";
 import { createContext, type ComponentChildren, type RefObject } from "preact";
 import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { Hint } from "./Hint";
 import { focusTraceTarget } from "./KeyboardNav";
+import { Button } from "./ui/button";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "./ui/input-group";
+import { Kbd } from "./ui/kbd";
 
 const MATCH_HIGHLIGHT = "trace-search-match";
 const CURRENT_HIGHLIGHT = "trace-search-current";
 
 export interface TraceSearchProps {
-  rootRef: RefObject<HTMLElement>;
+  rootRef: RefObject<HTMLElement | null>;
 }
 
 interface TraceMatch {
@@ -74,6 +78,7 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
   const [matches, setMatches] = useState<TraceMatch[]>([]);
   const [active, setActive] = useState<ActiveMatch>(NO_MATCH);
   const observerRef = useRef<MutationObserver | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -124,16 +129,22 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
     }));
   }
 
-  function clear(input: HTMLInputElement) {
+  function clear() {
     setQuery("");
-    input.blur();
+    inputRef.current?.blur();
   }
 
   const result = matches.length > 0 ? `${active.index + 1} / ${matches.length}` : "0 / 0";
   return (
-    <div class="trace-search">
-      <Search class="trace-search-icon" size={14} aria-hidden="true" />
-      <input
+    // A narrow header shrinks the search box before it moves the controls.
+    <InputGroup className="h-8 min-w-45 flex-[0_1_236px] max-[720px]:min-w-37.5">
+      <InputGroupAddon>
+        <Search aria-hidden="true" />
+      </InputGroupAddon>
+      <InputGroupInput
+        nativeInput
+        size="sm"
+        ref={inputRef}
         data-trace-search
         type="search"
         aria-label="Search trace"
@@ -151,44 +162,55 @@ export function TraceSearch({ rootRef }: TraceSearchProps) {
           }
         }}
       />
-      {query ? (
-        <>
-          <span class="trace-search-count" aria-live="polite">
-            {result}
-          </span>
-          <button
-            data-trace-search-previous
-            type="button"
-            aria-label="Previous search match"
-            title="Previous match (Shift+Enter)"
-            disabled={matches.length === 0}
-            onClick={() => move(-1)}
-          >
-            <ChevronUp size={14} />
-          </button>
-          <button
-            data-trace-search-next
-            type="button"
-            aria-label="Next search match"
-            title="Next match (Enter)"
-            disabled={matches.length === 0}
-            onClick={() => move(1)}
-          >
-            <ChevronDown size={14} />
-          </button>
-          <button
-            type="button"
-            aria-label="Clear trace search"
-            title="Clear search"
-            onClick={(event) => clear(event.currentTarget.parentElement!.querySelector("input")!)}
-          >
-            <X size={13} />
-          </button>
-        </>
-      ) : (
-        <kbd>/</kbd>
-      )}
-    </div>
+      <InputGroupAddon align="inline-end" className="gap-0.5">
+        {query ? (
+          <>
+            <InputGroupText
+              className="mr-1 font-mono text-[10px] whitespace-nowrap"
+              aria-live="polite"
+            >
+              {result}
+            </InputGroupText>
+            <Hint label="Previous match (Shift+Enter)">
+              <Button
+                data-trace-search-previous
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Previous search match"
+                disabled={matches.length === 0}
+                onClick={() => move(-1)}
+              >
+                <ChevronUp />
+              </Button>
+            </Hint>
+            <Hint label="Next match (Enter)">
+              <Button
+                data-trace-search-next
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Next search match"
+                disabled={matches.length === 0}
+                onClick={() => move(1)}
+              >
+                <ChevronDown />
+              </Button>
+            </Hint>
+            <Hint label="Clear search">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Clear trace search"
+                onClick={clear}
+              >
+                <X />
+              </Button>
+            </Hint>
+          </>
+        ) : (
+          <Kbd>/</Kbd>
+        )}
+      </InputGroupAddon>
+    </InputGroup>
   );
 }
 
@@ -231,7 +253,7 @@ function findTextMatches(root: HTMLElement, query: string): TraceMatch[] {
 
 function searchUnits(root: HTMLElement): HTMLElement[] {
   return Array.from(
-    root.querySelectorAll<HTMLElement>(".part, .card-kind, .card-footer, .interrupted-message"),
+    root.querySelectorAll<HTMLElement>(".part, .card-kind, .card-footer, .note"),
   ).filter((unit) => !unit.parentElement?.closest(".part"));
 }
 

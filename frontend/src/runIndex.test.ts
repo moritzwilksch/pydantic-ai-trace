@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { indexTrajectory } from "./runIndex";
+import { indexRunTree } from "./runIndex";
 import { payloadFromRuns } from "./testing/payload";
 
 const text = (content: string) => [{ kind: "response", parts: [{ part_kind: "text", content }] }];
 
-describe("indexTrajectory", () => {
+describe("indexRunTree", () => {
   it("treats an empty run ID as a run, not as a missing parent", () => {
-    const trajectory = indexTrajectory(
+    const runTree = indexRunTree(
       payloadFromRuns([
         { id: "", name: "root", messages: text("a") },
         {
@@ -24,13 +24,13 @@ describe("indexTrajectory", () => {
       ]),
     );
 
-    expect(trajectory.roots.map((entry) => entry.run.name)).toEqual(["root"]);
-    expect(trajectory.children("").map((entry) => entry.run.name)).toEqual(["child"]);
-    expect(trajectory.ancestors("grandchild").map((entry) => entry.run.name)).toEqual([
+    expect(runTree.roots.map((entry) => entry.run.name)).toEqual(["root"]);
+    expect(runTree.children("").map((entry) => entry.run.name)).toEqual(["child"]);
+    expect(runTree.ancestors("grandchild").map((entry) => entry.run.name)).toEqual([
       "root",
       "child",
     ]);
-    expect(trajectory.ancestors("")).toEqual([]);
+    expect(runTree.ancestors("")).toEqual([]);
   });
 
   it("orders runs as the payload's analysis does, without re-sorting", () => {
@@ -43,9 +43,9 @@ describe("indexTrajectory", () => {
     payload.analysis.root_run_ids = ["b", "a"];
     payload.analysis.runs[0].child_run_ids = ["y", "x"];
 
-    const trajectory = indexTrajectory(payload);
+    const runTree = indexRunTree(payload);
 
-    expect(trajectory.roots.map((entry) => entry.run.id)).toEqual(["b", "a"]);
-    expect(trajectory.children("a").map((entry) => entry.run.id)).toEqual(["y", "x"]);
+    expect(runTree.roots.map((entry) => entry.run.id)).toEqual(["b", "a"]);
+    expect(runTree.children("a").map((entry) => entry.run.id)).toEqual(["y", "x"]);
   });
 });

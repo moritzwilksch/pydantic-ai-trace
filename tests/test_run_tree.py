@@ -227,7 +227,7 @@ class TestBytes:
         payload = json.loads(build_payload(run_tree, name="t").to_json())
 
         assert dumped["runs"][0]["messages"] == canonical
-        assert payload["trajectory"]["runs"][0]["messages"] == canonical
+        assert payload["run_tree"]["runs"][0]["messages"] == canonical
 
     def test_typed_bytes_round_trip(self):
         image = BinaryContent(data=b"\xff\x00", media_type="image/png")

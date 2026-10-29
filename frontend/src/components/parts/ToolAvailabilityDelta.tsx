@@ -1,7 +1,9 @@
 import { ListPlus } from "lucide-preact";
 import type { ToolAvailabilityDeltaPart } from "../../types";
 import { Block } from "../Block";
+import { Badge } from "../ui/badge";
 import { JsonTree } from "../JsonTree";
+import { CHIPS_CLASS, ToolChip } from "./ToolCallGroup";
 
 /**
  * The set of tools the model can see changed here. pydantic-ai only records
@@ -18,15 +20,13 @@ export function ToolAvailabilityDelta({ part }: { part: ToolAvailabilityDeltaPar
         </>
       }
       tone="tool"
-      badges={<span class="badge">{added.length} added</span>}
+      badges={<Badge variant="outline">{added.length} added</Badge>}
       preview={added.map((name) => `+${name}`).join(", ")}
     >
       {added.length > 0 ? (
-        <div class="tool-chips">
+        <div class={CHIPS_CLASS}>
           {added.map((name) => (
-            <span class="tool-chip" key={name}>
-              +{name}
-            </span>
+            <ToolChip key={name}>+{name}</ToolChip>
           ))}
         </div>
       ) : (

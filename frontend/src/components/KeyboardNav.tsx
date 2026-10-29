@@ -11,6 +11,8 @@
 
 import { useEffect, useState } from "preact/hooks";
 import type { PartRef } from "../types";
+import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "./ui/dialog";
+import { Kbd } from "./ui/kbd";
 
 const FOCUS_CLASS = "kb-focus";
 
@@ -292,24 +294,28 @@ const KEY_HELP: [string, string][] = [
   ["?", "toggle this help"],
 ];
 
-export function KeyboardHelp({ onClose }: { onClose: () => void }) {
+export function KeyboardHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <div class="help-overlay" onClick={onClose}>
-      <div class="help-panel" onClick={(e) => e.stopPropagation()}>
-        <div class="help-title">Keyboard shortcuts</div>
-        <table>
-          <tbody>
-            {KEY_HELP.map(([keys, description]) => (
-              <tr key={keys}>
-                <td>
-                  <kbd>{keys}</kbd>
-                </td>
-                <td>{description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+      <DialogPopup className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+        </DialogHeader>
+        <DialogPanel>
+          <table class="w-full">
+            <tbody>
+              {KEY_HELP.map(([keys, description]) => (
+                <tr key={keys}>
+                  <td class="py-1 pr-3 whitespace-nowrap">
+                    <Kbd>{keys}</Kbd>
+                  </td>
+                  <td class="py-1 text-[13px]">{description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DialogPanel>
+      </DialogPopup>
+    </Dialog>
   );
 }

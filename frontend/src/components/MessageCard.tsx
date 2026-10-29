@@ -1,4 +1,5 @@
 import { ScrollText } from "lucide-preact";
+import type { ComponentChildren } from "preact";
 import {
   cacheHitRate,
   formatCost,
@@ -7,6 +8,7 @@ import {
   formatPercent,
   markdownPreview,
 } from "../format";
+import { cn } from "../lib/utils";
 import type { RunIndex } from "../runIndex";
 import type { Message, ModelResponse, Part, RequestUsage } from "../types";
 import { Block } from "./Block";
@@ -27,6 +29,9 @@ import {
   ToolReturn,
 } from "./parts/ToolCallGroup";
 import { UserPrompt } from "./parts/UserPrompt";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Badge } from "./ui/badge";
+import { Card, CardFooter, CardHeader, CardPanel } from "./ui/card";
 
 /**
  * One card = one ModelMessage, mirroring pydantic-ai's types: a "Request" or
@@ -50,21 +55,37 @@ export function MessageCard({
   instructions: string | null;
   runStartMs: number;
 }) {
+  const isResponse = message.kind === "response";
   const visibleParts = message.parts
     .map((part, partIndex) => ({ part: part as Part, partIndex }))
     .filter(({ part }) => !isInvisible(part));
 
   return (
-    <div class={`card card-${message.kind}`} data-card>
-      <div class={`card-kind kind-${message.kind}`}>
-        {message.kind === "request" ? "Request" : "Response"}
-        {message.state !== "complete" ? <span class="badge warn">{message.state}</span> : null}
+    <Card
+      data-card
+      className={cn(
+        // Offscreen cards skip rendering work; long traces hold hundreds.
+        COLUMN_CLASS,
+        "[contain-intrinsic-size:auto_120px] [content-visibility:auto]",
+        // A faint wash of the "Response" heading's color, so requests and responses
+        // tell apart while skimming.
+        isResponse && "border-assistant/20 bg-[color-mix(in_srgb,var(--assistant)_4%,var(--card))]",
+      )}
+    >
+      <CardHeader
+        className={cn(
+          `card-kind kind-${message.kind} flex items-center gap-2 border-b px-3.5 py-2 text-xs font-semibold text-muted-foreground in-[[data-slot=card]:has(>[data-slot=card-panel])]:pb-2`,
+          isResponse && "border-assistant/20 text-assistant",
+        )}
+      >
+        {isResponse ? "Response" : "Request"}
+        {message.state !== "complete" ? <Badge variant="warning">{message.state}</Badge> : null}
         <Timestamp value={message.timestamp} runStartMs={runStartMs} />
-      </div>
-      <div class="card-body">
+      </CardHeader>
+      <CardPanel className="px-3.5 py-2.5">
         {message.state === "interrupted" ? <InterruptedMessage kind={message.kind} /> : null}
         {instructions !== null ? (
-          <div class="part" data-nav>
+          <div class={PART_CLASS} data-nav>
             <Block
               label={
                 <>
@@ -79,7 +100,12 @@ export function MessageCard({
           </div>
         ) : null}
         {visibleParts.map(({ part, partIndex }) => (
-          <div class="part" data-nav data-part={`${messageIndex}:${partIndex}`} key={partIndex}>
+          <div
+            class={PART_CLASS}
+            data-nav
+            data-part={`${messageIndex}:${partIndex}`}
+            key={partIndex}
+          >
             <PartView
               part={part}
               messageIndex={messageIndex}
@@ -89,20 +115,35 @@ export function MessageCard({
             />
           </div>
         ))}
-      </div>
+      </CardPanel>
       {message.kind === "response" ? (
         <ResponseFooter response={message} costUsd={run.responseCost(messageIndex)} />
       ) : null}
-    </div>
+    </Card>
+  );
+}
+
+/** Parts are self-delimiting blocks; spacing alone separates them. */
+const PART_CLASS = "part [.part+&]:mt-2";
+
+/** Cards, alerts, and notes share one column, wide for data-dense traces. */
+export const COLUMN_CLASS = "mx-auto mb-3 max-w-275";
+
+/** A muted remark about the message or run, not part of its content. */
+export function Note({ className, children }: { className?: string; children: ComponentChildren }) {
+  return (
+    <Alert variant="warning" className={cn("note py-2 text-xs", className)} role="note">
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   );
 }
 
 function InterruptedMessage({ kind }: { kind: "request" | "response" }) {
   const subject = kind === "request" ? "before a response was recorded" : "before it completed";
   return (
-    <div class="interrupted-message" role="note">
+    <Note className="mb-2">
       This {kind} was interrupted {subject}. The trace does not include a reason.
-    </div>
+    </Note>
   );
 }
 
@@ -197,13 +238,13 @@ function ResponseFooter({
   costUsd: string | null;
 }) {
   return (
-    <div class="card-footer">
+    <CardFooter className="card-footer flex-wrap gap-2.5 border-t border-assistant/20 px-3.5 py-1.5 text-[11.5px] text-muted-foreground in-[[data-slot=card]:has(>[data-slot=card-panel])]:pt-1.5">
       {response.model_name ? <span>{response.model_name}</span> : null}
       {response.provider_name ? <span>{response.provider_name}</span> : null}
       {response.finish_reason ? <span>finish: {response.finish_reason}</span> : null}
       <UsageSummary usage={response.usage} />
       {costUsd !== null ? <span>{formatCost(costUsd)}</span> : null}
-    </div>
+    </CardFooter>
   );
 }
 
@@ -224,7 +265,7 @@ function Timestamp({ value, runStartMs }: { value: string | null; runStartMs: nu
   if (value === null) return null;
   const parsed = Date.parse(value);
   return (
-    <span class="when" title={value}>
+    <span class="ml-auto font-normal text-muted-foreground" title={value}>
       {new Date(parsed).toLocaleTimeString()} (+{formatDuration((parsed - runStartMs) / 1000)})
     </span>
   );

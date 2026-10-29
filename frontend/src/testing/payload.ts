@@ -38,7 +38,7 @@ export function payloadFromRuns(
   const analyses = runs.map((run) => analyzeRun(run, runs));
   return {
     name,
-    trajectory: { runs: runs as [Run, ...Run[]] },
+    run_tree: { runs: runs as [Run, ...Run[]] },
     analysis: {
       totals: sumTotals(analyses.map((a) => a.totals)),
       runs: analyses,

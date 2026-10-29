@@ -8,7 +8,7 @@ import {
   fetchTree,
   subscribeChanges,
 } from "./api";
-import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
+import { indexRunTree, type RunEntry, type RunTreeIndex } from "./runIndex";
 import {
   defaultSelection,
   formatHash,
@@ -18,14 +18,16 @@ import {
   type ViewLocation,
 } from "./selection";
 import { shownTrace, traceFailed, type TraceState } from "./traceState";
-import { Brand } from "./components/Brand";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { RunBreadcrumb } from "./components/RunBreadcrumb";
+import { COLUMN_CLASS } from "./components/MessageCard";
 import { RunTree } from "./components/RunTree";
 import {
-  SIDEBAR_ID,
+  SidebarPane,
   SidebarBackdrop,
+  SidebarResizer,
+  sidebarLayout,
   SidebarToggle,
   useSidebar,
   type Sidebar,
@@ -33,7 +35,8 @@ import {
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceSearch, TraceSearchScope } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
-import { TreePane } from "./components/TreePane";
+import { TREE_BODY_CLASS, TREE_CHILDREN_CLASS, TreePane } from "./components/TreePane";
+import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
 export function App() {
@@ -42,31 +45,28 @@ export function App() {
   return (
     <>
       {embedded ? <ExportedApp payload={embedded} /> : <ServerApp />}
-      {helpOpen ? <KeyboardHelp onClose={closeHelp} /> : null}
+      <KeyboardHelp open={helpOpen} onClose={closeHelp} />
     </>
   );
 }
 
-/** Exported HTML: one embedded payload, with a runs sidebar for a trajectory. */
+/** Exported HTML: one embedded payload, with a runs sidebar for a run tree. */
 function ExportedApp({ payload }: { payload: TracePayload }) {
   const [view, navigate] = useHashLocation();
   const runs = useRuns(payload, view.run, (run) => navigate({ trace: null, run }));
   const sidebar = useSidebar();
   return (
-    <div class={layoutClass(sidebar)}>
+    <div {...sidebarLayout(sidebar)}>
       {runs?.multiRun ? (
-        <nav class="tree-pane" id={SIDEBAR_ID}>
-          <Brand />
-          <div class="tree-header" title={payload.name}>
-            {payload.name}
-          </div>
-          <div class="tree-body">
-            <div class="tree-children">
+        <SidebarPane label={payload.name}>
+          <div class={TREE_BODY_CLASS}>
+            <div class={TREE_CHILDREN_CLASS}>
               <RunTreeFor runs={runs} onSelected={() => sidebar.setOpen(false)} />
             </div>
           </div>
-        </nav>
+        </SidebarPane>
       ) : null}
+      {runs?.multiRun ? <SidebarResizer sidebar={sidebar} /> : null}
       <SidebarBackdrop sidebar={sidebar} />
       <TracePane
         title={payload.name}
@@ -79,7 +79,7 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
 }
 
 interface Runs {
-  trajectory: TrajectoryIndex;
+  runTree: RunTreeIndex;
   selected: RunEntry;
   select: (runId: string) => void;
   multiRun: boolean;
@@ -94,14 +94,14 @@ function useRuns(
   runId: string | undefined,
   select: (runId: string) => void,
 ): Runs | null {
-  const trajectory = useMemo(() => (payload ? indexTrajectory(payload) : null), [payload]);
-  if (trajectory === null) return null;
-  const chosen = runId === undefined ? undefined : trajectory.entries.get(runId);
+  const runTree = useMemo(() => (payload ? indexRunTree(payload) : null), [payload]);
+  if (runTree === null) return null;
+  const chosen = runId === undefined ? undefined : runTree.entries.get(runId);
   return {
-    trajectory,
-    selected: chosen ?? trajectory.roots[0],
+    runTree,
+    selected: chosen ?? runTree.roots[0],
     select,
-    multiRun: trajectory.entries.size > 1,
+    multiRun: runTree.entries.size > 1,
   };
 }
 
@@ -132,7 +132,7 @@ function useHashLocation(): [ViewLocation, (next: ViewLocation) => void] {
 function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }) {
   return (
     <RunTree
-      trajectory={runs.trajectory}
+      runTree={runs.runTree}
       selected={runs.selected.run.id}
       onSelect={(runId) => {
         runs.select(runId);
@@ -140,11 +140,6 @@ function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }
       }}
     />
   );
-}
-
-/** The sidebar overlays the trace on narrow screens while open; see `useSidebar`. */
-function layoutClass(sidebar: Sidebar): string {
-  return sidebar.open ? "layout sidebar-open" : "layout";
 }
 
 /**
@@ -175,13 +170,15 @@ function TracePane({
   }, [runId]);
   const searchKey = runs ? `${title}/${runs.selected.run.id}` : title;
   return (
-    <main class="main-pane">
+    <main class="@container/main flex min-w-0 flex-1 flex-col">
       <TraceSearchScope resetKey={searchKey}>
-        <header class="trace-header">
+        {/* Fixed height, and the title absorbs width changes, so loading or switching
+            traces never moves the header or its controls. */}
+        <header class="trace-header sticky top-0 z-10 flex h-12 shrink-0 items-center gap-3.5 border-b bg-background px-4.5 max-[720px]:gap-2 max-[720px]:px-3">
           {sidebar ? <SidebarToggle sidebar={sidebar} /> : null}
           <RunBreadcrumb
             title={title}
-            trajectory={runs?.trajectory ?? null}
+            runTree={runs?.runTree ?? null}
             selected={runs?.selected ?? null}
             onSelect={(runId) => runs?.select(runId)}
           />
@@ -197,14 +194,17 @@ function TracePane({
           ) : null}
           <ThemeToggle />
         </header>
-        <div class="trace-body" ref={bodyRef}>
+        <div
+          class="trace-body flex-1 overflow-y-auto bg-muted px-2 py-4.5 max-[720px]:px-1.5 max-[720px]:py-3"
+          ref={bodyRef}
+        >
           <div ref={traceRootRef}>
             {banner}
             {runs ? (
               <TraceView
                 key={runs.selected.run.id}
                 entry={runs.selected}
-                trajectory={runs.trajectory}
+                runTree={runs.runTree}
                 onOpenRun={runs.select}
               />
             ) : (
@@ -260,6 +260,7 @@ function ServerApp() {
       .then(setMeta)
       .catch((e) => setAppError(String(e)));
     loadTree((e) => setAppError(String(e)));
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
   }, []);
 
   // Single-file mode: auto-open the one trace.
@@ -268,6 +269,7 @@ function ServerApp() {
       const target = defaultSelection(tree);
       if (target) select(target);
     }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- select changes each render; the data decides
   }, [meta, tree, selection]);
 
   useEffect(() => {
@@ -278,6 +280,7 @@ function ServerApp() {
     }
     setTrace((current) => ({ status: "loading", previous: shownTrace(current) }));
     loadTrace(selection);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- reload when the selection changes, not the loader
   }, [selection]);
 
   // Live updates: refresh the tree on any change, re-fetch the open trace if it changed.
@@ -289,6 +292,7 @@ function ServerApp() {
       const current = selectionRef.current;
       if (current && paths.includes(current.path)) loadTrace(current);
     });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- one subscription; it reads the selection by ref
   }, []);
 
   function select(next: TraceSelection) {
@@ -320,10 +324,9 @@ function ServerApp() {
     Boolean(runs?.multiRun);
 
   return (
-    <div class={layoutClass(sidebar)}>
+    <div {...sidebarLayout(sidebar)}>
       {showTree && tree ? (
         <TreePane
-          id={SIDEBAR_ID}
           root={tree}
           rootLabel={meta?.root ?? ""}
           selection={selection}
@@ -335,6 +338,7 @@ function ServerApp() {
           }
         />
       ) : null}
+      {showTree && tree ? <SidebarResizer sidebar={sidebar} /> : null}
       <SidebarBackdrop sidebar={sidebar} />
       <TracePane
         key={title}
@@ -344,12 +348,18 @@ function ServerApp() {
         sidebar={showTree && tree ? sidebar : null}
         banner={
           <>
-            {appError ? <div class="banner-error">{appError}</div> : null}
+            {appError ? (
+              <Alert variant="error" className={COLUMN_CLASS}>
+                <AlertTitle>{appError}</AlertTitle>
+              </Alert>
+            ) : null}
             {trace.status === "stale" ? (
-              <div class="banner-warn" role="status">
-                File currently invalid: {trace.message}; showing last valid version.
+              <Alert variant="warning" className={COLUMN_CLASS} role="status">
+                <AlertTitle>
+                  File currently invalid: {trace.message}; showing last valid version.
+                </AlertTitle>
                 <ErrorDetails details={trace.details} />
-              </div>
+              </Alert>
             ) : null}
           </>
         }
@@ -375,18 +385,20 @@ function selectionTitle(selection: TraceSelection): string {
   return `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`;
 }
 
+const EMPTY_CLASS = "mt-[15vh] text-center text-muted-foreground";
+
 function TraceStatus({ trace }: { trace: TraceState }) {
   switch (trace.status) {
     case "unselected":
-      return <div class="empty">Select a trace from the tree to inspect it.</div>;
+      return <div class={EMPTY_CLASS}>Select a trace from the tree to inspect it.</div>;
     case "loading":
-      return <div class="empty">Loading trace…</div>;
+      return <div class={EMPTY_CLASS}>Loading trace…</div>;
     case "error":
       return (
-        <div class="banner-error">
-          {trace.message}
+        <Alert variant="error" className={COLUMN_CLASS}>
+          <AlertTitle>{trace.message}</AlertTitle>
           <ErrorDetails details={trace.details} />
-        </div>
+        </Alert>
       );
     case "ready":
     case "stale":
@@ -398,13 +410,15 @@ function TraceStatus({ trace }: { trace: TraceState }) {
 function ErrorDetails({ details }: { details: string[] }) {
   if (details.length < 2) return null;
   return (
-    <details class="error-details">
-      <summary>Show all {details.length} errors</summary>
-      <ul>
-        {details.map((detail, i) => (
-          <li key={i}>{detail}</li>
-        ))}
-      </ul>
-    </details>
+    <AlertDescription>
+      <details>
+        <summary class="cursor-pointer">Show all {details.length} errors</summary>
+        <ul class="mt-1.5 max-h-[50vh] list-disc overflow-y-auto pl-4.5 font-mono text-xs wrap-anywhere">
+          {details.map((detail, i) => (
+            <li key={i}>{detail}</li>
+          ))}
+        </ul>
+      </details>
+    </AlertDescription>
   );
 }

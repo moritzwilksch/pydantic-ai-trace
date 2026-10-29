@@ -221,3 +221,6 @@ reference-material/
 src/pydantic_ai_trace/static/
 node_modules/
 frontend/dist/
+
+# shadcn/coss components import their helpers from frontend/src/lib.
+!/frontend/src/lib/
