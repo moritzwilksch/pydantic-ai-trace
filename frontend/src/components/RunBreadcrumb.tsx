@@ -1,5 +1,5 @@
 import { Fragment } from "preact";
-import type { RunEntry, TrajectoryIndex } from "../runIndex";
+import type { RunEntry, RunTreeIndex } from "../runIndex";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -15,16 +15,16 @@ const TITLE_CLASS = "trace-title min-w-0 flex-[0_1_auto] text-[13px] font-semibo
 /** `file › parent › run`: where the selected run sits, with each ancestor one click away. */
 export function RunBreadcrumb({
   title,
-  trajectory,
+  runTree,
   selected,
   onSelect,
 }: {
   title: string;
-  trajectory: TrajectoryIndex | null;
+  runTree: RunTreeIndex | null;
   selected: RunEntry | null;
   onSelect: (runId: string) => void;
 }) {
-  if (trajectory === null || selected === null || trajectory.entries.size < 2) {
+  if (runTree === null || selected === null || runTree.entries.size < 2) {
     return <span class={`${TITLE_CLASS} truncate`}>{title}</span>;
   }
   // When space runs out, the file and the ancestors truncate; the selected run keeps
@@ -35,7 +35,7 @@ export function RunBreadcrumb({
         <BreadcrumbItem className="min-w-0 text-foreground">
           <span class="truncate">{title}</span>
         </BreadcrumbItem>
-        {trajectory.ancestors(selected.run.id).map((ancestor) => (
+        {runTree.ancestors(selected.run.id).map((ancestor) => (
           <Fragment key={ancestor.run.id}>
             <BreadcrumbSeparator className="[&>svg]:size-3.5" />
             <BreadcrumbItem className="min-w-0">

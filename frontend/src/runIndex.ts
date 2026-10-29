@@ -27,7 +27,7 @@ export interface RunIndex {
   responseCost(message: number): string | null;
 }
 
-export interface TrajectoryIndex {
+export interface RunTreeIndex {
   entries: Map<string, RunEntry>;
   /** Top-level runs, including runs whose parent is not recorded, in tree order. */
   roots: RunEntry[];
@@ -37,9 +37,9 @@ export interface TrajectoryIndex {
   ancestors(runId: string): RunEntry[];
 }
 
-export function indexTrajectory(payload: TracePayload): TrajectoryIndex {
+export function indexRunTree(payload: TracePayload): RunTreeIndex {
   const entries = new Map<string, RunEntry>();
-  payload.trajectory.runs.forEach((run, i) => {
+  payload.run_tree.runs.forEach((run, i) => {
     entries.set(run.id, { run, analysis: payload.analysis.runs[i] });
   });
   const recorded = (ids: readonly string[]) =>
@@ -64,7 +64,7 @@ export function indexTrajectory(payload: TracePayload): TrajectoryIndex {
   };
 }
 
-export function indexRun(entry: RunEntry, trajectory: TrajectoryIndex): RunIndex {
+export function indexRun(entry: RunEntry, runTree: RunTreeIndex): RunIndex {
   const key = (message: number, part: number) => `${message}:${part}`;
   const numbered = entry.analysis.tool_calls.map((info, i) => ({ number: i + 1, info }));
   const toolCalls = new Map(
@@ -78,7 +78,7 @@ export function indexRun(entry: RunEntry, trajectory: TrajectoryIndex): RunIndex
   );
   const costs = new Map(entry.analysis.responses.map((info) => [info.message, info.cost_usd]));
   const recorded = (ids: readonly string[]) =>
-    ids.map((id) => trajectory.entries.get(id)).filter((run) => run !== undefined);
+    ids.map((id) => runTree.entries.get(id)).filter((run) => run !== undefined);
   return {
     entry,
     part: (ref) => entry.run.messages[ref.message]?.parts[ref.part] ?? null,

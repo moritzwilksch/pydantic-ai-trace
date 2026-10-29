@@ -143,7 +143,7 @@ function embedWorkerWithHelper() {
 }
 
 describe("App in exported-trace mode", () => {
-  it("switches between the runs of an embedded trajectory", () => {
+  it("switches between the runs of an embedded run tree", () => {
     embed(
       payloadFromRuns(
         [
@@ -433,7 +433,7 @@ describe("App in exported-trace mode", () => {
     expect(child.getAttribute("title")).toContain("parent not recorded");
   });
 
-  it("renders a trajectory whose root run has an empty ID", () => {
+  it("renders a run tree whose root run has an empty ID", () => {
     embed(
       payloadFromRuns([
         {

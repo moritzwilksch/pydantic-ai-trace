@@ -50,7 +50,7 @@ export function TreePane({
   rootLabel: string;
   selection: TraceSelection | null;
   onSelect: (selection: TraceSelection) => void;
-  /** Nested under the selected trace, such as the runs of a trajectory. */
+  /** Nested under the selected trace, such as the runs of a run tree. */
   selectedChildren?: ComponentChildren;
 }) {
   const [filter, setFilter] = useState("");

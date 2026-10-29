@@ -14,7 +14,7 @@ export type ToolReturnContent =
 
 export interface TracePayload {
   name: string;
-  trajectory: RunTree;
+  run_tree: RunTree;
   analysis: Analysis;
   transcript: string;
 }

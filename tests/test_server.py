@@ -118,7 +118,7 @@ class TestTrace:
         assert response.status_code == 200
         payload = response.json()
         assert payload["name"] == "full_trace.json"
-        [run] = payload["trajectory"]["runs"]
+        [run] = payload["run_tree"]["runs"]
         assert run["id"] == "run"
         assert len(run["messages"]) == 6
         assert payload["analysis"]["totals"]["llm_calls"] == 3
@@ -127,7 +127,7 @@ class TestTrace:
     def test_serves_a_run_tree(self, fixtures_copy: Path):
         response = client_for(fixtures_copy).get("/api/trace", params={"path": "run_tree.json"})
         payload = response.json()
-        assert [run["name"] for run in payload["trajectory"]["runs"]] == [
+        assert [run["name"] for run in payload["run_tree"]["runs"]] == [
             "planner",
             "subagent",
             "worker",
@@ -147,7 +147,7 @@ class TestTrace:
         [node] = tree["children"]
         assert (node["trace_count"], node["error"]) == (2, False)
         assert payload["name"] == "runs.jsonl · trace 2"
-        assert len(payload["trajectory"]["runs"]) == 4
+        assert len(payload["run_tree"]["runs"]) == 4
 
     def test_an_out_of_range_number_is_400_not_500(self, tmp_path: Path):
         trace = json.loads(minimal_trace())

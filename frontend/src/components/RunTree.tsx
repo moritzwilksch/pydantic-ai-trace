@@ -1,29 +1,29 @@
 import { Ban, Bot, TriangleAlert, Unlink, Workflow } from "lucide-preact";
 import { formatCount, formatDuration, formatTotalsCost } from "../format";
 import { cn } from "../lib/utils";
-import type { RunEntry, TrajectoryIndex } from "../runIndex";
+import type { RunEntry, RunTreeIndex } from "../runIndex";
 import { TREE_CHILDREN_CLASS, treeRowClass } from "./TreePane";
 
 /**
- * The trajectory's runs, styled as sidebar tree rows so they can nest under
+ * The run tree's runs, styled as sidebar tree rows so they can nest under
  * the file that holds them.
  */
 export function RunTree({
-  trajectory,
+  runTree,
   selected,
   onSelect,
 }: {
-  trajectory: TrajectoryIndex;
+  runTree: RunTreeIndex;
   selected: string;
   onSelect: (runId: string) => void;
 }) {
   return (
     <div role="group" aria-label="Runs">
-      {trajectory.roots.map((entry) => (
+      {runTree.roots.map((entry) => (
         <RunNode
           key={entry.run.id}
           entry={entry}
-          trajectory={trajectory}
+          runTree={runTree}
           selected={selected}
           onSelect={onSelect}
         />
@@ -34,17 +34,17 @@ export function RunTree({
 
 function RunNode({
   entry,
-  trajectory,
+  runTree,
   selected,
   onSelect,
 }: {
   entry: RunEntry;
-  trajectory: TrajectoryIndex;
+  runTree: RunTreeIndex;
   selected: string;
   onSelect: (runId: string) => void;
 }) {
   const { run, analysis } = entry;
-  const children = trajectory.children(run.id);
+  const children = runTree.children(run.id);
   const cost = formatTotalsCost(analysis.subtree_totals);
   const isSelected = run.id === selected;
   return (
@@ -83,7 +83,7 @@ function RunNode({
             <RunNode
               key={child.run.id}
               entry={child}
-              trajectory={trajectory}
+              runTree={runTree}
               selected={selected}
               onSelect={onSelect}
             />

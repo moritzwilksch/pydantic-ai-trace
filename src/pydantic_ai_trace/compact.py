@@ -25,7 +25,7 @@ def compact_payload(payload: TracePayload) -> dict[str, object]:
     return {
         "name": payload.name,
         "stats": compact_totals(payload.analysis.totals),
-        "runs": [_compact_run(run, analyses[run.id]) for run, _ in payload.trajectory.walk()],
+        "runs": [_compact_run(run, analyses[run.id]) for run, _ in payload.run_tree.walk()],
     }
 
 

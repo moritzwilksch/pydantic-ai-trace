@@ -8,7 +8,7 @@ import {
   fetchTree,
   subscribeChanges,
 } from "./api";
-import { indexTrajectory, type RunEntry, type TrajectoryIndex } from "./runIndex";
+import { indexRunTree, type RunEntry, type RunTreeIndex } from "./runIndex";
 import {
   defaultSelection,
   formatHash,
@@ -50,7 +50,7 @@ export function App() {
   );
 }
 
-/** Exported HTML: one embedded payload, with a runs sidebar for a trajectory. */
+/** Exported HTML: one embedded payload, with a runs sidebar for a run tree. */
 function ExportedApp({ payload }: { payload: TracePayload }) {
   const [view, navigate] = useHashLocation();
   const runs = useRuns(payload, view.run, (run) => navigate({ trace: null, run }));
@@ -80,7 +80,7 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
 }
 
 interface Runs {
-  trajectory: TrajectoryIndex;
+  runTree: RunTreeIndex;
   selected: RunEntry;
   select: (runId: string) => void;
   multiRun: boolean;
@@ -95,14 +95,14 @@ function useRuns(
   runId: string | undefined,
   select: (runId: string) => void,
 ): Runs | null {
-  const trajectory = useMemo(() => (payload ? indexTrajectory(payload) : null), [payload]);
-  if (trajectory === null) return null;
-  const chosen = runId === undefined ? undefined : trajectory.entries.get(runId);
+  const runTree = useMemo(() => (payload ? indexRunTree(payload) : null), [payload]);
+  if (runTree === null) return null;
+  const chosen = runId === undefined ? undefined : runTree.entries.get(runId);
   return {
-    trajectory,
-    selected: chosen ?? trajectory.roots[0],
+    runTree,
+    selected: chosen ?? runTree.roots[0],
     select,
-    multiRun: trajectory.entries.size > 1,
+    multiRun: runTree.entries.size > 1,
   };
 }
 
@@ -133,7 +133,7 @@ function useHashLocation(): [ViewLocation, (next: ViewLocation) => void] {
 function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }) {
   return (
     <RunTree
-      trajectory={runs.trajectory}
+      runTree={runs.runTree}
       selected={runs.selected.run.id}
       onSelect={(runId) => {
         runs.select(runId);
@@ -184,7 +184,7 @@ function TracePane({
           {sidebar ? <SidebarToggle sidebar={sidebar} /> : null}
           <RunBreadcrumb
             title={title}
-            trajectory={runs?.trajectory ?? null}
+            runTree={runs?.runTree ?? null}
             selected={runs?.selected ?? null}
             onSelect={(runId) => runs?.select(runId)}
           />
@@ -210,7 +210,7 @@ function TracePane({
               <TraceView
                 key={runs.selected.run.id}
                 entry={runs.selected}
-                trajectory={runs.trajectory}
+                runTree={runs.runTree}
                 onOpenRun={runs.select}
               />
             ) : (

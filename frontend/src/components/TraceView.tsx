@@ -7,7 +7,7 @@ import {
   formatPercent,
   formatTotalsCost,
 } from "../format";
-import { indexRun, type RunEntry, type TrajectoryIndex } from "../runIndex";
+import { indexRun, type RunEntry, type RunTreeIndex } from "../runIndex";
 import type { Totals } from "../types";
 import { BANNER_CLASS } from "./banner";
 import { ChildRunCard } from "./ChildRunCard";
@@ -17,14 +17,14 @@ import { Alert, AlertTitle } from "./ui/alert";
 /** One run's messages in order, with the runs it started inline under their tool calls. */
 export function TraceView({
   entry,
-  trajectory,
+  runTree,
   onOpenRun,
 }: {
   entry: RunEntry;
-  trajectory: TrajectoryIndex;
+  runTree: RunTreeIndex;
   onOpenRun: (runId: string) => void;
 }) {
-  const index = useMemo(() => indexRun(entry, trajectory), [entry, trajectory]);
+  const index = useMemo(() => indexRun(entry, runTree), [entry, runTree]);
   const runStartMs = Date.parse(entry.run.started_at);
   let lastInstructions: string | null = null;
   return (
