@@ -28,6 +28,8 @@ import {
   SIDEBAR_ID,
   SIDEBAR_PANE_CLASS,
   SidebarBackdrop,
+  SidebarResizer,
+  sidebarStyle,
   SidebarToggle,
   useSidebar,
   type Sidebar,
@@ -56,7 +58,7 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
   const runs = useRuns(payload, view.run, (run) => navigate({ trace: null, run }));
   const sidebar = useSidebar();
   return (
-    <div class={layoutClass(sidebar)}>
+    <div class={layoutClass(sidebar)} style={sidebarStyle(sidebar)}>
       {runs?.multiRun ? (
         <nav class={SIDEBAR_PANE_CLASS} id={SIDEBAR_ID}>
           <Brand />
@@ -68,6 +70,7 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
           </div>
         </nav>
       ) : null}
+      {runs?.multiRun ? <SidebarResizer sidebar={sidebar} /> : null}
       <SidebarBackdrop sidebar={sidebar} />
       <TracePane
         title={payload.name}
@@ -145,7 +148,7 @@ function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }
 
 /** The sidebar overlays the trace on narrow screens while open; see `useSidebar`. */
 function layoutClass(sidebar: Sidebar): string {
-  return sidebar.open ? "flex h-screen sidebar-open" : "flex h-screen";
+  return sidebar.open ? "layout flex h-screen sidebar-open" : "layout flex h-screen";
 }
 
 /**
@@ -330,7 +333,7 @@ function ServerApp() {
     Boolean(runs?.multiRun);
 
   return (
-    <div class={layoutClass(sidebar)}>
+    <div class={layoutClass(sidebar)} style={sidebarStyle(sidebar)}>
       {showTree && tree ? (
         <TreePane
           id={SIDEBAR_ID}
@@ -345,6 +348,7 @@ function ServerApp() {
           }
         />
       ) : null}
+      {showTree && tree ? <SidebarResizer sidebar={sidebar} /> : null}
       <SidebarBackdrop sidebar={sidebar} />
       <TracePane
         key={title}
