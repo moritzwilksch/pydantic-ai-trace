@@ -87,7 +87,7 @@ export function TraceStatsBar({
   // breakdown goes before the run's calls, cost, and wall time. Stats that do not
   // fit wrap onto a second line, which the fixed height hides.
   return (
-    <div class="trace-stats flex h-4.5 min-w-0 flex-[1_1_0] flex-wrap gap-3 overflow-hidden text-xs/4.5 whitespace-nowrap text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground [&_svg]:mr-1 [&_svg]:inline">
+    <div class="trace-stats flex h-4.5 min-w-0 flex-[1_1_0] flex-wrap gap-3 overflow-hidden text-xs/4.5 whitespace-nowrap text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground [&_svg]:mr-1 [&_svg]:inline [&_svg]:align-[-2px]">
       <span>
         <MessagesSquare size={13} aria-hidden="true" />
         <b>{formatCount(totals.llm_calls)}</b> LLM calls
