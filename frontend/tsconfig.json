@@ -15,9 +15,7 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
-      "react": ["./node_modules/preact/compat/"],
-      "react/jsx-runtime": ["./node_modules/preact/jsx-runtime"],
-      "react-dom": ["./node_modules/preact/compat/"]
+      "react": ["./node_modules/preact/compat/"]
     }
   },
   "include": ["src"]

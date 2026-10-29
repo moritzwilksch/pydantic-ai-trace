@@ -10,7 +10,7 @@ import {
 } from "./ui/breadcrumb";
 
 /** Takes its full width first; the header's stats get only the space left over. */
-const TITLE_CLASS = "trace-title min-w-0 flex-[0_1_auto] text-[13px] font-semibold";
+const TITLE_CLASS = "min-w-0 flex-[0_1_auto] text-[13px] font-semibold";
 
 /** `file › parent › run`: where the selected run sits, with each ancestor one click away. */
 export function RunBreadcrumb({

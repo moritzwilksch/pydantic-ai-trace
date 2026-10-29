@@ -83,7 +83,7 @@ export function MediaChip({
 }
 
 /** One attachment or value among a message's content items. */
-export const MEDIA_ITEM_CLASS = "media-item my-1.5";
+export const MEDIA_ITEM_CLASS = "my-1.5";
 
 /** An image that degrades to a MediaChip instead of the browser's broken-image icon. */
 function MediaImage({

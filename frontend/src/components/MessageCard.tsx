@@ -65,7 +65,8 @@ export function MessageCard({
       data-card
       className={cn(
         // Offscreen cards skip rendering work; long traces hold hundreds.
-        "mx-auto mb-3 max-w-275 [contain-intrinsic-size:auto_120px] [content-visibility:auto]",
+        COLUMN_CLASS,
+        "[contain-intrinsic-size:auto_120px] [content-visibility:auto]",
         // A faint wash of the "Response" heading's color, so requests and responses
         // tell apart while skimming.
         isResponse && "border-assistant/20 bg-[color-mix(in_srgb,var(--assistant)_4%,var(--card))]",
@@ -125,17 +126,13 @@ export function MessageCard({
 /** Parts are self-delimiting blocks; spacing alone separates them. */
 const PART_CLASS = "part [.part+&]:mt-2";
 
-/** Alerts above the trace share the cards' column. */
-export const BANNER_CLASS = "mx-auto mb-3 max-w-275";
+/** Cards, alerts, and notes share one column, wide for data-dense traces. */
+export const COLUMN_CLASS = "mx-auto mb-3 max-w-275";
 
 /** A muted remark about the message or run, not part of its content. */
 export function Note({ className, children }: { className?: string; children: ComponentChildren }) {
   return (
-    <Alert
-      variant="warning"
-      className={cn("interrupted-message py-2 text-xs", className)}
-      role="note"
-    >
+    <Alert variant="warning" className={cn("note py-2 text-xs", className)} role="note">
       <AlertDescription>{children}</AlertDescription>
     </Alert>
   );

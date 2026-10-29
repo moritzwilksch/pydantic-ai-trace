@@ -9,8 +9,7 @@ import {
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { cn } from "../lib/utils";
-import { Brand } from "./Brand";
-import { SIDEBAR_PANE_CLASS } from "./Sidebar";
+import { SidebarPane } from "./Sidebar";
 import { Input } from "./ui/input";
 import { defaultSelection, isMultiTrace } from "../selection";
 import type { TraceSelection, TraceSummary, TreeNode } from "../types";
@@ -26,7 +25,7 @@ export const TREE_CHILDREN_CLASS = "tree-children ml-3.5 border-l pl-1";
 /** One row of the sidebar tree: a folder, file, trace, or run. */
 export function treeRowClass({ selected = false, error = false } = {}): string {
   return cn(
-    "tree-node flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-2 py-0.75 text-left text-[13px] whitespace-nowrap hover:bg-accent",
+    "flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-2 py-0.75 text-left text-[13px] whitespace-nowrap hover:bg-accent",
     error && "text-muted-foreground hover:bg-destructive/8",
     selected && "selected bg-foreground/7 font-medium",
   );
@@ -38,14 +37,12 @@ export const ICON_CLASS = "inline-flex w-4 shrink-0 items-center justify-center"
 const COUNT_CLASS = "ml-auto text-[11px] text-muted-foreground";
 
 export function TreePane({
-  id,
   root,
   rootLabel,
   selection,
   onSelect,
   selectedChildren,
 }: {
-  id?: string;
   root: TreeNode;
   rootLabel: string;
   selection: TraceSelection | null;
@@ -59,9 +56,7 @@ export function TreePane({
   const topLevel =
     visibleRoot?.type === "dir" ? (visibleRoot.children ?? []) : visibleRoot ? [visibleRoot] : [];
   return (
-    <nav class={SIDEBAR_PANE_CLASS} id={id}>
-      <Brand />
-      <TreeHeader label={rootLabel} />
+    <SidebarPane label={rootLabel}>
       <Input
         nativeInput
         size="sm"
@@ -95,7 +90,7 @@ export function TreePane({
           <div class="px-1.5 py-2 text-xs text-muted-foreground">No traces match “{filter}”.</div>
         )}
       </div>
-    </nav>
+    </SidebarPane>
   );
 }
 
@@ -366,14 +361,5 @@ function filterTree(node: TreeNode, query: string): TreeNode | null {
 function traceMatches(trace: TraceSummary, query: string): boolean {
   return [trace.prompt, trace.answer, ...trace.models].some(
     (text) => text?.toLowerCase().includes(query) ?? false,
-  );
-}
-
-/** The sidebar's heading: the served root, or the exported trace's name. */
-export function TreeHeader({ label }: { label: string }) {
-  return (
-    <div class="truncate px-3 pt-2.5 pb-1.5 text-[13px] font-semibold" title={label}>
-      {label}
-    </div>
   );
 }

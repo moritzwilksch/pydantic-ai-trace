@@ -1,5 +1,5 @@
 import { PanelLeft } from "lucide-preact";
-import type { RefObject } from "preact";
+import type { ComponentChildren, RefObject } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   clampSidebarWidth,
@@ -8,6 +8,7 @@ import {
   SIDEBAR_WIDTH,
 } from "../sidebarWidth";
 import { storage } from "../storage";
+import { Brand } from "./Brand";
 import { Hint } from "./Hint";
 import { Button } from "./ui/button";
 
@@ -71,9 +72,12 @@ export function useSidebar(): Sidebar {
   return { open, setOpen, toggleRef, width, setWidth };
 }
 
-/** Sets the sidebar's width through `--sidebar-width`, which the tree pane reads. */
-export function sidebarStyle(sidebar: Sidebar): Record<string, string> {
-  return { "--sidebar-width": `${sidebar.width}px` };
+/** The layout's props: `sidebar-open` and `--sidebar-width`, which the pane reads. */
+export function sidebarLayout(sidebar: Sidebar) {
+  return {
+    class: sidebar.open ? "flex h-screen sidebar-open" : "flex h-screen",
+    style: { "--sidebar-width": `${sidebar.width}px` },
+  };
 }
 
 /**
@@ -123,10 +127,22 @@ export function SidebarResizer({ sidebar }: { sidebar: Sidebar }) {
 }
 
 /**
- * The sidebar pane. Below 720px it leaves the layout: hidden until the layout carries
- * `sidebar-open` (see `layoutClass` in app.tsx), then an overlay.
+ * The sidebar: the app's name, a heading, then `children`. Below 720px it leaves the
+ * layout: hidden until the layout carries `sidebar-open`, then an overlay.
  */
-export const SIDEBAR_PANE_CLASS =
+export function SidebarPane({ label, children }: { label: string; children: ComponentChildren }) {
+  return (
+    <nav class={SIDEBAR_PANE_CLASS} id={SIDEBAR_ID}>
+      <Brand />
+      <div class="truncate px-3 pt-2.5 pb-1.5 text-[13px] font-semibold" title={label}>
+        {label}
+      </div>
+      {children}
+    </nav>
+  );
+}
+
+const SIDEBAR_PANE_CLASS =
   "tree-pane flex w-(--sidebar-width) shrink-0 flex-col overflow-hidden border-r bg-background " +
   "max-[720px]:fixed max-[720px]:inset-y-0 max-[720px]:left-0 max-[720px]:z-30 " +
   "max-[720px]:hidden max-[720px]:w-[min(var(--sidebar-width),85vw)] max-[720px]:shadow-lg " +

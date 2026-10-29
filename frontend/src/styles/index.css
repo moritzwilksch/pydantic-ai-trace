@@ -129,21 +129,8 @@
     @apply border-border outline-ring/50;
   }
 
-  html,
-  body,
-  #app {
-    height: 100%;
-  }
-
   body {
     @apply bg-background text-sm/normal text-foreground antialiased;
-  }
-
-  code,
-  kbd,
-  samp,
-  pre {
-    font-family: var(--font-mono);
   }
 }
 

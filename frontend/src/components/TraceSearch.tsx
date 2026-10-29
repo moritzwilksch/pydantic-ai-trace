@@ -253,7 +253,7 @@ function findTextMatches(root: HTMLElement, query: string): TraceMatch[] {
 
 function searchUnits(root: HTMLElement): HTMLElement[] {
   return Array.from(
-    root.querySelectorAll<HTMLElement>(".part, .card-kind, .card-footer, .interrupted-message"),
+    root.querySelectorAll<HTMLElement>(".part, .card-kind, .card-footer, .note"),
   ).filter((unit) => !unit.parentElement?.closest(".part"));
 }
 

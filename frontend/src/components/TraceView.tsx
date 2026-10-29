@@ -9,7 +9,7 @@ import {
 import { indexRun, type RunEntry, type RunTreeIndex } from "../runIndex";
 import type { Totals } from "../types";
 import { ChildRunCard } from "./ChildRunCard";
-import { BANNER_CLASS, MessageCard, Note } from "./MessageCard";
+import { COLUMN_CLASS, MessageCard, Note } from "./MessageCard";
 import { Alert, AlertTitle } from "./ui/alert";
 
 /** One run's messages in order, with the runs it started inline under their tool calls. */
@@ -28,20 +28,20 @@ export function TraceView({
   return (
     <div>
       {entry.run.outcome.status === "failed" ? (
-        <Alert variant="error" className={BANNER_CLASS} role="note">
+        <Alert variant="error" className={COLUMN_CLASS} role="note">
           <AlertTitle>
             Run failed with {entry.run.outcome.error_type}: {entry.run.outcome.detail}
           </AlertTitle>
         </Alert>
       ) : null}
       {entry.analysis.parent_missing && entry.run.parent !== null ? (
-        <Note className={BANNER_CLASS}>
+        <Note className={COLUMN_CLASS}>
           This run's parent, run {JSON.stringify(entry.run.parent.run_id)}, is not recorded in this
           trace yet.
         </Note>
       ) : null}
       {entry.run.outcome.status === "cancelled" ? (
-        <Note className={BANNER_CLASS}>This run was cancelled.</Note>
+        <Note className={COLUMN_CLASS}>This run was cancelled.</Note>
       ) : null}
       {entry.run.messages.map((message, i) => {
         // Show instructions only where they change, as the transcript does.
@@ -108,14 +108,14 @@ export function TraceStatsBar({
           ) : null}
         </span>
       ) : null}
-      <span class="trace-token-summary" aria-label="Token usage">
+      <span aria-label="Token usage">
         <b>{formatCount(tokens.input)}</b> in
       </span>
-      <span class="trace-token-summary">
+      <span>
         <b>{formatCount(tokens.cache_read)}</b> cached
         {hitRate !== null ? ` (${formatPercent(hitRate)})` : ""}
       </span>
-      <span class="trace-token-summary">
+      <span>
         <b>{formatCount(tokens.output)}</b> out
       </span>
     </div>

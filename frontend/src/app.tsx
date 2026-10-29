@@ -18,18 +18,16 @@ import {
   type ViewLocation,
 } from "./selection";
 import { shownTrace, traceFailed, type TraceState } from "./traceState";
-import { Brand } from "./components/Brand";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { RunBreadcrumb } from "./components/RunBreadcrumb";
-import { BANNER_CLASS } from "./components/MessageCard";
+import { COLUMN_CLASS } from "./components/MessageCard";
 import { RunTree } from "./components/RunTree";
 import {
-  SIDEBAR_ID,
-  SIDEBAR_PANE_CLASS,
+  SidebarPane,
   SidebarBackdrop,
   SidebarResizer,
-  sidebarStyle,
+  sidebarLayout,
   SidebarToggle,
   useSidebar,
   type Sidebar,
@@ -37,7 +35,7 @@ import {
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceSearch, TraceSearchScope } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
-import { TREE_BODY_CLASS, TREE_CHILDREN_CLASS, TreeHeader, TreePane } from "./components/TreePane";
+import { TREE_BODY_CLASS, TREE_CHILDREN_CLASS, TreePane } from "./components/TreePane";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
@@ -58,17 +56,15 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
   const runs = useRuns(payload, view.run, (run) => navigate({ trace: null, run }));
   const sidebar = useSidebar();
   return (
-    <div class={layoutClass(sidebar)} style={sidebarStyle(sidebar)}>
+    <div {...sidebarLayout(sidebar)}>
       {runs?.multiRun ? (
-        <nav class={SIDEBAR_PANE_CLASS} id={SIDEBAR_ID}>
-          <Brand />
-          <TreeHeader label={payload.name} />
+        <SidebarPane label={payload.name}>
           <div class={TREE_BODY_CLASS}>
             <div class={TREE_CHILDREN_CLASS}>
               <RunTreeFor runs={runs} onSelected={() => sidebar.setOpen(false)} />
             </div>
           </div>
-        </nav>
+        </SidebarPane>
       ) : null}
       {runs?.multiRun ? <SidebarResizer sidebar={sidebar} /> : null}
       <SidebarBackdrop sidebar={sidebar} />
@@ -144,11 +140,6 @@ function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }
       }}
     />
   );
-}
-
-/** The sidebar overlays the trace on narrow screens while open; see `useSidebar`. */
-function layoutClass(sidebar: Sidebar): string {
-  return sidebar.open ? "flex h-screen sidebar-open" : "flex h-screen";
 }
 
 /**
@@ -333,10 +324,9 @@ function ServerApp() {
     Boolean(runs?.multiRun);
 
   return (
-    <div class={layoutClass(sidebar)} style={sidebarStyle(sidebar)}>
+    <div {...sidebarLayout(sidebar)}>
       {showTree && tree ? (
         <TreePane
-          id={SIDEBAR_ID}
           root={tree}
           rootLabel={meta?.root ?? ""}
           selection={selection}
@@ -359,12 +349,12 @@ function ServerApp() {
         banner={
           <>
             {appError ? (
-              <Alert variant="error" className={BANNER_CLASS}>
+              <Alert variant="error" className={COLUMN_CLASS}>
                 <AlertTitle>{appError}</AlertTitle>
               </Alert>
             ) : null}
             {trace.status === "stale" ? (
-              <Alert variant="warning" className={BANNER_CLASS} role="status">
+              <Alert variant="warning" className={COLUMN_CLASS} role="status">
                 <AlertTitle>
                   File currently invalid: {trace.message}; showing last valid version.
                 </AlertTitle>
@@ -405,7 +395,7 @@ function TraceStatus({ trace }: { trace: TraceState }) {
       return <div class={EMPTY_CLASS}>Loading trace…</div>;
     case "error":
       return (
-        <Alert variant="error" className={BANNER_CLASS}>
+        <Alert variant="error" className={COLUMN_CLASS}>
           <AlertTitle>{trace.message}</AlertTitle>
           <ErrorDetails details={trace.details} />
         </Alert>

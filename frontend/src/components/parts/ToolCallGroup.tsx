@@ -23,10 +23,9 @@ const TOOL_NAME_CLASS = "tool-name font-mono text-xs font-semibold text-tool";
 export const PAIR_ARROW_CLASS = "pair-arrow shrink-0 text-muted-foreground";
 /** Named values a tool part carries as structure rather than free-form JSON:
     search queries, discovered tools, revealed tool names. */
-export const CHIPS_CLASS = "tool-chips flex flex-wrap gap-1.5";
+export const CHIPS_CLASS = "flex flex-wrap gap-1.5";
 /** The call's number (a link to the other end of the pair) at the header's right edge. */
-const PAIR_END_CLASS =
-  "pair-end ml-auto inline-flex shrink-0 gap-2 text-[11px] text-muted-foreground";
+const PAIR_END_CLASS = "ml-auto inline-flex shrink-0 gap-2 text-[11px] text-muted-foreground";
 /** Header links: inline text sized like the header around them. */
 const PAIR_LINK_CLASS =
   "pair-link h-auto p-0 text-[11px] font-normal text-inherit sm:h-auto sm:text-[11px]";

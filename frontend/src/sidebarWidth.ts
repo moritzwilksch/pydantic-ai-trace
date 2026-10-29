@@ -1,6 +1,3 @@
-// The sidebar's width on wide screens: bounds, keyboard steps, and the stored value.
-// The DOM side, dragging and storage access, lives in `components/Sidebar.tsx`.
-
 export const SIDEBAR_WIDTH = { min: 180, default: 280, max: 640 } as const;
 
 /** Arrow keys move the edge by this many pixels; Shift moves it further. */

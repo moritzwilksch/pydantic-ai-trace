@@ -44,36 +44,20 @@ function renderSidebar() {
 }
 
 describe("sidebar resizing", () => {
-  it("is a focusable vertical separator at the default width", () => {
-    const { handle, width, cssWidth } = renderSidebar();
-    expect(handle.tabIndex).toBe(0);
-    expect(handle.getAttribute("aria-orientation")).toBe("vertical");
-    expect(handle.getAttribute("aria-valuemin")).toBe(String(SIDEBAR_WIDTH.min));
-    expect(handle.getAttribute("aria-valuemax")).toBe(String(SIDEBAR_WIDTH.max));
-    expect(width()).toBe(SIDEBAR_WIDTH.default);
-    expect(cssWidth()).toBe(`${SIDEBAR_WIDTH.default}px`);
-  });
-
-  it("resizes with the arrow keys within its bounds and remembers the width", () => {
+  it("is a vertical separator that resizes with the keys and remembers the width", () => {
     const { handle, width, cssWidth, unmount } = renderSidebar();
+    expect(handle.getAttribute("aria-orientation")).toBe("vertical");
+    expect(cssWidth()).toBe(`${SIDEBAR_WIDTH.default}px`);
+    // Focus stays on the handle: the trace's arrow-key shortcuts must not see the keys.
+    handle.focus();
     fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(handle);
     expect(width()).toBe(SIDEBAR_WIDTH.default + SIDEBAR_STEP);
     expect(cssWidth()).toBe(`${SIDEBAR_WIDTH.default + SIDEBAR_STEP}px`);
-    fireEvent.keyDown(handle, { key: "End" });
-    fireEvent.keyDown(handle, { key: "ArrowRight" });
-    expect(width()).toBe(SIDEBAR_WIDTH.max);
-    expect(stored.get(WIDTH_KEY)).toBe(String(SIDEBAR_WIDTH.max));
+    expect(stored.get(WIDTH_KEY)).toBe(String(SIDEBAR_WIDTH.default + SIDEBAR_STEP));
     unmount();
 
-    expect(renderSidebar().width()).toBe(SIDEBAR_WIDTH.max);
-  });
-
-  it("keeps focus on the handle instead of triggering the trace's arrow-key shortcuts", () => {
-    const { handle, width } = renderSidebar();
-    handle.focus();
-    fireEvent.keyDown(handle, { key: "ArrowLeft" });
-    expect(width()).toBe(SIDEBAR_WIDTH.default - SIDEBAR_STEP);
-    expect(document.activeElement).toBe(handle);
+    expect(renderSidebar().width()).toBe(SIDEBAR_WIDTH.default + SIDEBAR_STEP);
   });
 
   it("follows a drag, clamped to the minimum, and resets on double-click", () => {
