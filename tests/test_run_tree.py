@@ -111,7 +111,7 @@ class TestRunFromMessages:
         assert first.id[14] == "7"  # UUID version nibble
 
 
-class TestTrajectory:
+class TestRunTree:
     def test_round_trips_through_json(self):
         text = (FIXTURES / "run_tree.json").read_text()
 

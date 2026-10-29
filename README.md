@@ -155,6 +155,8 @@ Every command reads three JSON shapes:
   - A run shows only its own messages, those whose `run_id` is its `pydantic_run_id`.
   - A run still running, or one without messages of its own, is left out; the runs it started
     show as runs whose parent is not recorded.
+  - So a capture loads only once some run has ended with messages, and a retried run stays
+    hidden until its latest attempt ends.
   - A failed run's error is not recorded, so it shows as `unknown`.
   - Usage per run, tool call timings, and the capture's `id` are not shown.
 
