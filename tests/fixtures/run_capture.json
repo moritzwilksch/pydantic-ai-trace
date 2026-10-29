@@ -1,0 +1,864 @@
+{
+  "id": "capture-1",
+  "runs": [
+    {
+      "id": "orch",
+      "pydantic_run_id": "p-orch",
+      "agent_name": "orchestrator",
+      "parent": {
+        "kind": "trajectory",
+        "trajectory_id": "capture-1"
+      },
+      "started_at": "2026-01-01T09:00:00Z",
+      "ended_at": "2026-01-01T09:00:21Z",
+      "status": "completed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Summarize the refund policy.",
+              "timestamp": "2026-01-01T09:00:00Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:00Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-orch",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "tool_name": "ask_researcher",
+              "args": {
+                "q": "refund window"
+              },
+              "tool_call_id": "c1",
+              "tool_kind": null,
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "tool-call"
+            },
+            {
+              "tool_name": "ask_writer",
+              "args": {
+                "draft": "summary"
+              },
+              "tool_call_id": "c2",
+              "tool_kind": null,
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "tool-call"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:01Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-orch",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "tool_name": "ask_researcher",
+              "content": "30 days",
+              "tool_call_id": "c1",
+              "tool_kind": null,
+              "metadata": null,
+              "timestamp": "2026-01-01T09:00:12Z",
+              "outcome": "success",
+              "part_kind": "tool-return"
+            },
+            {
+              "tool_name": "ask_writer",
+              "content": "cancelled",
+              "tool_call_id": "c2",
+              "tool_kind": null,
+              "metadata": null,
+              "timestamp": "2026-01-01T09:00:15Z",
+              "outcome": "success",
+              "part_kind": "tool-return"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:16Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-orch",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "Refunds are accepted within 30 days.",
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:20Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-orch",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": "Refunds are accepted within 30 days.",
+      "usage": {
+        "input_tokens": 200,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 40,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "audio_seconds": 0.0,
+        "details": {},
+        "cost": null,
+        "requests": 2,
+        "tool_calls": 0
+      },
+      "tool_call_timings": {
+        "c1": {
+          "started_at": "2026-01-01T09:00:01Z",
+          "duration_seconds": 11.0
+        },
+        "c2": {
+          "started_at": "2026-01-01T09:00:01Z",
+          "duration_seconds": 14.0
+        }
+      }
+    },
+    {
+      "id": "research-1",
+      "pydantic_run_id": "p-research",
+      "agent_name": "researcher",
+      "parent": {
+        "kind": "tool_call",
+        "run_id": "orch",
+        "tool_call_id": "c1"
+      },
+      "started_at": "2026-01-01T09:00:02Z",
+      "ended_at": "2026-01-01T09:00:05Z",
+      "status": "failed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Background: the customer is in the EU.",
+              "timestamp": "2026-01-01T09:00:00Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:00Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": null,
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "Find the refund window.",
+              "timestamp": "2026-01-01T09:00:02Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:02Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-research",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "tool_name": "search",
+              "args": {
+                "q": "refunds"
+              },
+              "tool_call_id": "c1",
+              "tool_kind": null,
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "tool-call"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:03Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-research",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": null,
+      "usage": null,
+      "tool_call_timings": {}
+    },
+    {
+      "id": "writer",
+      "pydantic_run_id": "p-writer",
+      "agent_name": "writer",
+      "parent": {
+        "kind": "tool_call",
+        "run_id": "orch",
+        "tool_call_id": "c2"
+      },
+      "started_at": "2026-01-01T09:00:02Z",
+      "ended_at": "2026-01-01T09:00:15Z",
+      "status": "cancelled",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Draft a summary.",
+              "timestamp": "2026-01-01T09:00:02Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:02Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-writer",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "Refunds are",
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:03Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-writer",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": null,
+      "usage": null,
+      "tool_call_timings": {}
+    },
+    {
+      "id": "research-1-check",
+      "pydantic_run_id": "p-check",
+      "agent_name": "checker",
+      "parent": {
+        "kind": "agent_run",
+        "run_id": "research-1"
+      },
+      "started_at": "2026-01-01T09:00:04Z",
+      "ended_at": "2026-01-01T09:00:05Z",
+      "status": "completed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Check the search query.",
+              "timestamp": "2026-01-01T09:00:04Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:04Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-check",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "ok",
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:05Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-check",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": null,
+      "usage": null,
+      "tool_call_timings": {}
+    },
+    {
+      "id": "research-2",
+      "pydantic_run_id": "p-research",
+      "agent_name": "researcher",
+      "parent": {
+        "kind": "tool_call",
+        "run_id": "orch",
+        "tool_call_id": "c1"
+      },
+      "started_at": "2026-01-01T09:00:06Z",
+      "ended_at": "2026-01-01T09:00:12Z",
+      "status": "completed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Background: the customer is in the EU.",
+              "timestamp": "2026-01-01T09:00:00Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:00Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": null,
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "Summarize the refund policy.",
+              "timestamp": "2026-01-01T09:00:00Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:00Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-orch",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "Find the refund window.",
+              "timestamp": "2026-01-01T09:00:06Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:06Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-research",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "tool_name": "search",
+              "args": {
+                "q": "refunds"
+              },
+              "tool_call_id": "c1",
+              "tool_kind": null,
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "tool-call"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:07Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-research",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "tool_name": "search",
+              "content": "30 days",
+              "tool_call_id": "c1",
+              "tool_kind": null,
+              "metadata": null,
+              "timestamp": "2026-01-01T09:00:09Z",
+              "outcome": "success",
+              "part_kind": "tool-return"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:09Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-research",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "30 days",
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:11Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-research",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": "30 days",
+      "usage": {
+        "input_tokens": 200,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 40,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "audio_seconds": 0.0,
+        "details": {},
+        "cost": null,
+        "requests": 2,
+        "tool_calls": 0
+      },
+      "tool_call_timings": {
+        "c1": {
+          "started_at": "2026-01-01T09:00:07Z",
+          "duration_seconds": 2.0
+        }
+      }
+    },
+    {
+      "id": "validate",
+      "pydantic_run_id": "p-validate",
+      "agent_name": null,
+      "parent": {
+        "kind": "agent_run",
+        "run_id": "orch"
+      },
+      "started_at": "2026-01-01T09:00:17Z",
+      "ended_at": "2026-01-01T09:00:19Z",
+      "status": "completed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Is the answer supported?",
+              "timestamp": "2026-01-01T09:00:17Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:17Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-validate",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "yes",
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:18Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-validate",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": true,
+      "usage": null,
+      "tool_call_timings": {}
+    },
+    {
+      "id": "summarize",
+      "pydantic_run_id": "p-summarize",
+      "agent_name": "summarizer",
+      "parent": {
+        "kind": "trajectory",
+        "trajectory_id": "capture-1"
+      },
+      "started_at": "2026-01-01T09:00:22Z",
+      "ended_at": "2026-01-01T09:00:25Z",
+      "status": "failed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Summarize the run.",
+              "timestamp": "2026-01-01T09:00:22Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:22Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-summarize",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "The run",
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:24Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-summarize",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": null,
+      "usage": null,
+      "tool_call_timings": {}
+    },
+    {
+      "id": "notify",
+      "pydantic_run_id": "p-notify",
+      "agent_name": "notifier",
+      "parent": {
+        "kind": "trajectory",
+        "trajectory_id": "capture-1"
+      },
+      "started_at": "2026-01-01T09:00:26Z",
+      "ended_at": "2026-01-01T09:00:27Z",
+      "status": "failed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Summarize the refund policy.",
+              "timestamp": "2026-01-01T09:00:00Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:00Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-orch",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        }
+      ],
+      "output": null,
+      "usage": null,
+      "tool_call_timings": {}
+    },
+    {
+      "id": "follow-up",
+      "pydantic_run_id": "p-follow",
+      "agent_name": "follow_up",
+      "parent": {
+        "kind": "trajectory",
+        "trajectory_id": "capture-1"
+      },
+      "started_at": "2026-01-01T09:00:28Z",
+      "ended_at": null,
+      "status": "running",
+      "messages": [],
+      "output": null,
+      "usage": null,
+      "tool_call_timings": {
+        "c1": {
+          "started_at": "2026-01-01T09:00:29Z",
+          "duration_seconds": null
+        }
+      }
+    },
+    {
+      "id": "lookup",
+      "pydantic_run_id": "p-lookup",
+      "agent_name": "lookup",
+      "parent": {
+        "kind": "tool_call",
+        "run_id": "follow-up",
+        "tool_call_id": "c1"
+      },
+      "started_at": "2026-01-01T09:00:29Z",
+      "ended_at": "2026-01-01T09:00:30Z",
+      "status": "completed",
+      "messages": [
+        {
+          "parts": [
+            {
+              "content": "Look up the order.",
+              "timestamp": "2026-01-01T09:00:29Z",
+              "part_kind": "user-prompt"
+            }
+          ],
+          "timestamp": "2026-01-01T09:00:29Z",
+          "instructions": null,
+          "kind": "request",
+          "run_id": "p-lookup",
+          "conversation_id": null,
+          "metadata": null,
+          "state": "complete"
+        },
+        {
+          "parts": [
+            {
+              "content": "found",
+              "id": null,
+              "provider_name": null,
+              "provider_details": null,
+              "part_kind": "text"
+            }
+          ],
+          "usage": {
+            "input_tokens": 100,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 20,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {},
+            "cost": null
+          },
+          "model_name": "gpt-4o",
+          "timestamp": "2026-01-01T09:00:30Z",
+          "kind": "response",
+          "provider_name": null,
+          "provider_url": null,
+          "provider_details": null,
+          "provider_response_id": null,
+          "finish_reason": null,
+          "run_id": "p-lookup",
+          "conversation_id": null,
+          "metadata": null,
+          "workspace_ref": null,
+          "failed_attempts": null,
+          "state": "complete"
+        }
+      ],
+      "output": "found",
+      "usage": null,
+      "tool_call_timings": {}
+    }
+  ]
+}

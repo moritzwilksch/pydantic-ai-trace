@@ -143,10 +143,20 @@ a policy that allows them.
 
 ## Trace files
 
-Every command reads two JSON shapes:
+Every command reads three JSON shapes:
 
 - A message list: the JSON from `ModelMessagesTypeAdapter.dump_json(messages)`, shown as one run.
 - A run tree: the JSON from `RunTree.model_dump_json()`.
+- A run capture: an object with the capture's `id` and its `runs`, recorded live by
+  instrumentation, with a status, a parent reference of `kind` `trajectory`, `tool_call`, or
+  `agent_run`, and the full message history of each run. It is shown as a run tree:
+  - Of the attempts that share a `pydantic_run_id`, only the last started is shown; earlier
+    attempts and the runs they started are left out.
+  - A run shows only its own messages, those whose `run_id` is its `pydantic_run_id`.
+  - A run still running, or one without messages of its own, is left out; the runs it started
+    show as runs whose parent is not recorded.
+  - A failed run's error is not recorded, so it shows as `unknown`.
+  - Usage per run, tool call timings, and the capture's `id` are not shown.
 
 A `.json` file holds one trace. A `.jsonl` file holds one trace per line, and each line is its
 own trace in the viewer and in `paitrace stats`.

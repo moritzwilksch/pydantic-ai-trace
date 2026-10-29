@@ -29,9 +29,9 @@ DEFAULT_PORT = 1205
 DEFAULT_HOST = "127.0.0.1"
 
 _TRACE_FORMATS = """\
-A trace is a message list (`ModelMessagesTypeAdapter.dump_json`) or a run tree
-(`RunTree.model_dump_json`). A .json file holds one trace; a .jsonl file holds
-one per line."""
+A trace is a message list (`ModelMessagesTypeAdapter.dump_json`), a run tree
+(`RunTree.model_dump_json`), or a run capture recorded live by instrumentation.
+A .json file holds one trace; a .jsonl file holds one per line."""
 _INPUT_HELP = "a .json or .jsonl trace file, or - for stdin (default: stdin when piped)"
 _LINE_HELP = "which trace of a multi-trace .jsonl input to use, counting from 1"
 

@@ -749,9 +749,10 @@ class TestStatsCommand:
         assert lines[0].split() == ["trace", "runs", "calls", "in", "cached", "out", "cost", "wall"]
         rows = {line.split()[0]: line.split() for line in lines[1:] if line and line[0] != " "}
         assert rows["run_tree.json"][1:3] == ["4", "5"]
+        assert rows["run_capture.json"][1:3] == ["6", "8"]
         assert rows["full_trace.json"][-2:] == ["$0.0028", "6.0s"]
         assert "runs/multi.jsonl" in rows  # each JSONL line is its own row
-        assert rows["total"][1] == "12"
+        assert rows["total"][1] == "18"
         assert "  broken.json: not valid JSON" in "\n".join(lines)
 
     def test_passes_over_json_that_is_not_a_trace_in_a_directory(
