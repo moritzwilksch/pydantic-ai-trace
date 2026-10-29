@@ -40,8 +40,8 @@ def eval_set() -> str:
     )
     from pydantic_ai.usage import RequestUsage
 
-    from pydantic_ai_trace import Completed, Failed, Run, Trajectory
-    from pydantic_ai_trace.trajectory import RunId
+    from pydantic_ai_trace import Completed, Failed, Run, RunTree
+    from pydantic_ai_trace.run_tree import RunId
 
     at = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
     usage = RequestUsage(input_tokens=100, output_tokens=20)
@@ -105,7 +105,7 @@ def eval_set() -> str:
     return (
         "\n".join(
             [
-                Trajectory(runs=(researcher, support)).model_dump_json(),
+                RunTree(runs=(researcher, support)).model_dump_json(),
                 answer("What is 2 + 2?", "4"),
                 answer("Where is my refund?", "Refunds take five days."),
             ]

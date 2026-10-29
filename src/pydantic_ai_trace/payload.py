@@ -1,4 +1,4 @@
-"""`TracePayload`: everything the viewer receives for one trajectory.
+"""`TracePayload`: everything the viewer receives for one run tree.
 
 This is the only contract between Python and the frontend. The frontend's types in
 `frontend/src/generated/payload.ts` are generated from `payload_json_schema()`.
@@ -10,15 +10,15 @@ from pydantic import BaseModel, ConfigDict, JsonValue
 
 from ._json import dumps_compact
 from .analysis import Analysis, analyze
+from .run_tree import MESSAGE_BYTES_CONFIG, RunTree
 from .text import format_transcript
-from .trajectory import MESSAGE_BYTES_CONFIG, Trajectory
 
 
 class TracePayload(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid") | MESSAGE_BYTES_CONFIG
 
     name: str
-    trajectory: Trajectory
+    trajectory: RunTree
     analysis: Analysis
     transcript: str
 
@@ -27,13 +27,13 @@ class TracePayload(BaseModel):
         return dumps_compact(self.model_dump(mode="json"))
 
 
-def build_payload(trajectory: Trajectory, *, name: str) -> TracePayload:
-    analysis = analyze(trajectory)
+def build_payload(run_tree: RunTree, *, name: str) -> TracePayload:
+    analysis = analyze(run_tree)
     return TracePayload(
         name=name,
-        trajectory=trajectory,
+        trajectory=run_tree,
         analysis=analysis,
-        transcript=format_transcript(trajectory, analysis, name),
+        transcript=format_transcript(run_tree, analysis, name),
     )
 
 

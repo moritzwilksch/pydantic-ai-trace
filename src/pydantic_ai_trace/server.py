@@ -17,7 +17,7 @@ from starlette.routing import Route
 from . import scan
 from ._html import packaged_index_html
 from ._json import dumps_compact
-from .load import TraceLoadError, load_trajectory
+from .load import TraceLoadError, load_run_tree
 from .payload import TracePayload, build_payload
 
 WATCH_DEBOUNCE_MS = 200
@@ -254,7 +254,7 @@ def _json_response(content: object, status_code: int = 200) -> Response:
 
 
 def _build_payload(text: str, name: str) -> TracePayload:
-    return build_payload(load_trajectory(text, name=name), name=name)
+    return build_payload(load_run_tree(text, name=name), name=name)
 
 
 def _load_index_html() -> str:

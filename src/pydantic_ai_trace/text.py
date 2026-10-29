@@ -1,4 +1,4 @@
-"""Token-efficient plain-text transcript of a trajectory.
+"""Token-efficient plain-text transcript of a run tree.
 
 Messages are rendered from their canonical Pydantic AI JSON dump, the same shape the
 browser viewer reads, in the same message and part order.
@@ -17,22 +17,22 @@ from pydantic_ai.messages import BaseToolCallPart, ModelMessagesTypeAdapter
 
 from ._format import format_bytes, format_count, format_duration, format_usd
 from .analysis import Analysis, RunAnalysis, Totals, parse_tool_args
-from .trajectory import Run, RunId, Trajectory
+from .run_tree import Run, RunId, RunTree
 
 CAPABILITY_LOAD_KIND = "capability-load"
 TOOL_SEARCH_KIND = "tool-search"
 COMPACTION_PLACEHOLDER = "[History compacted by the provider; no readable summary.]"
 
 
-def format_transcript(trajectory: Trajectory, analysis: Analysis, name: str) -> str:
+def format_transcript(run_tree: RunTree, analysis: Analysis, name: str) -> str:
     """Render every run in tree order.
 
-    A one-run trajectory has no run heading; its parent and an unsuccessful outcome
+    A one-run run tree has no run heading; its parent and an unsuccessful outcome
     move into the trace details instead, so diagnostics are never dropped.
     """
     by_id = {run.run_id: run for run in analysis.runs}
-    runs = {run.id: run for run in trajectory.runs}
-    ordered = [run for run, _ in trajectory.walk()]
+    runs = {run.id: run for run in run_tree.runs}
+    ordered = [run for run, _ in run_tree.walk()]
     details = [f"NAME: {_inline(name)}", _totals(analysis.totals)]
     if len(ordered) == 1:
         [run] = ordered

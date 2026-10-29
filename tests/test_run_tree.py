@@ -16,7 +16,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from pydantic_ai_trace import Completed, Failed, Parent, Run, RunId, ToolCallId, Trajectory
+from pydantic_ai_trace import Completed, Failed, Parent, Run, RunId, RunTree, ToolCallId
 from pydantic_ai_trace.payload import build_payload
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -113,17 +113,17 @@ class TestRunFromMessages:
 
 class TestTrajectory:
     def test_round_trips_through_json(self):
-        text = (FIXTURES / "trajectory.json").read_text()
+        text = (FIXTURES / "run_tree.json").read_text()
 
-        trajectory = Trajectory.model_validate_json(text)
+        run_tree = RunTree.model_validate_json(text)
 
-        assert Trajectory.model_validate_json(trajectory.model_dump_json()) == trajectory
+        assert RunTree.model_validate_json(run_tree.model_dump_json()) == run_tree
 
     def test_roots_and_unrelated_siblings_are_sorted_by_start(self):
-        trajectory = Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
+        run_tree = RunTree.model_validate_json((FIXTURES / "run_tree.json").read_text())
 
-        assert [run.name for run in trajectory.roots()] == ["planner", "worker", "summarizer"]
-        assert [run.name for run in trajectory.children(RunId("worker"))] == ["subagent"]
+        assert [run.name for run in run_tree.roots()] == ["planner", "worker", "summarizer"]
+        assert [run.name for run in run_tree.children(RunId("worker"))] == ["subagent"]
 
     def test_children_started_by_tool_calls_follow_the_calls(self):
         """Parallel calls start in any order; the tree reads in the model's call order."""
@@ -147,58 +147,56 @@ class TestTrajectory:
             started_at=at(3),
         )
 
-        trajectory = Trajectory(runs=(nested, second, first, parent))
+        run_tree = RunTree(runs=(nested, second, first, parent))
 
         # The nested run keeps its place by start time.
-        children = trajectory.children(RunId("parent"))
+        children = run_tree.children(RunId("parent"))
         assert [child.name for child in children] == ["first", "nested", "second"]
 
     def test_from_named_messages_builds_one_root_per_name(self):
-        trajectory = Trajectory.from_named_messages(
-            {"second": exchange(5, 6), "first": exchange(0, 1)}
-        )
+        run_tree = RunTree.from_named_messages({"second": exchange(5, 6), "first": exchange(0, 1)})
 
-        assert [run.name for run in trajectory.runs] == ["first", "second"]  # end order
-        assert all(run.parent is None for run in trajectory.runs)
+        assert [run.name for run in run_tree.runs] == ["first", "second"]  # end order
+        assert all(run.parent is None for run in run_tree.runs)
 
     def test_from_named_messages_accepts_json_dumps(self):
         dump = ModelMessagesTypeAdapter.dump_python(exchange(0, 1), mode="json")
 
-        trajectory = Trajectory.from_named_messages({"step": dump})
+        run_tree = RunTree.from_named_messages({"step": dump})
 
-        assert trajectory.runs[0].name == "step"
+        assert run_tree.runs[0].name == "step"
 
     def test_duplicate_run_ids_are_rejected(self):
         with pytest.raises(ValidationError, match="duplicate run id 'a'"):
-            Trajectory(runs=(run("a"), run("a")))
+            RunTree(runs=(run("a"), run("a")))
 
     def test_tool_call_missing_from_the_parent_is_rejected(self):
         child = run("child", parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("x")))
 
         with pytest.raises(ValidationError, match="does not contain"):
-            Trajectory(runs=(child, run("parent")))
+            RunTree(runs=(child, run("parent")))
 
     def test_a_tool_call_id_the_parent_reuses_is_ambiguous(self):
         reused = (*exchange(0, 1, call_id="same"), *exchange(1, 2, call_id="same"))
         child = run("child", parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("same")))
 
         with pytest.raises(ValidationError, match="'same', which run 'parent' contains 2 times"):
-            Trajectory(runs=(child, run("parent", messages=reused)))
+            RunTree(runs=(child, run("parent", messages=reused)))
 
     def test_a_cycle_is_rejected(self):
         a = run("a", parent=Parent(run_id=RunId("b")))
         b = run("b", parent=Parent(run_id=RunId("a")))
 
         with pytest.raises(ValidationError, match="its own ancestor"):
-            Trajectory(runs=(a, b))
+            RunTree(runs=(a, b))
 
     def test_a_child_recorded_before_its_parent_is_a_root(self):
         """Runs are recorded when they end, so a live file can lack the parent."""
         child = run("child", parent=Parent(run_id=RunId("parent"), tool_call_id=ToolCallId("x")))
 
-        trajectory = Trajectory(runs=(child,))
+        run_tree = RunTree(runs=(child,))
 
-        assert trajectory.roots() == [child]
+        assert run_tree.roots() == [child]
 
     def test_outcomes_are_discriminated_by_status(self):
         failed = run("a", outcome={"status": "failed", "error_type": "E", "detail": "boom"})
@@ -207,7 +205,7 @@ class TestTrajectory:
 
     def test_unknown_fields_are_rejected(self):
         with pytest.raises(ValidationError, match="Extra inputs"):
-            Trajectory.model_validate({"runs": [], "version": 2})
+            RunTree.model_validate({"runs": [], "version": 2})
 
 
 class TestBytes:
@@ -222,11 +220,11 @@ class TestBytes:
                 ]
             )
         ]
-        trajectory = Trajectory.from_messages(messages)
+        run_tree = RunTree.from_messages(messages)
         canonical = json.loads(ModelMessagesTypeAdapter.dump_json(messages))
 
-        dumped = json.loads(trajectory.model_dump_json())
-        payload = json.loads(build_payload(trajectory, name="t").to_json())
+        dumped = json.loads(run_tree.model_dump_json())
+        payload = json.loads(build_payload(run_tree, name="t").to_json())
 
         assert dumped["runs"][0]["messages"] == canonical
         assert payload["trajectory"]["runs"][0]["messages"] == canonical
@@ -234,9 +232,9 @@ class TestBytes:
     def test_typed_bytes_round_trip(self):
         image = BinaryContent(data=b"\xff\x00", media_type="image/png")
         messages = [ModelRequest(parts=[UserPromptPart(content=[image], timestamp=at(0))])]
-        trajectory = Trajectory.from_messages(messages)
+        run_tree = RunTree.from_messages(messages)
 
-        again = Trajectory.model_validate_json(trajectory.model_dump_json())
+        again = RunTree.model_validate_json(run_tree.model_dump_json())
 
         # Pydantic AI narrows `BinaryContent` to `BinaryImage`; the bytes survive.
         [part] = again.runs[0].messages[0].parts
@@ -246,9 +244,9 @@ class TestBytes:
 
 
 def test_walk_visits_runs_depth_first_with_their_depth():
-    trajectory = Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
+    run_tree = RunTree.model_validate_json((FIXTURES / "run_tree.json").read_text())
 
-    assert [(run.name, depth) for run, depth in trajectory.walk()] == [
+    assert [(run.name, depth) for run, depth in run_tree.walk()] == [
         ("planner", 0),
         ("worker", 0),
         ("subagent", 1),

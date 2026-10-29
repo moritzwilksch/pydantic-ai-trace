@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from pydantic_ai_trace import Trajectory, render_html
+from pydantic_ai_trace import RunTree, render_html
 from pydantic_ai_trace import _html as html_module
 from pydantic_ai_trace._html import inject_payload
 
@@ -40,13 +40,13 @@ class TestRenderHtml:
     def stub_bundle(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(html_module, "packaged_index_html", lambda: INDEX_HTML)
 
-    def test_embeds_trajectory_analysis_and_transcript(self):
-        trajectory = Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
+    def test_embeds_run_tree_analysis_and_transcript(self):
+        run_tree = RunTree.model_validate_json((FIXTURES / "run_tree.json").read_text())
 
-        payload = injected_payload(render_html(trajectory, name="workflow"))
+        payload = injected_payload(render_html(run_tree, name="workflow"))
 
         assert payload["name"] == "workflow"
-        assert Trajectory.model_validate(payload["trajectory"]) == trajectory
+        assert RunTree.model_validate(payload["trajectory"]) == run_tree
         assert [run["run_id"] for run in payload["analysis"]["runs"]] == [
             "planner",
             "subagent",
@@ -62,7 +62,7 @@ class TestRenderHtml:
             (FIXTURES / "full_trace.json").read_text()
         )
 
-        payload = injected_payload(render_html(Trajectory.from_messages(messages)))
+        payload = injected_payload(render_html(RunTree.from_messages(messages)))
 
         assert payload["name"] == "trace"
         assert [run["name"] for run in payload["trajectory"]["runs"]] == ["run"]

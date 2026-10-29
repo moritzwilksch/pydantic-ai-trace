@@ -11,7 +11,7 @@ import json
 from importlib.resources import files
 
 from .payload import TracePayload, build_payload
-from .trajectory import Trajectory
+from .run_tree import RunTree
 
 _INJECTION_MARKER = "<script"
 
@@ -21,9 +21,9 @@ def packaged_index_html() -> str:
     return (files("pydantic_ai_trace") / "static" / "index.html").read_text(encoding="utf-8")
 
 
-def render_html(trajectory: Trajectory, *, name: str = "trace") -> str:
-    """A complete, self-contained HTML document that renders the trajectory offline."""
-    return payload_document(build_payload(trajectory, name=name))
+def render_html(run_tree: RunTree, *, name: str = "trace") -> str:
+    """A complete, self-contained HTML document that renders the run tree offline."""
+    return payload_document(build_payload(run_tree, name=name))
 
 
 def payload_document(payload: TracePayload) -> str:

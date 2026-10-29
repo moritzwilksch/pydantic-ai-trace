@@ -1,7 +1,7 @@
 from importlib.metadata import version
 
 from ._html import render_html
-from .trajectory import Cancelled, Completed, Failed, Parent, Run, RunId, ToolCallId, Trajectory
+from .run_tree import Cancelled, Completed, Failed, Parent, Run, RunId, RunTree, ToolCallId
 
 __all__ = [
     "Cancelled",
@@ -10,8 +10,8 @@ __all__ = [
     "Parent",
     "Run",
     "RunId",
+    "RunTree",
     "ToolCallId",
-    "Trajectory",
     "__version__",
     "render_html",
 ]

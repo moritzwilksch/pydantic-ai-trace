@@ -1,6 +1,6 @@
-"""Facts the viewer derives from a trajectory: tool pairing, output calls, cost, and totals.
+"""Facts the viewer derives from a run tree: tool pairing, output calls, cost, and totals.
 
-Everything is keyed by position (`PartRef`) into the trajectory's own messages, so
+Everything is keyed by position (`PartRef`) into the run tree's own messages, so
 renderers read the canonical messages and join these facts by index.
 """
 
@@ -21,7 +21,7 @@ from pydantic_ai.messages import (
 )
 
 from ._json import loads_finite
-from .trajectory import Run, RunId, Trajectory
+from .run_tree import Run, RunId, RunTree
 
 # Message history does not mark output tools: their name is configurable
 # (`ToolOutput(name=...)`, default `final_result`) and `tool_kind` stays unset. Pydantic AI
@@ -81,19 +81,19 @@ class RunAnalysis(_Frozen):
 
 class Analysis(_Frozen):
     totals: Totals
-    runs: tuple[RunAnalysis, ...]  # Same order as `Trajectory.runs`.
+    runs: tuple[RunAnalysis, ...]  # Same order as `RunTree.runs`.
     root_run_ids: tuple[RunId, ...]  # Top-level runs, in tree order.
 
 
-def analyze(trajectory: Trajectory) -> Analysis:
-    ids = {run.id for run in trajectory.runs}
-    own = {run.id: _run_totals(run) for run in trajectory.runs}
+def analyze(run_tree: RunTree) -> Analysis:
+    ids = {run.id for run in run_tree.runs}
+    own = {run.id: _run_totals(run) for run in run_tree.runs}
     # Children before parents (reversed tree order), without recursion: a run tree can be
     # deeper than Python's recursion limit.
     subtree: dict[RunId, Totals] = {}
     bounds: dict[RunId, tuple[datetime, datetime]] = {}
-    for run, _ in reversed(trajectory.walk()):
-        children = trajectory.children(run.id)
+    for run, _ in reversed(run_tree.walk()):
+        children = run_tree.children(run.id)
         start = min([run.started_at, *(bounds[child.id][0] for child in children)])
         end = max([run.ended_at, *(bounds[child.id][1] for child in children)])
         bounds[run.id] = (start, end)
@@ -104,17 +104,17 @@ def analyze(trajectory: Trajectory) -> Analysis:
     runs = tuple(
         _analyze_run(
             run,
-            children=trajectory.children(run.id),
+            children=run_tree.children(run.id),
             parent_missing=run.parent is not None and run.parent.run_id not in ids,
             totals=own[run.id],
             subtree_totals=subtree[run.id],
         )
-        for run in trajectory.runs
+        for run in run_tree.runs
     )
     return Analysis(
-        totals=combine_totals(own.values(), _span(trajectory.runs)),
+        totals=combine_totals(own.values(), _span(run_tree.runs)),
         runs=runs,
-        root_run_ids=tuple(run.id for run in trajectory.roots()),
+        root_run_ids=tuple(run.id for run in run_tree.roots()),
     )
 
 

@@ -1,7 +1,7 @@
 """Filesystem scanning: trace discovery, jsonl splitting, and path safety.
 
 Reading and selecting only checks that each trace is a JSON array or object;
-`load.load_trajectory` owns validation. Tree nodes run that validation on every
+`load.load_run_tree` owns validation. Tree nodes run that validation on every
 trace, so the sidebar can explain why a trace cannot be opened and can label and
 filter traces by a short summary.
 A directory scan leaves out JSON that is not a trace at all, such as `package.json`;
@@ -21,8 +21,8 @@ from typing import Any, Literal
 
 from pydantic_ai.messages import ModelResponse, TextContent, UserPromptPart
 
-from .load import NotATraceError, TraceLoadError, load_trajectory
-from .trajectory import Trajectory
+from .load import NotATraceError, TraceLoadError, load_run_tree
+from .run_tree import RunTree
 
 TRACE_SUFFIXES: dict[str, Literal["json", "jsonl"]] = {".json": "json", ".jsonl": "jsonl"}
 
@@ -278,7 +278,7 @@ def _ensure_json_container(text: str, relative_path: str) -> None:
         raise TraceLookupError(f"{relative_path!r} is not valid JSON: {exc}", 400) from exc
     if not isinstance(parsed, list | dict):
         raise TraceLookupError(
-            f"{relative_path!r} is not a JSON array of messages or a trajectory object", 400
+            f"{relative_path!r} is not a JSON array of messages or a run tree object", 400
         )
 
 
@@ -366,18 +366,18 @@ def _file_node(root: Path, relative_path: str) -> tuple[TreeNode, bool]:
         return node, True
     try:
         if path.suffix == ".json":
-            trajectory = _load(path.read_text(encoding="utf-8"), relative_path)
-            traces = [_trace_summary(1, trajectory)]
-            is_trace = not isinstance(trajectory, NotATraceError)
+            run_tree = _load(path.read_text(encoding="utf-8"), relative_path)
+            traces = [_trace_summary(1, run_tree)]
+            is_trace = not isinstance(run_tree, NotATraceError)
         else:
             traces, is_trace = [], True
             with path.open(encoding="utf-8") as stream:
-                # Summarize while streaming, so only one trajectory is held at a time.
+                # Summarize while streaming, so only one run tree is held at a time.
                 for number, line in enumerate(jsonl_lines(stream), start=1):
-                    trajectory = _load(line, relative_path)
+                    run_tree = _load(line, relative_path)
                     if number == 1:
-                        is_trace = not isinstance(trajectory, NotATraceError)
-                    traces.append(_trace_summary(number, trajectory))
+                        is_trace = not isinstance(run_tree, NotATraceError)
+                    traces.append(_trace_summary(number, run_tree))
     except (OSError, UnicodeDecodeError) as exc:
         node["error"] = True
         node["error_message"] = f"cannot read file: {exc}"
@@ -394,21 +394,21 @@ def _file_node(root: Path, relative_path: str) -> tuple[TreeNode, bool]:
     return node, is_trace
 
 
-def _load(text: str, relative_path: str) -> Trajectory | TraceLoadError:
+def _load(text: str, relative_path: str) -> RunTree | TraceLoadError:
     try:
-        return load_trajectory(text, name=relative_path)
+        return load_run_tree(text, name=relative_path)
     except TraceLoadError as exc:
         return exc
 
 
-def _trace_summary(line: int, trajectory: Trajectory | TraceLoadError) -> TraceSummary:
+def _trace_summary(line: int, run_tree: RunTree | TraceLoadError) -> TraceSummary:
     """The 1-based `line` of a trace, previews of its first prompt and final answer,
     and its models; or its error."""
-    if isinstance(trajectory, TraceLoadError):
+    if isinstance(run_tree, TraceLoadError):
         return {
             "line": line,
             "error": True,
-            "error_message": str(trajectory),
+            "error_message": str(run_tree),
             "prompt": None,
             "answer": None,
             "models": [],
@@ -416,15 +416,15 @@ def _trace_summary(line: int, trajectory: Trajectory | TraceLoadError) -> TraceS
     return {
         "line": line,
         "error": False,
-        "prompt": _first_prompt(trajectory),
-        "answer": _final_answer(trajectory),
-        "models": _model_names(trajectory),
+        "prompt": _first_prompt(run_tree),
+        "answer": _final_answer(run_tree),
+        "models": _model_names(run_tree),
     }
 
 
-def _first_prompt(trajectory: Trajectory) -> str | None:
+def _first_prompt(run_tree: RunTree) -> str | None:
     """The first user prompt with text, in run-tree order."""
-    for run, _ in trajectory.walk():
+    for run, _ in run_tree.walk():
         for message in run.messages:
             for part in message.parts:
                 if not isinstance(part, UserPromptPart):
@@ -440,9 +440,9 @@ def _first_prompt(trajectory: Trajectory) -> str | None:
     return None
 
 
-def _final_answer(trajectory: Trajectory) -> str | None:
+def _final_answer(run_tree: RunTree) -> str | None:
     """The text of the last response with text in the last top-level run."""
-    for message in reversed(trajectory.roots()[-1].messages):
+    for message in reversed(run_tree.roots()[-1].messages):
         if isinstance(message, ModelResponse) and (preview := _preview(message.text or "")):
             return preview
     return None
@@ -456,11 +456,11 @@ def _preview(text: str) -> str | None:
     return collapsed or None
 
 
-def _model_names(trajectory: Trajectory) -> list[str]:
+def _model_names(run_tree: RunTree) -> list[str]:
     """Distinct response model names, in order of first use."""
     names = (
         message.model_name
-        for run in trajectory.runs
+        for run in run_tree.runs
         for message in run.messages
         if isinstance(message, ModelResponse) and message.model_name
     )

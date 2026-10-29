@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from _pytest.mark import ParameterSet
 
-from pydantic_ai_trace.load import load_trajectory
+from pydantic_ai_trace.load import load_run_tree
 from pydantic_ai_trace.payload import build_payload
 from pydantic_ai_trace.scan import iter_trace_files, jsonl_lines
 
@@ -22,4 +22,4 @@ def _traces() -> list[ParameterSet]:
 
 @pytest.mark.parametrize("text", _traces())
 def test_example_traces_load_and_render(text: str):
-    build_payload(load_trajectory(text, name="example"), name="example")
+    build_payload(load_run_tree(text, name="example"), name="example")

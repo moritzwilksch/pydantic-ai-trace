@@ -19,7 +19,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.usage import RequestUsage
 
-from pydantic_ai_trace import Completed, Parent, Run, RunId, ToolCallId, Trajectory
+from pydantic_ai_trace import Completed, Parent, Run, RunId, RunTree, ToolCallId
 from pydantic_ai_trace.analysis import PartRef, analyze
 from pydantic_ai_trace.payload import build_payload
 
@@ -54,7 +54,7 @@ def returns(*ids: str) -> ModelRequest:
 
 class TestToolPairing:
     def test_pairs_calls_with_results_in_later_messages(self):
-        analysis = analyze(Trajectory(runs=(single_run(call("a", "b"), returns("b", "a")),)))
+        analysis = analyze(RunTree(runs=(single_run(call("a", "b"), returns("b", "a")),)))
 
         [run] = analysis.runs
         assert [(info.call, info.result) for info in run.tool_calls] == [
@@ -68,13 +68,13 @@ class TestToolPairing:
             parts=[RetryPromptPart(content="bad", tool_name="t", tool_call_id="a")]
         )
 
-        [run] = analyze(Trajectory(runs=(single_run(call("a"), retry),))).runs
+        [run] = analyze(RunTree(runs=(single_run(call("a"), retry),))).runs
 
         assert run.tool_calls[0].result == PartRef(message=1, part=0)
 
     def test_reused_ids_pair_chronologically(self):
         [run] = analyze(
-            Trajectory(runs=(single_run(call("a"), returns("a"), call("a"), returns("a")),))
+            RunTree(runs=(single_run(call("a"), returns("a"), call("a"), returns("a")),))
         ).runs
 
         assert [info.result for info in run.tool_calls] == [
@@ -83,7 +83,7 @@ class TestToolPairing:
         ]
 
     def test_unanswered_calls_and_orphan_results_stay_unpaired(self):
-        [run] = analyze(Trajectory(runs=(single_run(returns("x"), call("a")),))).runs
+        [run] = analyze(RunTree(runs=(single_run(returns("x"), call("a")),))).runs
 
         assert run.tool_calls[0].result is None
         assert run.matched_results == ()
@@ -93,15 +93,15 @@ class TestToolPairing:
         response = ModelResponse(
             parts=[ToolCallPart(tool_name="t", args=args, tool_call_id="a")], timestamp=START
         )
-        trajectory = Trajectory(runs=(single_run(response),))
+        run_tree = RunTree(runs=(single_run(response),))
 
-        [run] = analyze(trajectory).runs
+        [run] = analyze(run_tree).runs
 
         assert run.tool_calls[0].args == args
-        assert json.loads(build_payload(trajectory, name="t").to_json())["name"] == "t"
+        assert json.loads(build_payload(run_tree, name="t").to_json())["name"] == "t"
 
     def test_args_are_parsed_from_json_strings(self):
-        [run] = analyze(Trajectory(runs=(single_run(call("a")),))).runs
+        [run] = analyze(RunTree(runs=(single_run(call("a")),))).runs
 
         assert run.tool_calls[0].args == {"a": 1}
 
@@ -131,14 +131,14 @@ class TestOutputCalls:
 
         messages = asyncio.run(agent.run("Where?")).all_messages()
 
-        [run] = analyze(Trajectory(runs=(single_run(*messages),))).runs
+        [run] = analyze(RunTree(runs=(single_run(*messages),))).runs
         accepted = PartRef(message=3, part=1)  # The second response's `answer` call.
         assert [info.call for info in run.tool_calls if info.is_output] == [accepted]
 
 
 class TestTree:
     def test_children_attach_to_their_tool_call_or_as_nested_runs(self):
-        trajectory = Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
+        run_tree = RunTree.model_validate_json((FIXTURES / "run_tree.json").read_text())
         nested = single_run(
             ModelResponse(parts=[TextPart(content="checked")], timestamp=START),
             id=RunId("validator"),
@@ -146,7 +146,7 @@ class TestTree:
             parent=Parent(run_id=RunId("worker")),
         )
 
-        analysis = analyze(Trajectory(runs=(*trajectory.runs, nested)))
+        analysis = analyze(RunTree(runs=(*run_tree.runs, nested)))
 
         worker = next(run for run in analysis.runs if run.run_id == "worker")
         assert worker.tool_calls[0].child_run_ids == ("subagent",)
@@ -160,16 +160,14 @@ class TestTree:
             parent=Parent(run_id=RunId("later"), tool_call_id=ToolCallId("c")),
         )
 
-        [run] = analyze(Trajectory(runs=(child,))).runs
+        [run] = analyze(RunTree(runs=(child,))).runs
 
         assert run.parent_missing is True
 
 
 class TestTotals:
     def test_subtree_totals_add_descendants_and_span_their_time(self):
-        analysis = analyze(
-            Trajectory.model_validate_json((FIXTURES / "trajectory.json").read_text())
-        )
+        analysis = analyze(RunTree.model_validate_json((FIXTURES / "run_tree.json").read_text()))
         by_id = {str(run.run_id): run for run in analysis.runs}
 
         assert by_id["worker"].totals.llm_calls == 2
@@ -188,7 +186,7 @@ class TestTotals:
             timestamp=START,
         )
 
-        [run] = analyze(Trajectory(runs=(single_run(priced),))).runs
+        [run] = analyze(RunTree(runs=(single_run(priced),))).runs
 
         assert run.responses[0].cost_usd == pytest.approx(priced.cost().total_price)
         assert run.totals.cost_usd == run.responses[0].cost_usd
@@ -202,7 +200,7 @@ class TestTotals:
             timestamp=START,
         )
 
-        [run] = analyze(Trajectory(runs=(single_run(inconsistent),))).runs
+        [run] = analyze(RunTree(runs=(single_run(inconsistent),))).runs
 
         assert run.responses[0].cost_usd is None
         assert (run.totals.cost_usd, run.totals.unpriced_calls) == (None, 1)
@@ -211,7 +209,7 @@ class TestTotals:
     def test_unknown_models_are_counted_as_unpriced_not_free(self):
         unknown = ModelResponse(parts=[TextPart(content="x")], model_name="in-house-model")
 
-        [run] = analyze(Trajectory(runs=(single_run(unknown),))).runs
+        [run] = analyze(RunTree(runs=(single_run(unknown),))).runs
 
         assert run.responses[0].cost_usd is None
         assert run.totals.cost_usd is None
@@ -235,12 +233,12 @@ def test_a_chain_deeper_than_the_recursion_limit_is_analyzed():
         )
         for i in range(depth)
     )
-    trajectory = Trajectory(runs=tuple(reversed(chain)))  # recorded in end order
+    run_tree = RunTree(runs=tuple(reversed(chain)))  # recorded in end order
 
-    analysis = analyze(trajectory)
-    payload = build_payload(trajectory, name="deep")
+    analysis = analyze(run_tree)
+    payload = build_payload(run_tree, name="deep")
 
-    assert [run.id for run, _ in trajectory.walk()] == [f"r{i}" for i in range(depth)]
+    assert [run.id for run, _ in run_tree.walk()] == [f"r{i}" for i in range(depth)]
     root = next(run for run in analysis.runs if run.run_id == "r0")
     assert root.subtree_totals.llm_calls == depth
     assert root.subtree_totals.tokens.input == depth

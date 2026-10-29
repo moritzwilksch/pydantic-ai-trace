@@ -81,8 +81,8 @@ class TestBuildTree:
         assert (first["models"], second["models"]) == ([], ["gpt-5-nano"])
         assert (second["line"], second["prompt"], second["answer"]) == (2, "hello", "ok")
 
-    def test_trajectory_summary_takes_the_first_run_prompt(self, fixtures_copy: Path):
-        [trace] = scan.build_tree(fixtures_copy / "trajectory.json")["traces"]
+    def test_run_tree_summary_takes_the_first_run_prompt(self, fixtures_copy: Path):
+        [trace] = scan.build_tree(fixtures_copy / "run_tree.json")["traces"]
         assert (trace["prompt"], trace["models"]) == ("Plan the task.", ["gpt-4o"])
         assert trace["answer"] == "summary"
 

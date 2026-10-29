@@ -1,6 +1,6 @@
 # pydantic-ai-trace
 
-Inspect [Pydantic AI](https://ai.pydantic.dev) agent runs in your browser. Point `paitrace` at a `list[ModelMessage]` dump, a trajectory of several runs, or a directory of them. It reads the files from disk, reloads them when they change, and exports any trace as a self-contained HTML file. No hosted service, no account.
+Inspect [Pydantic AI](https://ai.pydantic.dev) agent runs in your browser. Point `paitrace` at a `list[ModelMessage]` dump, a run tree of several runs, or a directory of them. It reads the files from disk, reloads them when they change, and exports any trace as a self-contained HTML file. No hosted service, no account.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/moritzwilksch/pydantic-ai-trace/main/docs/screenshot-dark.png">
@@ -13,7 +13,7 @@ Inspect [Pydantic AI](https://ai.pydantic.dev) agent runs in your browser. Point
 - Tool search queries, the tools they discovered, and the tools each step could use
 - Tool calls paired with their results, also when a result arrives in a later message
 - Model, provider, timing, token usage, and cost (from [genai-prices](https://github.com/pydantic/genai-prices))
-- Trajectories: workflow steps and subagents as a tree of runs, each subagent linked from the tool call that started it, with costs summed up the tree
+- Run trees: workflow steps and subagents as a tree of runs, each subagent linked from the tool call that started it, with costs summed up the tree
 - A collapsible directory tree of `.json` and `.jsonl` traces, each labelled by its first prompt and filterable by path, prompt, final answer, or model
 - Collapsible large values, rendered Markdown, keyboard navigation, and in-trace search with `/`
 - A compact text transcript, copied from the viewer or printed with `paitrace text`
@@ -71,20 +71,20 @@ mkdir -p .claude/skills/paitrace
 paitrace --skill > .claude/skills/paitrace/SKILL.md
 ```
 
-## Trajectories
+## Run trees
 
-A trajectory is a tree of runs. Top-level runs are workflow steps; a run with a parent is a
+A run tree is a tree of runs. Top-level runs are workflow steps; a run with a parent is a
 subagent, usually started by one of its parent's tool calls. Build one from your own data and
 write it as JSON for `paitrace`, or render it directly:
 
 ```python
 from pathlib import Path
 
-from pydantic_ai_trace import Run, Trajectory
+from pydantic_ai_trace import Run, RunTree
 
 # One top-level run per workflow step. Each value is a list of `ModelMessage`s, or the parsed
 # JSON of a dump (`json.loads(...)`), not the JSON string itself.
-steps = Trajectory.from_named_messages({"planner": planner_messages, "worker": worker_messages})
+steps = RunTree.from_named_messages({"planner": planner_messages, "worker": worker_messages})
 worker = next(run for run in steps.runs if run.name == "worker")
 
 # A subagent, started by the worker's tool call `call_1`.
@@ -92,8 +92,8 @@ subagent = Run.from_messages(subagent_messages, name="researcher").child_of(
     worker, tool_call_id="call_1"
 )
 
-trajectory = Trajectory(runs=(*steps.runs, subagent))
-Path("case-42.json").write_text(trajectory.model_dump_json())
+run_tree = RunTree(runs=(*steps.runs, subagent))
+Path("case-42.json").write_text(run_tree.model_dump_json())
 ```
 
 `Run.from_messages` takes a run's start and end from its message timestamps and records it as
@@ -101,14 +101,14 @@ completed. Construct `Run` directly to set `started_at`, `ended_at`, or an `outc
 `Completed(output=...)`, `Failed(error_type=..., detail=...)`, or `Cancelled()`. A run holds only
 the messages it produced, without inherited history, so pass `result.new_messages()`.
 
-`Trajectory` validates that run IDs are unique, that a `tool_call_id` names exactly one tool call
-in its parent run, and that no run is its own ancestor. A run whose parent is not in the trajectory is shown as a
+`RunTree` validates that run IDs are unique, that a `tool_call_id` names exactly one tool call
+in its parent run, and that no run is its own ancestor. A run whose parent is not in the run tree is shown as a
 top-level run marked "parent not recorded", so a file written while a workflow runs stays
 viewable.
 
 ## Embed from Python
 
-`render_html` turns a trajectory into the same self-contained HTML document that
+`render_html` turns a run tree into the same self-contained HTML document that
 `paitrace export` writes. It starts no server and writes no file. Show the document in an
 iframe, which keeps the viewer's CSS and keyboard shortcuts out of the host page.
 
@@ -117,9 +117,9 @@ In Streamlit:
 ```python
 import streamlit.components.v1 as components
 
-from pydantic_ai_trace import Trajectory, render_html
+from pydantic_ai_trace import RunTree, render_html
 
-html = render_html(Trajectory.from_messages(messages), name="Candidate response")
+html = render_html(RunTree.from_messages(messages), name="Candidate response")
 components.html(html, height=900, scrolling=True)
 ```
 
@@ -129,13 +129,13 @@ URL. For example, with Starlette:
 ```python
 from starlette.responses import HTMLResponse
 
-from pydantic_ai_trace import Trajectory, render_html
+from pydantic_ai_trace import RunTree, render_html
 
 
 async def trace_view(request):
     messages = load_messages(request.path_params["run_id"])
-    trajectory = Trajectory.from_messages(messages)
-    return HTMLResponse(render_html(trajectory, name=f"Run {request.path_params['run_id']}"))
+    run_tree = RunTree.from_messages(messages)
+    return HTMLResponse(render_html(run_tree, name=f"Run {request.path_params['run_id']}"))
 ```
 
 The document uses inline JavaScript and CSS. Under a strict Content Security Policy, serve it with
@@ -146,7 +146,7 @@ a policy that allows them.
 Every command reads two JSON shapes:
 
 - A message list: the JSON from `ModelMessagesTypeAdapter.dump_json(messages)`, shown as one run.
-- A trajectory: the JSON from `Trajectory.model_dump_json()`.
+- A run tree: the JSON from `RunTree.model_dump_json()`.
 
 A `.json` file holds one trace. A `.jsonl` file holds one trace per line, and each line is its
 own trace in the viewer and in `paitrace stats`.
