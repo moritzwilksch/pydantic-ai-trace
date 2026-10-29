@@ -34,7 +34,7 @@ export function treeRowClass({ selected = false, error = false } = {}): string {
 
 /** Problems with a file or trace, at the row's right edge. */
 const ERROR_LABEL_CLASS = "ml-auto text-[10px] font-semibold text-destructive-foreground";
-const ICON_CLASS = "inline-flex w-4 shrink-0 items-center justify-center";
+export const ICON_CLASS = "inline-flex w-4 shrink-0 items-center justify-center";
 const COUNT_CLASS = "ml-auto text-[11px] text-muted-foreground";
 
 export function TreePane({

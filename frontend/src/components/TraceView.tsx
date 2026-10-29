@@ -1,4 +1,3 @@
-import type { ComponentChildren } from "preact";
 import { useMemo } from "preact/hooks";
 import {
   cacheHitRate,
@@ -9,9 +8,8 @@ import {
 } from "../format";
 import { indexRun, type RunEntry, type RunTreeIndex } from "../runIndex";
 import type { Totals } from "../types";
-import { BANNER_CLASS } from "./banner";
 import { ChildRunCard } from "./ChildRunCard";
-import { MessageCard, Note } from "./MessageCard";
+import { BANNER_CLASS, MessageCard, Note } from "./MessageCard";
 import { Alert, AlertTitle } from "./ui/alert";
 
 /** One run's messages in order, with the runs it started inline under their tool calls. */
@@ -37,12 +35,14 @@ export function TraceView({
         </Alert>
       ) : null}
       {entry.analysis.parent_missing && entry.run.parent !== null ? (
-        <RunNote>
+        <Note className={BANNER_CLASS}>
           This run's parent, run {JSON.stringify(entry.run.parent.run_id)}, is not recorded in this
           trace yet.
-        </RunNote>
+        </Note>
       ) : null}
-      {entry.run.outcome.status === "cancelled" ? <RunNote>This run was cancelled.</RunNote> : null}
+      {entry.run.outcome.status === "cancelled" ? (
+        <Note className={BANNER_CLASS}>This run was cancelled.</Note>
+      ) : null}
       {entry.run.messages.map((message, i) => {
         // Show instructions only where they change, as the transcript does.
         let instructions: string | null = null;
@@ -67,10 +67,6 @@ export function TraceView({
       ))}
     </div>
   );
-}
-
-function RunNote({ children }: { children: ComponentChildren }) {
-  return <Note className={BANNER_CLASS}>{children}</Note>;
 }
 
 export function TraceStatsBar({

@@ -39,8 +39,7 @@ function renderSidebar() {
   const view = render(<App />);
   const handle = view.getByRole("separator", { name: "Resize sidebar" });
   const width = () => Number(handle.getAttribute("aria-valuenow"));
-  const cssWidth = () =>
-    view.container.querySelector<HTMLElement>(".layout")!.style.getPropertyValue("--sidebar-width");
+  const cssWidth = () => handle.parentElement!.style.getPropertyValue("--sidebar-width");
   return { ...view, handle, width, cssWidth };
 }
 
@@ -86,10 +85,12 @@ describe("sidebar resizing", () => {
     fireEvent.pointerMove(handle, { pointerId: 1, clientX: 0 });
     expect(width()).toBe(SIDEBAR_WIDTH.min);
     expect(handle.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(stored.has(WIDTH_KEY)).toBe(false); // stored once, when the drag ends
 
     // The browser releases capture on pointerup; later moves no longer resize.
     fireEvent.pointerUp(handle, { pointerId: 1 });
     fireEvent.lostPointerCapture(handle, { pointerId: 1 });
+    expect(stored.get(WIDTH_KEY)).toBe(String(SIDEBAR_WIDTH.min));
     fireEvent.pointerMove(handle, { pointerId: 1, clientX: 400 });
     expect(width()).toBe(SIDEBAR_WIDTH.min);
 

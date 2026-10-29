@@ -2,7 +2,7 @@ import { Ban, Bot, TriangleAlert, Unlink, Workflow } from "lucide-preact";
 import { formatCount, formatDuration, formatTotalsCost } from "../format";
 import { cn } from "../lib/utils";
 import type { RunEntry, RunTreeIndex } from "../runIndex";
-import { TREE_CHILDREN_CLASS, treeRowClass } from "./TreePane";
+import { ICON_CLASS, TREE_CHILDREN_CLASS, treeRowClass } from "./TreePane";
 
 /**
  * The run tree's runs, styled as sidebar tree rows so they can nest under
@@ -65,7 +65,7 @@ function RunNode({
       >
         <span
           class={cn(
-            "inline-flex w-4 shrink-0 justify-center",
+            ICON_CLASS,
             run.outcome.status === "failed" && "text-destructive-foreground",
             run.outcome.status === "cancelled" && "text-muted-foreground",
           )}

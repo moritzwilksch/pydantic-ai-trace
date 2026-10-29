@@ -125,6 +125,9 @@ export function MessageCard({
 /** Parts are self-delimiting blocks; spacing alone separates them. */
 const PART_CLASS = "part [.part+&]:mt-2";
 
+/** Alerts above the trace share the cards' column. */
+export const BANNER_CLASS = "mx-auto mb-3 max-w-275";
+
 /** A muted remark about the message or run, not part of its content. */
 export function Note({ className, children }: { className?: string; children: ComponentChildren }) {
   return (

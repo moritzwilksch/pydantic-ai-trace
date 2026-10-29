@@ -22,7 +22,8 @@ export interface Sidebar {
   toggleRef: RefObject<HTMLButtonElement | null>;
   /** Width beside the trace on wide screens, in pixels; remembered across visits. */
   width: number;
-  setWidth: (width: number) => void;
+  /** Clamps; `persist: false` skips storage, for the moves of a drag. */
+  setWidth: (width: number, persist?: boolean) => void;
 }
 
 /**
@@ -30,7 +31,7 @@ export interface Sidebar {
  * narrow screens; on wide screens the sidebar always sits beside the trace.
  * Opening moves focus into the sidebar; Escape closes it, and closing returns
  * focus to the toggle when focus was in the sidebar. The width, clamped and
- * stored on every change, applies beside the trace and caps the overlay.
+ * stored, applies beside the trace and caps the overlay.
  */
 export function useSidebar(): Sidebar {
   const [open, setOpen] = useState(false);
@@ -39,10 +40,10 @@ export function useSidebar(): Sidebar {
   const [width, setStoredWidth] = useState(() =>
     parseSidebarWidth(storage((s) => s.getItem(WIDTH_KEY))),
   );
-  const setWidth = (next: number) => {
+  const setWidth = (next: number, persist = true) => {
     const clamped = clampSidebarWidth(next);
     setStoredWidth(clamped);
-    storage((s) => s.setItem(WIDTH_KEY, String(clamped)));
+    if (persist) storage((s) => s.setItem(WIDTH_KEY, String(clamped)));
   };
 
   useEffect(() => {
@@ -102,9 +103,12 @@ export function SidebarResizer({ sidebar }: { sidebar: Sidebar }) {
       }}
       onPointerMove={(event) => {
         const start = drag.current;
-        if (start) sidebar.setWidth(start.width + event.clientX - start.x);
+        if (start) sidebar.setWidth(start.width + event.clientX - start.x, false);
       }}
-      onLostPointerCapture={() => (drag.current = null)}
+      onLostPointerCapture={() => {
+        drag.current = null;
+        sidebar.setWidth(sidebar.width); // store where the drag ended
+      }}
       onDblClick={() => sidebar.setWidth(SIDEBAR_WIDTH.default)}
       onKeyDown={(event) => {
         const next = keyedSidebarWidth(sidebar.width, event.key, event.shiftKey);
@@ -136,7 +140,7 @@ export function SidebarToggle({ sidebar }: { sidebar: Sidebar }) {
         ref={sidebar.toggleRef}
         variant="ghost"
         size="icon-sm"
-        className="hidden shrink-0 max-[720px]:inline-flex"
+        className="hidden max-[720px]:inline-flex"
         aria-label="Show traces"
         aria-controls={SIDEBAR_ID}
         aria-expanded={sidebar.open}

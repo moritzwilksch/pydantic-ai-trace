@@ -18,11 +18,11 @@ import {
   type ViewLocation,
 } from "./selection";
 import { shownTrace, traceFailed, type TraceState } from "./traceState";
-import { BANNER_CLASS } from "./components/banner";
 import { Brand } from "./components/Brand";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
 import { RunBreadcrumb } from "./components/RunBreadcrumb";
+import { BANNER_CLASS } from "./components/MessageCard";
 import { RunTree } from "./components/RunTree";
 import {
   SIDEBAR_ID,
@@ -148,7 +148,7 @@ function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }
 
 /** The sidebar overlays the trace on narrow screens while open; see `useSidebar`. */
 function layoutClass(sidebar: Sidebar): string {
-  return sidebar.open ? "layout flex h-screen sidebar-open" : "layout flex h-screen";
+  return sidebar.open ? "flex h-screen sidebar-open" : "flex h-screen";
 }
 
 /**
