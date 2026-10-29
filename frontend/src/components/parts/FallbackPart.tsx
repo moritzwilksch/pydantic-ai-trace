@@ -10,7 +10,8 @@ export function FallbackPart({ part }: { part: Record<string, unknown> }) {
     <Block
       label={
         <>
-          <CircleHelp size={13} /> {String(part.part_kind ?? "unknown part")}
+          <CircleHelp size={13} />{" "}
+          {typeof part.part_kind === "string" ? part.part_kind : "unknown part"}
         </>
       }
       badges={<Badge variant="warning">unknown kind</Badge>}

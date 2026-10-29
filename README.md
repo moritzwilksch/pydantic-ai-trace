@@ -184,7 +184,7 @@ them with `pixi run paitrace examples/traces`; regenerate them with `pixi run ge
 pixi run test        # pytest and vitest
 pixi run test-lowest # pytest against the lowest supported dependency versions
 pixi run gen-types   # regenerate frontend/src/generated/payload.ts from the Python models
-pixi run lint        # ruff, prettier, and eslint
+pixi run lint        # ruff, prettier, and oxlint
 pixi run typecheck   # pyright and TypeScript
 pixi run build       # bundled frontend plus sdist and wheel
 pixi run screenshots # re-render docs/screenshot-{light,dark}.png for this README

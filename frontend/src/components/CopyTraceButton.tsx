@@ -33,7 +33,7 @@ export function CopyTraceButton({ text }: { text: string }) {
 
   return (
     <Hint label={title}>
-      <Button variant="outline" size="sm" className="shrink-0" onClick={copyTrace}>
+      <Button variant="outline" size="sm" className="shrink-0" onClick={() => void copyTrace()}>
         {state === "copied" ? <Check /> : state === "error" ? <TriangleAlert /> : <Copy />}
         {/* A narrow header hides the label visually only: it stays the name and live region. */}
         <span class="@max-[640px]/main:sr-only" aria-live="polite">

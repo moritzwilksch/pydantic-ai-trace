@@ -266,6 +266,7 @@ function ServerApp() {
       .then(setMeta)
       .catch((e) => setAppError(String(e)));
     loadTree((e) => setAppError(String(e)));
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
   }, []);
 
   // Single-file mode: auto-open the one trace.
@@ -274,6 +275,7 @@ function ServerApp() {
       const target = defaultSelection(tree);
       if (target) select(target);
     }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- select changes each render; the data decides
   }, [meta, tree, selection]);
 
   useEffect(() => {
@@ -284,6 +286,7 @@ function ServerApp() {
     }
     setTrace((current) => ({ status: "loading", previous: shownTrace(current) }));
     loadTrace(selection);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- reload when the selection changes, not the loader
   }, [selection]);
 
   // Live updates: refresh the tree on any change, re-fetch the open trace if it changed.
@@ -295,6 +298,7 @@ function ServerApp() {
       const current = selectionRef.current;
       if (current && paths.includes(current.path)) loadTrace(current);
     });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- one subscription; it reads the selection by ref
   }, []);
 
   function select(next: TraceSelection) {

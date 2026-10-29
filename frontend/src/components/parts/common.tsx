@@ -27,7 +27,8 @@ export function isMediaItem(value: unknown): boolean {
 export function MediaContent({ item }: { item: Record<string, unknown> }) {
   const kind = String(item.kind);
   if (kind === "binary") {
-    const mediaType = String(item.media_type ?? "application/octet-stream");
+    const mediaType =
+      typeof item.media_type === "string" ? item.media_type : "application/octet-stream";
     // Pydantic AI defaults the identifier to a short hash of the data, so it is
     // always present in a dump; the model refers to the file by it.
     const name = typeof item.identifier === "string" ? item.identifier : "binary";

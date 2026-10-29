@@ -12,9 +12,9 @@ function initialTheme(): Theme {
 }
 
 /** localStorage can be entirely absent or throw on access (sandboxed iframe). */
-function storage<T>(use: (s: Storage) => T): T | null {
+function storage<T>(access: (s: Storage) => T): T | null {
   try {
-    return use(globalThis.localStorage);
+    return access(globalThis.localStorage);
   } catch {
     return null;
   }
