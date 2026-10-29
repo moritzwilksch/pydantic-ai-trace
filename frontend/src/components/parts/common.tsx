@@ -6,7 +6,7 @@ import { Markdown, RAW_TEXT_CLASS } from "../Markdown";
 import { Badge } from "../ui/badge";
 
 /** Linked-chip icons for `*-url` attachments; unknown url kinds get a paperclip. */
-export const URL_KIND_ICONS: Record<string, ComponentChildren> = {
+const URL_KIND_ICONS: Record<string, ComponentChildren> = {
   "audio-url": <Volume2 size={13} />,
   "video-url": <Film size={13} />,
   "document-url": <FileText size={13} />,
@@ -50,7 +50,7 @@ export function MediaContent({ item }: { item: Record<string, unknown> }) {
 }
 
 /** `url` when it is safe to link (http or https); trace URLs are untrusted, e.g. `javascript:`. */
-export function linkableUrl(url: string): string | undefined {
+function linkableUrl(url: string): string | undefined {
   try {
     const { protocol } = new URL(url);
     return protocol === "http:" || protocol === "https:" ? url : undefined;
@@ -86,7 +86,7 @@ export function MediaChip({
 export const MEDIA_ITEM_CLASS = "media-item my-1.5";
 
 /** An image that degrades to a MediaChip instead of the browser's broken-image icon. */
-export function MediaImage({
+function MediaImage({
   src,
   alt,
   chipLabel,
@@ -114,15 +114,7 @@ export function MediaImage({
 }
 
 /** A dumped `BinaryContent` image, captioned with its identifier. */
-export function InlineImage({
-  mediaType,
-  data,
-  name,
-}: {
-  mediaType: string;
-  data: string;
-  name: string;
-}) {
+function InlineImage({ mediaType, data, name }: { mediaType: string; data: string; name: string }) {
   return (
     <MediaImage
       src={base64DataUrl(mediaType, data)}
@@ -137,7 +129,7 @@ export function InlineImage({
  * A `data:` URL for bytes from the payload. Pydantic serializes bytes as URL-safe
  * base64 (`-`, `_`); `data:` URLs need the standard alphabet (`+`, `/`).
  */
-export function base64DataUrl(mediaType: string, data: string): string {
+function base64DataUrl(mediaType: string, data: string): string {
   const standard = data.replaceAll("-", "+").replaceAll("_", "/");
   return `data:${mediaType};base64,${standard}`;
 }

@@ -31,7 +31,7 @@ export function RetryPrompt({ part, call }: { part: RetryPromptPart; call: CallL
   );
 }
 
-export function RetryContent({ content }: { content: RetryPromptPart["content"] }) {
+function RetryContent({ content }: { content: RetryPromptPart["content"] }) {
   if (typeof content === "string") return <ValueView value={content} />;
   return (
     <table class="font-mono text-[12.5px] [&_:is(td,th)]:border [&_:is(td,th)]:px-2 [&_:is(td,th)]:py-0.75 [&_:is(td,th)]:text-left">

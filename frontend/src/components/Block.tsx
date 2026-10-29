@@ -99,7 +99,7 @@ const EXPAND_HINT = "Expand to view the full value";
  * The collapsed teaser of a content block's summary, with a "more" hint when
  * the text is likely cut off. Both hide while the block is open.
  */
-export function BlockPreview({ text }: { text: string | undefined }) {
+function BlockPreview({ text }: { text: string | undefined }) {
   if (!text) return null;
   return (
     <>

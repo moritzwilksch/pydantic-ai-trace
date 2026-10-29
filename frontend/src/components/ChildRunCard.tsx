@@ -34,7 +34,7 @@ export function ChildRunCard({
 }
 
 /** Only problems are badged — completion is the unremarkable default. */
-export function OutcomeBadge({ status }: { status: "completed" | "failed" | "cancelled" }) {
+function OutcomeBadge({ status }: { status: "completed" | "failed" | "cancelled" }) {
   if (status === "failed") return <Badge variant="error">failed</Badge>;
   if (status === "cancelled") return <Badge variant="warning">cancelled</Badge>;
   return null;

@@ -19,7 +19,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { ToolReturnValue, ValueView } from "./common";
 
-export const TOOL_NAME_CLASS = "tool-name font-mono text-xs font-semibold text-tool";
+const TOOL_NAME_CLASS = "tool-name font-mono text-xs font-semibold text-tool";
 export const PAIR_ARROW_CLASS = "pair-arrow shrink-0 text-muted-foreground";
 /** Named values a tool part carries as structure rather than free-form JSON:
     search queries, discovered tools, revealed tool names. */
