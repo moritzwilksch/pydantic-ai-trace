@@ -1,7 +1,8 @@
-// Stands in for `use-sync-external-store/shim/with-selector`, which Base UI uses to
-// read its stores. The real shim is CommonJS and requires React itself; see the
-// aliases in vite.config.ts. Same contract: re-render only when the selection
-// changes, as `isEqual` judges it.
+// Stands in for `use-sync-external-store/shim/with-selector`. Base UI imports it but
+// calls it only on React before 19; preact/compat reports 19, so Base UI reads its
+// stores through useSyncExternalStore instead. The import must still resolve: the
+// real shim is CommonJS and requires React itself; see the aliases in vite.config.ts.
+// Same contract: re-render only when the selection changes, as `isEqual` judges it.
 import { useMemo, useSyncExternalStore } from "preact/compat";
 
 export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
