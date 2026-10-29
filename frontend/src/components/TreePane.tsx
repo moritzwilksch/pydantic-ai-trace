@@ -25,7 +25,7 @@ export const TREE_CHILDREN_CLASS = "tree-children ml-3.5 border-l pl-1";
 /** One row of the sidebar tree: a folder, file, trace, or run. */
 export function treeRowClass({ selected = false, error = false } = {}): string {
   return cn(
-    "flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-2 py-0.75 text-left text-[13px] whitespace-nowrap hover:bg-accent",
+    "flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-2 py-0.75 text-left text-[13px] whitespace-nowrap hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
     error && "text-muted-foreground hover:bg-destructive/8",
     selected && "selected bg-foreground/7 font-medium",
   );
