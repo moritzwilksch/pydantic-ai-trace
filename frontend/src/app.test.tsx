@@ -722,8 +722,8 @@ describe("App in exported-trace mode", () => {
 
     const { container, getAllByText } = render(<App />);
 
-    const responseCard = container.querySelector(".kind-response")!.closest(".card")!;
-    const requestCard = container.querySelector(".kind-request")!.closest(".card")!;
+    const responseCard = container.querySelector(".kind-response")!.closest("[data-card]")!;
+    const requestCard = container.querySelector(".kind-request")!.closest("[data-card]")!;
     expect(responseCard.textContent).not.toContain("found");
     expect(requestCard.textContent).toContain("found");
     getAllByText("found");
@@ -771,7 +771,7 @@ describe("App in exported-trace mode", () => {
 
     const { container, getAllByText } = render(<App />);
     const requestCards = Array.from(container.querySelectorAll(".kind-request")).map((header) =>
-      header.closest(".card")!,
+      header.closest("[data-card]")!,
     );
 
     expect(requestCards.map((card) => card.textContent?.includes("Instructions"))).toEqual([

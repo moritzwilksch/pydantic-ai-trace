@@ -1,6 +1,8 @@
 import { PanelLeft } from "lucide-preact";
 import type { RefObject } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { Hint } from "./Hint";
+import { Button } from "./ui/button";
 
 /** The element the toggle controls: the tree pane, which overlays the trace on narrow screens. */
 export const SIDEBAR_ID = "trace-sidebar";
@@ -47,26 +49,43 @@ export function useSidebar(): Sidebar {
   return { open, setOpen, toggleRef };
 }
 
+/**
+ * The sidebar pane. Below 720px it leaves the layout: hidden until the layout carries
+ * `sidebar-open` (see `layoutClass` in app.tsx), then an overlay.
+ */
+export const SIDEBAR_PANE_CLASS =
+  "tree-pane flex w-70 shrink-0 flex-col overflow-hidden border-r bg-background " +
+  "max-[720px]:fixed max-[720px]:inset-y-0 max-[720px]:left-0 max-[720px]:z-30 " +
+  "max-[720px]:hidden max-[720px]:w-[min(280px,85vw)] max-[720px]:shadow-lg " +
+  "max-[720px]:[.sidebar-open_&]:flex";
+
+/** Shown on narrow screens only; wide screens always show the sidebar. */
 export function SidebarToggle({ sidebar }: { sidebar: Sidebar }) {
   return (
-    <button
-      ref={sidebar.toggleRef}
-      type="button"
-      class="icon-button sidebar-toggle"
-      aria-label="Show traces"
-      title="Show traces"
-      aria-controls={SIDEBAR_ID}
-      aria-expanded={sidebar.open}
-      onClick={() => sidebar.setOpen(!sidebar.open)}
-    >
-      <PanelLeft size={14} />
-    </button>
+    <Hint label="Show traces">
+      <Button
+        ref={sidebar.toggleRef}
+        variant="ghost"
+        size="icon-sm"
+        className="hidden shrink-0 max-[720px]:inline-flex"
+        aria-label="Show traces"
+        aria-controls={SIDEBAR_ID}
+        aria-expanded={sidebar.open}
+        onClick={() => sidebar.setOpen(!sidebar.open)}
+      >
+        <PanelLeft />
+      </Button>
+    </Hint>
   );
 }
 
 /** Covers the trace while the overlay is open; a click closes the overlay. */
 export function SidebarBackdrop({ sidebar }: { sidebar: Sidebar }) {
   return sidebar.open ? (
-    <div class="sidebar-backdrop" aria-hidden="true" onClick={() => sidebar.setOpen(false)} />
+    <div
+      class="fixed inset-0 z-25 hidden bg-black/30 max-[720px]:block"
+      aria-hidden="true"
+      onClick={() => sidebar.setOpen(false)}
+    />
   ) : null;
 }

@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import { useMemo } from "preact/hooks";
 import {
   cacheHitRate,
@@ -8,8 +9,10 @@ import {
 } from "../format";
 import { indexRun, type RunEntry, type TrajectoryIndex } from "../runIndex";
 import type { Totals } from "../types";
+import { BANNER_CLASS } from "./banner";
 import { ChildRunCard } from "./ChildRunCard";
-import { MessageCard } from "./MessageCard";
+import { MessageCard, Note } from "./MessageCard";
+import { Alert, AlertTitle } from "./ui/alert";
 
 /** One run's messages in order, with the runs it started inline under their tool calls. */
 export function TraceView({
@@ -27,21 +30,19 @@ export function TraceView({
   return (
     <div>
       {entry.run.outcome.status === "failed" ? (
-        <div class="banner-error" role="note">
-          Run failed with {entry.run.outcome.error_type}: {entry.run.outcome.detail}
-        </div>
+        <Alert variant="error" className={BANNER_CLASS} role="note">
+          <AlertTitle>
+            Run failed with {entry.run.outcome.error_type}: {entry.run.outcome.detail}
+          </AlertTitle>
+        </Alert>
       ) : null}
       {entry.analysis.parent_missing && entry.run.parent !== null ? (
-        <div class="interrupted-message" role="note">
+        <RunNote>
           This run's parent, run {JSON.stringify(entry.run.parent.run_id)}, is not recorded in this
           trace yet.
-        </div>
+        </RunNote>
       ) : null}
-      {entry.run.outcome.status === "cancelled" ? (
-        <div class="interrupted-message" role="note">
-          This run was cancelled.
-        </div>
-      ) : null}
+      {entry.run.outcome.status === "cancelled" ? <RunNote>This run was cancelled.</RunNote> : null}
       {entry.run.messages.map((message, i) => {
         // Show instructions only where they change, as the transcript does.
         let instructions: string | null = null;
@@ -68,6 +69,10 @@ export function TraceView({
   );
 }
 
+function RunNote({ children }: { children: ComponentChildren }) {
+  return <Note className={BANNER_CLASS}>{children}</Note>;
+}
+
 export function TraceStatsBar({
   totals,
   subtreeTotals,
@@ -82,9 +87,10 @@ export function TraceStatsBar({
   const withSubruns = subtreeTotals.llm_calls !== totals.llm_calls ? subtreeTotals : null;
   const subtreeCost = withSubruns ? formatTotalsCost(withSubruns) : null;
   // When the header runs out of room, stats drop from the end: the token
-  // breakdown goes before the run's calls, cost, and wall time.
+  // breakdown goes before the run's calls, cost, and wall time. Stats that do not
+  // fit wrap onto a second line, which the fixed height hides.
   return (
-    <div class="trace-stats">
+    <div class="trace-stats flex h-4.5 min-w-0 flex-[1_1_0] flex-wrap gap-3 overflow-hidden text-xs/4.5 whitespace-nowrap text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">
       <span>
         <b>{formatCount(totals.llm_calls)}</b> LLM calls
       </span>

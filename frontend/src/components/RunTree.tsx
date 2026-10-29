@@ -1,6 +1,8 @@
 import { Ban, Bot, TriangleAlert, Unlink, Workflow } from "lucide-preact";
 import { formatCount, formatDuration, formatTotalsCost } from "../format";
+import { cn } from "../lib/utils";
 import type { RunEntry, TrajectoryIndex } from "../runIndex";
+import { TREE_CHILDREN_CLASS, treeRowClass } from "./TreePane";
 
 /**
  * The trajectory's runs, styled as sidebar tree rows so they can nest under
@@ -49,19 +51,34 @@ function RunNode({
     <div>
       <button
         type="button"
-        class={`tree-node run-node ${run.outcome.status} ${isSelected ? "selected" : ""}`}
+        // A selected run is a position within the selected file: instead of the file's
+        // full highlight, it gets bold text and a segment on the tree's guide line.
+        class={cn(
+          treeRowClass({ selected: isSelected }),
+          "relative overflow-visible",
+          isSelected &&
+            "bg-transparent before:absolute before:inset-y-0 before:-left-1.25 before:w-px before:bg-foreground",
+        )}
         aria-current={isSelected ? "true" : undefined}
         title={runSummary(entry)}
         onClick={() => onSelect(run.id)}
       >
-        <span class="icon">
+        <span
+          class={cn(
+            "inline-flex w-4 shrink-0 justify-center",
+            run.outcome.status === "failed" && "text-destructive-foreground",
+            run.outcome.status === "cancelled" && "text-muted-foreground",
+          )}
+        >
           <RunIcon entry={entry} />
         </span>
-        <span class="run-name">{run.name}</span>
-        {cost !== null ? <span class="count">{cost}</span> : null}
+        <span class="truncate">{run.name}</span>
+        {cost !== null ? (
+          <span class="ml-auto text-[11px] text-muted-foreground">{cost}</span>
+        ) : null}
       </button>
       {children.length > 0 ? (
-        <div class="tree-children">
+        <div class={TREE_CHILDREN_CLASS}>
           {children.map((child) => (
             <RunNode
               key={child.run.id}

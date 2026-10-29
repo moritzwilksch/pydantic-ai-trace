@@ -8,12 +8,34 @@ import {
 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { cn } from "../lib/utils";
 import { Brand } from "./Brand";
+import { SIDEBAR_PANE_CLASS } from "./Sidebar";
+import { Input } from "./ui/input";
 import { defaultSelection, isMultiTrace } from "../selection";
 import type { TraceSelection, TraceSummary, TreeNode } from "../types";
 
 /** JSONL traces listed per page: evaluation logs can hold many thousands. */
 export const TRACE_LINE_PAGE = 100;
+
+export const TREE_BODY_CLASS = "tree-body flex-1 overflow-y-auto px-1.5 pb-3";
+
+/** Nested rows, indented under a guide line; a selected run marks its segment of it. */
+export const TREE_CHILDREN_CLASS = "tree-children ml-3.5 border-l pl-1";
+
+/** One row of the sidebar tree: a folder, file, trace, or run. */
+export function treeRowClass({ selected = false, error = false } = {}): string {
+  return cn(
+    "tree-node flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-2 py-0.75 text-left text-[13px] whitespace-nowrap hover:bg-accent",
+    error && "text-muted-foreground hover:bg-destructive/8",
+    selected && "selected bg-foreground/7 font-medium",
+  );
+}
+
+/** Problems with a file or trace, at the row's right edge. */
+const ERROR_LABEL_CLASS = "ml-auto text-[10px] font-semibold text-destructive-foreground";
+const ICON_CLASS = "inline-flex w-4 shrink-0 items-center justify-center";
+const COUNT_CLASS = "ml-auto text-[11px] text-muted-foreground";
 
 export function TreePane({
   id,
@@ -37,13 +59,13 @@ export function TreePane({
   const topLevel =
     visibleRoot?.type === "dir" ? (visibleRoot.children ?? []) : visibleRoot ? [visibleRoot] : [];
   return (
-    <nav class="tree-pane" id={id}>
+    <nav class={SIDEBAR_PANE_CLASS} id={id}>
       <Brand />
-      <div class="tree-header" title={rootLabel}>
-        {rootLabel}
-      </div>
-      <input
-        class="tree-filter"
+      <TreeHeader label={rootLabel} />
+      <Input
+        nativeInput
+        size="sm"
+        className="mx-2.5 mb-2 w-auto"
         type="search"
         placeholder="Filter traces…"
         value={filter}
@@ -55,7 +77,7 @@ export function TreePane({
           if (first) onSelect(first);
         }}
       />
-      <div class="tree-body">
+      <div class={TREE_BODY_CLASS}>
         {topLevel.length > 0 ? (
           topLevel.map((node) => (
             <NodeView
@@ -70,7 +92,7 @@ export function TreePane({
             />
           ))
         ) : (
-          <div class="tree-empty">No traces match “{filter}”.</div>
+          <div class="px-1.5 py-2 text-xs text-muted-foreground">No traces match “{filter}”.</div>
         )}
       </div>
     </nav>
@@ -106,12 +128,12 @@ function NodeView({ startOpen, ...props }: NodeProps & { startOpen: boolean }) {
   if (node.type === "dir") {
     return (
       <div>
-        <button class="tree-node" aria-expanded={shown} onClick={toggle}>
+        <button class={treeRowClass()} aria-expanded={shown} onClick={toggle}>
           <Chevron open={shown} />
           {node.name}
         </button>
         {shown ? (
-          <div class="tree-children">
+          <div class={TREE_CHILDREN_CLASS}>
             {(node.children ?? []).map((child) => (
               <NodeView key={child.path} {...props} node={child} startOpen={false} />
             ))}
@@ -148,7 +170,9 @@ function NodeView({ startOpen, ...props }: NodeProps & { startOpen: boolean }) {
 }
 
 function Chevron({ open }: { open: boolean }) {
-  return <span class="icon">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>;
+  return (
+    <span class={ICON_CLASS}>{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
+  );
 }
 
 /** A JSONL file's traces, one page at a time; a selected later trace stays listed. */
@@ -171,7 +195,7 @@ function TraceLines({
   if (selectedTrace && !listed.includes(selectedTrace)) listed.push(selectedTrace);
   const hidden = Math.max(0, traces.length - shown);
   return (
-    <div class="tree-children">
+    <div class={TREE_CHILDREN_CLASS}>
       {listed.map((trace) => (
         <div key={trace.line}>
           <TraceButton
@@ -185,8 +209,11 @@ function TraceLines({
         </div>
       ))}
       {hidden > 0 ? (
-        <button class="tree-node tree-more" onClick={() => setShown(shown + TRACE_LINE_PAGE)}>
-          <span class="icon">
+        <button
+          class={cn(treeRowClass(), "text-muted-foreground")}
+          onClick={() => setShown(shown + TRACE_LINE_PAGE)}
+        >
+          <span class={ICON_CLASS}>
             <Ellipsis size={12} />
           </span>
           show {Math.min(hidden, TRACE_LINE_PAGE)} more of {hidden}
@@ -211,7 +238,7 @@ function TraceButton({
   return (
     <button
       ref={ref}
-      class={`tree-node ${trace.error ? "error" : ""} ${selected ? "selected" : ""}`}
+      class={treeRowClass({ selected, error: trace.error })}
       aria-invalid={trace.error || undefined}
       title={
         trace.error
@@ -220,24 +247,26 @@ function TraceButton({
       }
       onClick={onClick}
     >
-      <span class="icon">
+      <span class={ICON_CLASS}>
         {trace.error ? <TriangleAlert size={12} /> : <CornerDownRight size={12} />}
       </span>
       {trace.prompt ? (
         <>
-          <span class="line-number">{trace.line}</span>
-          <span class="label">{trace.prompt}</span>
+          <span class="min-w-[2ch] shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
+            {trace.line}
+          </span>
+          <span class="min-w-0 truncate">{trace.prompt}</span>
         </>
       ) : (
-        <span class="label">trace {trace.line}</span>
+        <span class="min-w-0 truncate">trace {trace.line}</span>
       )}
-      {trace.error ? <span class="tree-error-label">invalid</span> : null}
+      {trace.error ? <span class={ERROR_LABEL_CLASS}>invalid</span> : null}
     </button>
   );
 }
 
 function NestedUnderSelection({ children }: { children: ComponentChildren }) {
-  return children ? <div class="tree-children">{children}</div> : null;
+  return children ? <div class={TREE_CHILDREN_CLASS}>{children}</div> : null;
 }
 
 function FileButton({
@@ -257,7 +286,7 @@ function FileButton({
   return (
     <button
       ref={ref}
-      class={`tree-node ${node.error ? "error" : ""} ${selected ? "selected" : ""}`}
+      class={treeRowClass({ selected, error: node.error })}
       aria-invalid={node.error || undefined}
       aria-expanded={expanded}
       title={node.error ? (node.error_message ?? "File could not be parsed") : node.path}
@@ -266,14 +295,14 @@ function FileButton({
       {expanded !== undefined ? (
         <Chevron open={expanded} />
       ) : (
-        <span class="icon">
+        <span class={ICON_CLASS}>
           {node.error ? <TriangleAlert size={14} /> : <FileText size={14} />}
         </span>
       )}
-      <span class="label">{node.name}</span>
-      {node.format === "jsonl" ? <span class="count">{node.trace_count}</span> : null}
-      {node.error ? <span class="tree-error-label">invalid</span> : null}
-      {invalidTraces > 0 ? <span class="tree-error-label">{invalidTraces} invalid</span> : null}
+      <span class="min-w-0 truncate">{node.name}</span>
+      {node.format === "jsonl" ? <span class={COUNT_CLASS}>{node.trace_count}</span> : null}
+      {node.error ? <span class={ERROR_LABEL_CLASS}>invalid</span> : null}
+      {invalidTraces > 0 ? <span class={ERROR_LABEL_CLASS}>{invalidTraces} invalid</span> : null}
     </button>
   );
 }
@@ -337,5 +366,14 @@ function filterTree(node: TreeNode, query: string): TreeNode | null {
 function traceMatches(trace: TraceSummary, query: string): boolean {
   return [trace.prompt, trace.answer, ...trace.models].some(
     (text) => text?.toLowerCase().includes(query) ?? false,
+  );
+}
+
+/** The sidebar's heading: the served root, or the exported trace's name. */
+export function TreeHeader({ label }: { label: string }) {
+  return (
+    <div class="truncate px-3 pt-2.5 pb-1.5 text-[13px] font-semibold" title={label}>
+      {label}
+    </div>
   );
 }

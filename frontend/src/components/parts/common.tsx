@@ -2,7 +2,8 @@ import { FileText, Film, ImageIcon, ImageOff, Paperclip, Volume2 } from "lucide-
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { JsonTree } from "../JsonTree";
-import { Markdown } from "../Markdown";
+import { Markdown, RAW_TEXT_CLASS } from "../Markdown";
+import { Badge } from "../ui/badge";
 
 /** Linked-chip icons for `*-url` attachments; unknown url kinds get a paperclip. */
 export const URL_KIND_ICONS: Record<string, ComponentChildren> = {
@@ -68,22 +69,20 @@ export function MediaChip({
   href?: string;
 }) {
   const body = (
-    <span class="media-chip">
-      {icon} {label}
-    </span>
+    <Badge
+      variant="outline"
+      size="lg"
+      className="media-chip max-w-full font-normal text-muted-foreground"
+      render={href ? <a href={href} target="_blank" rel="noreferrer noopener" /> : undefined}
+    >
+      {icon} <span class="truncate">{label}</span>
+    </Badge>
   );
-  return (
-    <div class="media-item">
-      {href ? (
-        <a href={href} target="_blank" rel="noreferrer noopener">
-          {body}
-        </a>
-      ) : (
-        body
-      )}
-    </div>
-  );
+  return <div class={MEDIA_ITEM_CLASS}>{body}</div>;
 }
+
+/** One attachment or value among a message's content items. */
+export const MEDIA_ITEM_CLASS = "media-item my-1.5";
 
 /** An image that degrades to a MediaChip instead of the browser's broken-image icon. */
 export function MediaImage({
@@ -100,9 +99,15 @@ export function MediaImage({
   const [failed, setFailed] = useState(false);
   if (failed) return <MediaChip icon={<ImageOff size={13} />} label={chipLabel} />;
   return (
-    <div class="media-item">
-      <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />
-      {caption && <div class="media-caption">{caption}</div>}
+    <div class={MEDIA_ITEM_CLASS}>
+      <img
+        class="max-h-100 max-w-full rounded-md border"
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+      {caption && <div class="text-xs text-muted-foreground">{caption}</div>}
     </div>
   );
 }
@@ -150,7 +155,7 @@ export function ToolReturnValue({ content }: { content: unknown }) {
           isMediaItem(item) ? (
             <MediaContent key={i} item={item as Record<string, unknown>} />
           ) : (
-            <div class="media-item" key={i}>
+            <div class={MEDIA_ITEM_CLASS} key={i}>
               <ValueView value={item} />
             </div>
           ),
@@ -160,6 +165,9 @@ export function ToolReturnValue({ content }: { content: unknown }) {
   }
   return <ValueView value={content} />;
 }
+
+/** A block body already scrolls; a nested clamp would add a second scrollbar. */
+const CLAMP_CLASS = "max-h-80 overflow-y-auto in-[.block-body]:max-h-none";
 
 /**
  * Markdown for strings, JsonTree for anything else. Every rendering is clamped
@@ -176,17 +184,17 @@ export function ValueView({
 }) {
   if (typeof value === "string") {
     return (
-      <div class="clamp">
+      <div class={CLAMP_CLASS}>
         {markdown ? (
           <Markdown source={value} preserveNewlines={preserveNewlines} />
         ) : (
-          <pre class="raw-text">{value}</pre>
+          <pre class={RAW_TEXT_CLASS}>{value}</pre>
         )}
       </div>
     );
   }
   return (
-    <div class="clamp">
+    <div class={CLAMP_CLASS}>
       <JsonTree value={value} />
     </div>
   );

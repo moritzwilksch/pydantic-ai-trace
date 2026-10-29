@@ -18,6 +18,7 @@ import {
   type ViewLocation,
 } from "./selection";
 import { shownTrace, traceFailed, type TraceState } from "./traceState";
+import { BANNER_CLASS } from "./components/banner";
 import { Brand } from "./components/Brand";
 import { CopyTraceButton } from "./components/CopyTraceButton";
 import { KeyboardHelp, useKeyboardNav } from "./components/KeyboardNav";
@@ -25,6 +26,7 @@ import { RunBreadcrumb } from "./components/RunBreadcrumb";
 import { RunTree } from "./components/RunTree";
 import {
   SIDEBAR_ID,
+  SIDEBAR_PANE_CLASS,
   SidebarBackdrop,
   SidebarToggle,
   useSidebar,
@@ -33,7 +35,8 @@ import {
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TraceSearch, TraceSearchScope } from "./components/TraceSearch";
 import { TraceStatsBar, TraceView } from "./components/TraceView";
-import { TreePane } from "./components/TreePane";
+import { TREE_BODY_CLASS, TREE_CHILDREN_CLASS, TreeHeader, TreePane } from "./components/TreePane";
+import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import type { Meta, TracePayload, TraceSelection, TreeNode } from "./types";
 
 export function App() {
@@ -42,7 +45,7 @@ export function App() {
   return (
     <>
       {embedded ? <ExportedApp payload={embedded} /> : <ServerApp />}
-      {helpOpen ? <KeyboardHelp onClose={closeHelp} /> : null}
+      <KeyboardHelp open={helpOpen} onClose={closeHelp} />
     </>
   );
 }
@@ -55,13 +58,11 @@ function ExportedApp({ payload }: { payload: TracePayload }) {
   return (
     <div class={layoutClass(sidebar)}>
       {runs?.multiRun ? (
-        <nav class="tree-pane" id={SIDEBAR_ID}>
+        <nav class={SIDEBAR_PANE_CLASS} id={SIDEBAR_ID}>
           <Brand />
-          <div class="tree-header" title={payload.name}>
-            {payload.name}
-          </div>
-          <div class="tree-body">
-            <div class="tree-children">
+          <TreeHeader label={payload.name} />
+          <div class={TREE_BODY_CLASS}>
+            <div class={TREE_CHILDREN_CLASS}>
               <RunTreeFor runs={runs} onSelected={() => sidebar.setOpen(false)} />
             </div>
           </div>
@@ -144,7 +145,7 @@ function RunTreeFor({ runs, onSelected }: { runs: Runs; onSelected: () => void }
 
 /** The sidebar overlays the trace on narrow screens while open; see `useSidebar`. */
 function layoutClass(sidebar: Sidebar): string {
-  return sidebar.open ? "layout sidebar-open" : "layout";
+  return sidebar.open ? "flex h-screen sidebar-open" : "flex h-screen";
 }
 
 /**
@@ -175,9 +176,11 @@ function TracePane({
   }, [runId]);
   const searchKey = runs ? `${title}/${runs.selected.run.id}` : title;
   return (
-    <main class="main-pane">
+    <main class="@container/main flex min-w-0 flex-1 flex-col">
       <TraceSearchScope resetKey={searchKey}>
-        <header class="trace-header">
+        {/* Fixed height, and the title absorbs width changes, so loading or switching
+            traces never moves the header or its controls. */}
+        <header class="trace-header sticky top-0 z-10 flex h-12 shrink-0 items-center gap-3.5 border-b bg-background px-4.5 max-[720px]:gap-2 max-[720px]:px-3">
           {sidebar ? <SidebarToggle sidebar={sidebar} /> : null}
           <RunBreadcrumb
             title={title}
@@ -197,7 +200,10 @@ function TracePane({
           ) : null}
           <ThemeToggle />
         </header>
-        <div class="trace-body" ref={bodyRef}>
+        <div
+          class="trace-body flex-1 overflow-y-auto bg-muted px-2 py-4.5 max-[720px]:px-1.5 max-[720px]:py-3"
+          ref={bodyRef}
+        >
           <div ref={traceRootRef}>
             {banner}
             {runs ? (
@@ -344,12 +350,18 @@ function ServerApp() {
         sidebar={showTree && tree ? sidebar : null}
         banner={
           <>
-            {appError ? <div class="banner-error">{appError}</div> : null}
+            {appError ? (
+              <Alert variant="error" className={BANNER_CLASS}>
+                <AlertTitle>{appError}</AlertTitle>
+              </Alert>
+            ) : null}
             {trace.status === "stale" ? (
-              <div class="banner-warn" role="status">
-                File currently invalid: {trace.message}; showing last valid version.
+              <Alert variant="warning" className={BANNER_CLASS} role="status">
+                <AlertTitle>
+                  File currently invalid: {trace.message}; showing last valid version.
+                </AlertTitle>
                 <ErrorDetails details={trace.details} />
-              </div>
+              </Alert>
             ) : null}
           </>
         }
@@ -375,18 +387,20 @@ function selectionTitle(selection: TraceSelection): string {
   return `${selection.path}${selection.line !== undefined ? ` · trace ${selection.line}` : ""}`;
 }
 
+const EMPTY_CLASS = "mt-[15vh] text-center text-muted-foreground";
+
 function TraceStatus({ trace }: { trace: TraceState }) {
   switch (trace.status) {
     case "unselected":
-      return <div class="empty">Select a trace from the tree to inspect it.</div>;
+      return <div class={EMPTY_CLASS}>Select a trace from the tree to inspect it.</div>;
     case "loading":
-      return <div class="empty">Loading trace…</div>;
+      return <div class={EMPTY_CLASS}>Loading trace…</div>;
     case "error":
       return (
-        <div class="banner-error">
-          {trace.message}
+        <Alert variant="error" className={BANNER_CLASS}>
+          <AlertTitle>{trace.message}</AlertTitle>
           <ErrorDetails details={trace.details} />
-        </div>
+        </Alert>
       );
     case "ready":
     case "stale":
@@ -398,13 +412,15 @@ function TraceStatus({ trace }: { trace: TraceState }) {
 function ErrorDetails({ details }: { details: string[] }) {
   if (details.length < 2) return null;
   return (
-    <details class="error-details">
-      <summary>Show all {details.length} errors</summary>
-      <ul>
-        {details.map((detail, i) => (
-          <li key={i}>{detail}</li>
-        ))}
-      </ul>
-    </details>
+    <AlertDescription>
+      <details>
+        <summary class="cursor-pointer">Show all {details.length} errors</summary>
+        <ul class="mt-1.5 max-h-[50vh] list-disc overflow-y-auto pl-4.5 font-mono text-xs wrap-anywhere">
+          {details.map((detail, i) => (
+            <li key={i}>{detail}</li>
+          ))}
+        </ul>
+      </details>
+    </AlertDescription>
   );
 }

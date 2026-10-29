@@ -1,5 +1,7 @@
 import { Moon, Sun } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
+import { Hint } from "./Hint";
+import { Button } from "./ui/button";
 
 type Theme = "light" | "dark";
 
@@ -27,12 +29,16 @@ export function ThemeToggle() {
   }, [theme]);
 
   return (
-    <button
-      class="icon-button"
-      title="Toggle theme"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-    >
-      {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-    </button>
+    <Hint label="Toggle theme">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="shrink-0"
+        aria-label="Toggle theme"
+        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      >
+        {theme === "dark" ? <Sun /> : <Moon />}
+      </Button>
+    </Hint>
   );
 }

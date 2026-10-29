@@ -1,443 +1,168 @@
+/* Classes come from the viewer's sources only, not from trace fixtures or build output. */
+@import "tailwindcss" source("..");
+
+/* ThemeToggle sets data-theme on <html>; coss components style dark mode with `dark:`. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* coss neutral colors (@coss/colors-neutral), plus the viewer's own tokens:
+   who produced a block, search matches, and code syntax. */
 :root {
-  --bg: #f7f7f8;
-  --bg-pane: #ffffff;
-  --bg-card: #ffffff;
-  --bg-inset: #f2f2f4;
-  --bg-hover: #ececef;
-  --border: #e2e2e6;
-  --text: #1c1c21;
-  --text-dim: #6e6e78;
-  --accent: #6d5ae6;
-  --accent-soft: #eeebfd;
+  --accent: --alpha(var(--color-black) / 4%);
+  --accent-foreground: var(--color-neutral-800);
+  --background: var(--color-white);
+  --border: --alpha(var(--color-black) / 8%);
+  --card: var(--color-white);
+  --card-foreground: var(--color-neutral-800);
+  --destructive: var(--color-red-500);
+  --destructive-foreground: var(--color-red-700);
+  --foreground: var(--color-neutral-800);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-700);
+  --input: --alpha(var(--color-black) / 10%);
+  --muted: --alpha(var(--color-black) / 4%);
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-neutral-800);
+  --primary: var(--color-neutral-800);
+  --primary-foreground: var(--color-neutral-50);
+  --ring: var(--color-neutral-400);
+  --secondary: --alpha(var(--color-black) / 4%);
+  --secondary-foreground: var(--color-neutral-800);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-700);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-700);
+
+  --brand: #6d5ae6;
+  --user: var(--color-blue-600);
+  --system: var(--color-purple-600);
+  --assistant: var(--color-cyan-700);
+  --tool: var(--color-slate-600);
   --search-match: #f7d96b;
   --search-current: #f59e0b;
-  /* identity: who produced the content */
-  --user: #2563eb;
-  --system: #9333ea;
-  --assistant: #0e7490;
-  --tool: #475569;
-  /* semantics: how it went */
-  --ok: #059669;
-  --warn: #b45309;
-  --danger: #dc2626;
-  --danger-soft: #fef2f2;
-  /* code / JSON syntax (decoupled from the palettes above) */
-  --code-bg: #f6f6f7;
-  --code-key: #1d4ed8;
+  --code-key: var(--color-blue-700);
   --code-string: #427b58;
-  --code-number: #b45309;
-  --code-keyword: #7c3aed;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.05);
-  --radius: 8px;
-  /* The trace header and the sidebar's brand row: one bar across the window. */
-  --header-height: 48px;
-  /* Cards, banners, and run links share one column, wide for data-dense traces. */
-  --content-max-width: 1100px;
-  /* Response cards: a faint wash of the "Response" heading's color, so requests and
-     responses tell apart while skimming. Dark mode needs less. */
-  --card-response-bg: color-mix(in srgb, var(--assistant) 5%, var(--bg-card));
-  --card-response-border: color-mix(in srgb, var(--assistant) 22%, var(--border));
-  --content-max-height: 320px;
-  --font-mono:
-    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --code-number: var(--color-amber-700);
+  --code-keyword: var(--color-violet-600);
 }
 
 [data-theme="dark"] {
-  --bg: #131316;
-  --bg-pane: #1a1a1f;
-  --bg-card: #1e1e24;
-  --bg-inset: #17171c;
-  --bg-hover: #26262e;
-  --border: #2d2d36;
-  --text: #e8e8ec;
-  --text-dim: #8f8f9c;
-  --accent: #8b7cf7;
-  --accent-soft: #2a2542;
+  --accent: --alpha(var(--color-white) / 4%);
+  --accent-foreground: var(--color-neutral-100);
+  --background: color-mix(in srgb, var(--color-neutral-950) 95%, var(--color-white));
+  --border: --alpha(var(--color-white) / 6%);
+  --card: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --card-foreground: var(--color-neutral-100);
+  --destructive: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
+  --destructive-foreground: var(--color-red-400);
+  --foreground: var(--color-neutral-100);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-400);
+  --input: --alpha(var(--color-white) / 8%);
+  --muted: --alpha(var(--color-white) / 4%);
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-white));
+  --popover: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --popover-foreground: var(--color-neutral-100);
+  --primary: var(--color-neutral-100);
+  --primary-foreground: var(--color-neutral-800);
+  --ring: var(--color-neutral-500);
+  --secondary: --alpha(var(--color-white) / 4%);
+  --secondary-foreground: var(--color-neutral-100);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-400);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-400);
+
+  --brand: #8b7cf7;
+  --user: var(--color-blue-400);
+  --system: var(--color-purple-400);
+  --assistant: var(--color-cyan-400);
+  --tool: var(--color-slate-400);
   --search-match: #7c5d16;
   --search-current: #d97706;
-  --user: #60a5fa;
-  --system: #c084fc;
-  --assistant: #22d3ee;
-  --tool: #a8b4c7;
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --danger-soft: #2c1a1c;
-  --code-bg: #16161a;
-  --code-key: #93c5fd;
+  --code-key: var(--color-blue-300);
   --code-string: #a3be8c;
-  --code-number: #fbbf24;
-  --code-keyword: #c4b5fd;
-  --shadow: 0 1px 3px rgb(0 0 0 / 0.4);
-  --card-response-bg: color-mix(in srgb, var(--assistant) 3%, var(--bg-card));
-  --card-response-border: color-mix(in srgb, var(--assistant) 16%, var(--border));
+  --code-number: var(--color-amber-400);
+  --code-keyword: var(--color-violet-300);
 }
 
-* {
-  box-sizing: border-box;
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-background: var(--background);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-foreground: var(--foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-input: var(--input);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-brand: var(--brand);
+  --color-user: var(--user);
+  --color-system: var(--system);
+  --color-assistant: var(--assistant);
+  --color-tool: var(--tool);
+  --color-code-key: var(--code-key);
+  --color-code-string: var(--code-string);
+  --color-code-number: var(--code-number);
+  --color-code-keyword: var(--code-keyword);
 }
 
-html,
-body {
-  margin: 0;
-  height: 100%;
-}
-
-body {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text);
-  background: var(--bg);
-}
-
-#app {
-  height: 100%;
-}
-
-.layout {
-  display: flex;
-  height: 100vh;
-}
-
-/* ---- tree pane ---- */
-
-.tree-pane {
-  width: 280px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
-  background: var(--bg-pane);
-  overflow: hidden;
-}
-
-/* Narrow screens: the tree pane leaves the layout and opens as an overlay from a
-   header button (`useSidebar`). Wide screens never show the button. */
-.sidebar-toggle,
-.sidebar-backdrop {
-  display: none;
-}
-
-.tree-pane.collapsed {
-  width: 0;
-  border-right: none;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: var(--header-height);
-  flex-shrink: 0;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.brand svg {
-  color: var(--accent);
-}
-
-.tree-header {
-  padding: 10px 12px 6px;
-  font-weight: 600;
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tree-filter {
-  margin: 0 10px 8px;
-  padding: 5px 9px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-inset);
-  color: var(--text);
-  font-size: 13px;
-  outline: none;
-}
-
-.tree-filter:focus {
-  border-color: var(--accent);
-}
-
-.tree-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 6px 12px;
-}
-
-.tree-node {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 3px 8px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tree-node:hover {
-  background: var(--bg-hover);
-}
-
-.tree-node.selected {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.tree-node.error {
-  color: var(--text-dim);
-}
-
-.tree-node.error:hover {
-  background: var(--danger-soft);
-}
-
-.tree-error-label {
-  margin-left: auto;
-  color: var(--danger);
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.tree-node .icon {
-  flex-shrink: 0;
-  width: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Flex items ignore their row's ellipsis, so long labels truncate themselves. */
-.tree-node .label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tree-node .line-number {
-  flex-shrink: 0;
-  min-width: 2ch;
-  text-align: right;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
-}
-
-.tree-node .count {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-
-.tree-node.tree-more {
-  color: var(--text-dim);
-}
-
-.tree-children {
-  margin-left: 14px;
-  border-left: 1px solid var(--border);
-  padding-left: 4px;
-}
-
-.tree-empty {
-  padding: 8px 6px;
-  color: var(--text-dim);
-  font-size: 12px;
-}
-
-/* ---- main pane ---- */
-
-.main-pane {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  container: main-pane / inline-size;
-}
-
-/* Fixed height, and the title absorbs width changes, so loading or switching traces
-   never moves the header or its controls. A narrow pane shrinks the title and the
-   search box, and the copy button drops its label, so the header never overflows. */
-.trace-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  height: var(--header-height);
-  flex-shrink: 0;
-  padding: 0 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-pane);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-/* Takes its full width first; the stats get only the space left over. */
-.trace-title {
-  flex: 0 1 auto;
-  min-width: 0;
-  font-weight: 600;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The stats fill the space the title and the controls leave, so whole stats drop
-   out before the title or the controls move: items that do not fit wrap onto a
-   second line, which the fixed height hides. */
-.trace-stats {
-  display: flex;
-  flex: 1 1 0;
-  flex-wrap: wrap;
-  min-width: 0;
-  height: 18px;
-  line-height: 18px;
-  overflow: hidden;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-.trace-stats b {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.icon-button {
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.icon-button:hover {
-  background: var(--bg-hover);
-}
-
-.copy-trace-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-/* Hidden visually only: the label stays the button's name and live region. */
-@container main-pane (max-width: 640px) {
-  .copy-trace-button {
-    padding: 3px 6px;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
 
-  .copy-trace-button span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-sm/normal text-foreground antialiased;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
   }
 }
 
-/* ---- trace search ---- */
-
-.trace-search {
-  flex: 0 1 236px;
-  min-width: 180px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-inset);
-  color: var(--text-dim);
-  overflow: hidden;
-}
-
-.trace-search:focus-within {
-  border-color: var(--accent);
-}
-
-.trace-search-icon {
-  margin-left: 8px;
-  flex-shrink: 0;
-}
-
-.trace-search input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  padding: 4px 6px;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-}
-
-.trace-search input::-webkit-search-cancel-button {
+/* A content block's teaser and "more" hint describe it only while it is collapsed.
+   Unlayered, so Block.test.tsx can read it as plain CSS. */
+.content-block[open] > summary .block-preview,
+.content-block[open] > summary .preview-more {
   display: none;
 }
 
-.trace-search kbd,
-.trace-search-count {
-  margin-right: 7px;
-  white-space: nowrap;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 10px;
+/* Set by KeyboardNav on the focused part or card. */
+.kb-focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
 }
 
-.trace-search kbd {
-  padding: 0 4px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--bg-card);
-}
-
-.trace-search button {
-  width: 24px;
-  height: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: 0;
-  border-left: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.trace-search button:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.trace-search button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
+/* Separate rules: a browser without ::highlight drops a whole selector list naming it,
+   and those browsers need the <mark> fallback. */
 ::highlight(trace-search-match) {
   color: inherit;
   background: var(--search-match);
@@ -457,847 +182,102 @@ body {
   background: var(--search-current);
 }
 
-.trace-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 18px 9px;
-}
-
-/* A trajectory's runs, nested under their file in the sidebar. */
-/* A selected run is a position within the selected file: instead of the file's
-   full highlight, it gets accent text and an accent segment on the tree's guide
-   line (`.tree-children` draws the guide 5px to the row's left). */
-.run-node {
-  position: relative;
-  overflow: visible;
-}
-
-.run-node.selected {
-  background: none;
-}
-
-.run-node.selected:hover {
-  background: var(--bg-hover);
-}
-
-.run-node.selected::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -5px;
-  width: 1px;
-  background: var(--accent);
-}
-
-.run-node .run-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.run-node.failed .icon {
-  color: var(--danger);
-}
-
-.run-node.cancelled .icon {
-  color: var(--text-dim);
-}
-
-/* `file › parent › run` in the trace header. When space runs out, the file and
-   the ancestors truncate; the selected run keeps its full name while it fits. */
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  color: var(--text-dim);
-}
-
-.breadcrumb > :first-child,
-.breadcrumb [aria-current] {
-  color: var(--text);
-}
-
-.breadcrumb > :not(svg) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.breadcrumb svg,
-.breadcrumb [aria-current] {
-  flex-shrink: 0;
-}
-
-.breadcrumb [aria-current] {
-  max-width: 100%;
-}
-
-.breadcrumb-link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.breadcrumb-link:hover {
-  color: var(--accent);
-}
-
-/* A run started by a tool call or nested in this run; opens that run. */
-.child-run {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  max-width: var(--content-max-width);
-  margin: 6px auto 0;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.child-run:hover {
-  background: var(--bg-hover);
-}
-
-.child-run-stats {
-  margin-left: auto;
-  color: var(--text-dim);
-}
-
-.trace-body .empty {
-  color: var(--text-dim);
-  text-align: center;
-  margin-top: 15vh;
-}
-
-/* ---- message cards ---- */
-
-.card {
-  max-width: var(--content-max-width);
-  margin: 0 auto 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  box-shadow: var(--shadow);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 120px;
-}
-
-.card-response {
-  background: var(--card-response-bg);
-  border-color: var(--card-response-border);
-}
-
-.card-response > .card-kind,
-.card-response > .card-footer {
-  border-color: var(--card-response-border);
-}
-
-/* Card header names the pydantic-ai message type: Request or Response. */
-.card-kind {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-dim);
-  border-bottom: 1px solid var(--border);
-}
-
-.kind-response {
-  color: var(--assistant);
-}
-
-.card-kind .when {
-  color: var(--text-dim);
-  margin-left: auto;
-  font-weight: 400;
-}
-
-.card-body {
-  padding: 10px 14px;
-}
-
-.card-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 6px 14px;
-  border-top: 1px solid var(--border);
-  font-size: 11.5px;
-  color: var(--text-dim);
-}
-
-/* Parts are self-delimiting blocks; spacing alone separates them. */
-.part + .part {
-  margin-top: 8px;
-}
-
-.part-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-dim);
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0 6px;
-  border-radius: 9px;
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 16px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-}
-
-.badge.warn {
-  color: var(--warn);
-  border-color: var(--warn);
-}
-
-.badge.error {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-
-.badge.ok {
-  color: var(--ok);
-  border-color: var(--ok);
-}
-
-/* ---- thinking ---- */
-
-.thinking {
-  color: var(--text-dim);
-  font-style: italic;
-}
-
-/* ---- inline lucide icons ---- */
-
-.part-label svg,
-.card-kind svg,
-summary svg,
-.media-chip svg,
-.icon-button svg,
-.block-label svg {
-  vertical-align: -2px;
-  flex-shrink: 0;
-}
-
-/* ---- content blocks (collapsible, height-clamped) ---- */
-
-.content-block {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-inset);
-}
-
-.content-block > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 12px;
-  list-style: none;
-  user-select: none;
-  min-width: 0;
-}
-
-.content-block > summary::-webkit-details-marker {
-  display: none;
-}
-
-.content-block > summary::before {
-  content: "▸";
-  color: var(--text-dim);
-  width: 14px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.content-block[open] > summary::before {
-  content: "▾";
-}
-
-.block-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-weight: 600;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-/* Identity tones: color the label by who produced the content. */
-.tone-user > summary .block-label {
-  color: var(--user);
-}
-
-.tone-system > summary .block-label {
-  color: var(--system);
-}
-
-.tone-assistant > summary .block-label {
-  color: var(--assistant);
-}
-
-.tone-tool > summary .block-label {
-  color: var(--tool);
-}
-
-.tone-error > summary .block-label {
-  color: var(--danger);
-}
-
-.tone-error {
-  border-color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.block-preview {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-}
-
-.preview-more {
-  flex-shrink: 0;
-  color: var(--text-dim);
-  font-size: 10px;
-  font-weight: 500;
-}
-
-.content-block[open] > summary .block-preview,
-.content-block[open] > summary .preview-more {
-  display: none;
-}
-
-.block-body {
-  padding: 8px 10px;
-  border-top: 1px solid var(--border);
-  max-height: var(--content-max-height);
-  overflow-y: auto;
-}
-
-/* Any expanded content is clamped to the display max height and scrolls. */
-.clamp {
-  max-height: var(--content-max-height);
-  overflow-y: auto;
-}
-
-/* The block body already scrolls; a nested clamp would add a second scrollbar. */
-.block-body .clamp {
-  max-height: none;
-}
-
-.interrupted-message {
-  margin-bottom: 8px;
-  padding: 6px 9px;
-  border: 1px solid var(--warn);
-  border-radius: 6px;
-  background: var(--bg-inset);
-  color: var(--text-dim);
-  font-size: 12px;
-}
-
-/* ---- keyboard navigation ---- */
-
-.kb-focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-.help-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgb(0 0 0 / 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.help-panel {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 16px 20px;
-  min-width: 340px;
-}
-
-.help-title {
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.help-panel table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.help-panel td {
-  padding: 3px 12px 3px 0;
-  font-size: 13px;
-}
-
-.help-panel kbd {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 6px;
-}
-
-/* ---- tool call group (a content-block with extra sections) ---- */
-
-.tool-name {
-  color: var(--tool);
-  font-weight: 600;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-/* The status return that accepted the run's output: boilerplate, kept to one muted line. */
-.output-accepted {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.output-accepted .tool-name {
-  color: inherit;
-  font-weight: 500;
-}
-
-.tool-group-section {
-  padding: 8px 10px;
-  border-top: 1px solid var(--border);
-}
-
-.tool-group-section .part-label {
-  margin-bottom: 6px;
-}
-
-/* Named values a tool part carries as structure rather than free-form JSON:
-   search queries, discovered tools, revealed tool names. */
-.tool-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tool-chip {
-  padding: 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-inset);
-  color: var(--tool);
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-/* ---- json tree ---- */
-
-.json-more {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  font: inherit;
-  cursor: pointer;
-}
-
-.json-more:hover {
-  color: var(--text);
-}
-
-.json-tree {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  overflow-x: auto;
-}
-
-.json-children {
-  margin-left: 16px;
-}
-
-.json-key {
-  color: var(--code-key);
-}
-
-.json-string {
-  color: var(--code-string);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.json-block {
-  margin: 2px 0 2px 16px;
-  padding-left: 8px;
-  border-left: 2px solid var(--border);
-}
-
-.json-num {
-  color: var(--code-number);
-}
-
-.json-bool,
-.json-null {
-  color: var(--code-keyword);
-}
-
-.json-punct,
-.json-meta {
-  color: var(--text-dim);
-}
-
-/* ---- markdown ---- */
-
-/* Prose keeps a readable measure, about 100 characters per line, inside the wide
-   column; code blocks and tables use the full width. */
-.markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
-  max-width: 45em;
-}
-
-.markdown > :first-child {
-  margin-top: 0;
-}
-
-.markdown > :last-child {
-  margin-bottom: 0;
-}
-
-.markdown pre {
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 12px;
-  overflow-x: auto;
-  font-size: 12.5px;
-}
-
-.markdown code {
-  font-family: var(--font-mono);
-  font-size: 0.92em;
-  background: var(--code-bg);
-  border-radius: 4px;
-  padding: 0.1em 0.35em;
-}
-
-.markdown pre code {
-  background: none;
-  padding: 0;
-}
-
-.markdown table {
-  border-collapse: collapse;
-  margin: 8px 0;
-}
-
-.markdown th,
-.markdown td {
-  border: 1px solid var(--border);
-  padding: 4px 10px;
-}
-
-.markdown th {
-  background: var(--bg-inset);
-}
-
-.markdown blockquote {
-  margin: 8px 0;
-  padding-left: 12px;
-  border-left: 3px solid var(--border);
-  color: var(--text-dim);
-}
-
-.markdown img {
-  max-width: 100%;
-}
-
-.raw-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  margin: 0;
-}
-
-.md-toggle {
-  float: right;
-  font-size: 10.5px;
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.md-toggle:hover {
-  color: var(--accent);
-}
-
-/* ---- retry / error ---- */
-
-.error-table {
-  border-collapse: collapse;
-  font-size: 12.5px;
-  font-family: var(--font-mono);
-}
-
-.error-table td,
-.error-table th {
-  border: 1px solid var(--border);
-  padding: 3px 8px;
-  text-align: left;
-}
-
-/* ---- media ---- */
-
-.media-item {
-  margin: 6px 0;
-}
-
-.media-item img {
-  max-width: 100%;
-  max-height: 400px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-}
-
-.media-caption {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.media-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--bg-inset);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.banner-error {
-  max-width: var(--content-max-width);
-  margin: 0 auto 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius);
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.banner-warn {
-  max-width: var(--content-max-width);
-  margin: 0 auto 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--warn);
-  border-radius: var(--radius);
-  background: var(--bg-inset);
-  color: var(--warn);
-}
-
-.error-details {
-  margin-top: 8px;
-}
-
-.error-details summary {
-  cursor: pointer;
-}
-
-.error-details ul {
-  margin: 6px 0 0;
-  padding-left: 18px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-  max-height: 50vh;
-  overflow-y: auto;
-}
-
-/* highlight.js — minimal theme driven by the code syntax variables */
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal,
-.hljs-doctag {
-  color: var(--code-keyword);
-}
-
-.hljs-string,
-.hljs-regexp,
-.hljs-addition {
-  color: var(--code-string);
-}
-
-.hljs-number,
-.hljs-attr,
-.hljs-template-variable,
-.hljs-variable {
-  color: var(--code-number);
-}
-
-.hljs-comment,
-.hljs-quote,
-.hljs-deletion,
-.hljs-meta {
-  color: var(--text-dim);
-}
-
-.hljs-title,
-.hljs-name,
-.hljs-section,
-.hljs-built_in {
-  color: var(--code-key);
-}
-
-/* ---- tool call/result pairing ---- */
-
-/* `name(args)`: the arguments truncate only once the preview after them is short. */
-.tool-signature {
-  display: inline-flex;
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.tool-signature .tool-name {
-  flex-shrink: 0;
-}
-
-.tool-args {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-dim);
-}
-
-.pair-arrow {
-  flex-shrink: 0;
-  color: var(--text-dim);
-}
-
-/* Long arguments must not squeeze the result preview after the arrow to nothing. */
-.pair-arrow + .block-preview {
-  min-width: min(14ch, 25%);
-}
-
-/* The call's number (a link to the other end of the pair) at the header's right edge. */
-.pair-end {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 8px;
-  margin-left: auto;
-  color: var(--text-dim);
-  font-size: 11px;
-}
-
-.pair-number {
-  font-family: var(--font-mono);
-}
-
-.pair-link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: inherit;
-  cursor: pointer;
-}
-
-.pair-link:hover {
-  text-decoration: underline;
-}
-
-/* A run the call started, named in its header; long names truncate. */
-.child-run-link {
-  display: inline-flex;
-  gap: 0.5ch;
-  max-width: 28ch;
-  white-space: nowrap;
-}
-
-.child-run-link-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-mono);
-}
-
-/* ---- narrow screens: the sidebar overlays the trace ---- */
-
-@media (max-width: 720px) {
-  .tree-pane {
-    display: none;
-    position: fixed;
-    inset: 0 auto 0 0;
-    z-index: 30;
-    width: min(280px, 85vw);
-    box-shadow: var(--shadow);
+/* Rendered Markdown is sanitized HTML, so it is styled by element. Prose keeps a
+   readable measure, about 100 characters per line; code blocks and tables use the
+   full width. */
+@layer components {
+  .markdown {
+    > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+      max-width: 45em;
+    }
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+
+    :is(p, ul, ol, pre, blockquote, table) {
+      margin-block: 0.6em;
+    }
+
+    :is(h1, h2, h3, h4, h5, h6) {
+      margin-block: 1em 0.5em;
+      font-weight: 600;
+    }
+
+    h1 {
+      @apply text-xl;
+    }
+
+    h2 {
+      @apply text-lg;
+    }
+
+    h3 {
+      @apply text-base;
+    }
+
+    ul {
+      list-style: disc;
+      padding-left: 1.5em;
+    }
+
+    ol {
+      list-style: decimal;
+      padding-left: 1.5em;
+    }
+
+    a {
+      @apply text-info-foreground underline underline-offset-2;
+    }
+
+    pre {
+      @apply overflow-x-auto rounded-lg border bg-muted px-3 py-2.5 text-[12.5px];
+    }
+
+    code {
+      @apply rounded-sm bg-muted px-[0.35em] py-[0.1em] text-[0.92em];
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    :is(th, td) {
+      @apply border px-2.5 py-1;
+    }
+
+    th {
+      @apply bg-muted;
+    }
+
+    blockquote {
+      @apply border-l-3 pl-3 text-muted-foreground;
+    }
   }
 
-  .sidebar-open .tree-pane {
-    display: flex;
+  /* highlight.js: a minimal theme on the code syntax tokens. */
+  :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag) {
+    color: var(--code-keyword);
   }
 
-  .sidebar-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 25;
-    background: rgb(0 0 0 / 0.3);
+  :is(.hljs-string, .hljs-regexp, .hljs-addition) {
+    color: var(--code-string);
   }
 
-  .sidebar-toggle {
-    display: inline-flex;
-    flex-shrink: 0;
-    padding: 3px 6px;
+  :is(.hljs-number, .hljs-attr, .hljs-template-variable, .hljs-variable) {
+    color: var(--code-number);
   }
 
-  .trace-header {
-    gap: 8px;
-    padding: 0 12px;
+  :is(.hljs-comment, .hljs-quote, .hljs-deletion, .hljs-meta) {
+    color: var(--muted-foreground);
   }
 
-  .trace-search {
-    min-width: 150px;
-  }
-
-  .trace-body {
-    padding: 12px 6px;
+  :is(.hljs-title, .hljs-name, .hljs-section, .hljs-built_in) {
+    color: var(--code-key);
   }
 }
