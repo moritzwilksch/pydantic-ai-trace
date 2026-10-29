@@ -1,3 +1,4 @@
+import { ArrowDownUp, CircleDollarSign, Clock, MessagesSquare, Network } from "lucide-preact";
 import { useMemo } from "preact/hooks";
 import {
   cacheHitRate,
@@ -86,20 +87,24 @@ export function TraceStatsBar({
   // breakdown goes before the run's calls, cost, and wall time. Stats that do not
   // fit wrap onto a second line, which the fixed height hides.
   return (
-    <div class="trace-stats flex h-4.5 min-w-0 flex-[1_1_0] flex-wrap gap-3 overflow-hidden text-xs/4.5 whitespace-nowrap text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">
+    <div class="trace-stats flex h-4.5 min-w-0 flex-[1_1_0] flex-wrap gap-3 overflow-hidden text-xs/4.5 whitespace-nowrap text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground [&_svg]:mr-1 [&_svg]:inline">
       <span>
+        <MessagesSquare size={13} aria-hidden="true" />
         <b>{formatCount(totals.llm_calls)}</b> LLM calls
       </span>
       {cost !== null ? (
         <span>
+          <CircleDollarSign size={13} aria-hidden="true" />
           <b>{cost}</b>
         </span>
       ) : null}
       <span>
+        <Clock size={13} aria-hidden="true" />
         <b>{formatDuration(totals.duration_seconds)}</b> wall time
       </span>
       {withSubruns ? (
         <span title="This run plus every run it started">
+          <Network size={13} aria-hidden="true" />
           with subruns: <b>{formatCount(withSubruns.llm_calls)}</b> calls
           {subtreeCost !== null ? (
             <>
@@ -109,6 +114,7 @@ export function TraceStatsBar({
         </span>
       ) : null}
       <span aria-label="Token usage">
+        <ArrowDownUp size={13} aria-hidden="true" />
         <b>{formatCount(tokens.input)}</b> in
       </span>
       <span>
