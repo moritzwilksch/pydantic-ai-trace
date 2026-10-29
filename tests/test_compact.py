@@ -14,7 +14,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from traces import eval_set
 
 from pydantic_ai_trace.compact import compact_payload
-from pydantic_ai_trace.load import load_trajectory
+from pydantic_ai_trace.load import load_run_tree
 from pydantic_ai_trace.payload import build_payload
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -25,14 +25,14 @@ def compact(trace: object, name: str) -> dict:
     if isinstance(trace, list) and not any("timestamp" in message for message in trace):
         trace = [{"timestamp": "2026-01-01T09:00:00Z", **message} for message in trace]
     text = json.dumps(trace)
-    return compact_payload(build_payload(load_trajectory(text, name=name), name=name))
+    return compact_payload(build_payload(load_run_tree(text, name=name), name=name))
 
 
 def compact_messages(trace: object, name: str) -> list:
     return compact(trace, name)["runs"][0]["messages"]
 
 
-def test_compact_trajectory_preserves_order_and_useful_fields():
+def test_compact_run_tree_preserves_order_and_useful_fields():
     raw = json.loads((FIXTURES / "full_trace.json").read_text(encoding="utf-8"))
 
     document = compact(raw, "full_trace.json")
@@ -303,8 +303,8 @@ def test_tool_args_that_are_not_json_stay_strings():
     ]
 
 
-def test_trajectory_runs_are_in_tree_order_with_their_tree_links():
-    raw = json.loads((FIXTURES / "trajectory.json").read_text(encoding="utf-8"))
+def test_run_tree_runs_are_in_tree_order_with_their_tree_links():
+    raw = json.loads((FIXTURES / "run_tree.json").read_text(encoding="utf-8"))
 
     document = compact(raw, "workflow")
 

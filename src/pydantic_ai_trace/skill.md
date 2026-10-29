@@ -2,7 +2,7 @@
 
 Use `paitrace` to answer questions about Pydantic AI agent runs saved as JSON: what a run did,
 why it failed, which tool calls went wrong, what it output, and what it cost. A trace is a
-`.json` file (a message list or a trajectory of runs) or one line of a `.jsonl` eval set.
+`.json` file (a message list, a run tree, or a run capture) or one line of a `.jsonl` eval set.
 `paitrace PATH` and `paitrace export` render traces for humans in a browser; use the commands
 below instead.
 

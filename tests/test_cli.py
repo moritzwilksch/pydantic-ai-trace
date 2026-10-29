@@ -371,13 +371,13 @@ class TestTextCommand:
         ],
         ids=["unknown message kind", "unknown outcome"],
     )
-    def test_upgrade_hint_in_a_trajectory_covers_only_messages(
+    def test_upgrade_hint_in_a_run_tree_covers_only_messages(
         self, fixtures_copy: Path, capsys: pytest.CaptureFixture, edit, hinted: bool
     ):
-        source = fixtures_copy / "trajectory.json"
-        trajectory = json.loads(source.read_text())
-        edit(trajectory["runs"][0])
-        source.write_text(json.dumps(trajectory))
+        source = fixtures_copy / "run_tree.json"
+        run_tree = json.loads(source.read_text())
+        edit(run_tree["runs"][0])
+        source.write_text(json.dumps(run_tree))
 
         assert cli.main(["text", str(source)]) == 1
         assert ("upgrade pydantic-ai-slim" in capsys.readouterr().err) is hinted
@@ -522,15 +522,15 @@ class TestJsonCommand:
         )
         assert captured.err == ""
 
-    def test_all_renders_trajectory_lines_alongside_message_lists(
+    def test_all_renders_run_tree_lines_alongside_message_lists(
         self,
         fixtures_copy: Path,
         tmp_path: Path,
         capsys: pytest.CaptureFixture,
     ):
-        trajectory = json.dumps(json.loads((fixtures_copy / "trajectory.json").read_text()))
+        run_tree = json.dumps(json.loads((fixtures_copy / "run_tree.json").read_text()))
         source = tmp_path / "mixed.jsonl"
-        source.write_text(f"{trajectory}\n{minimal_trace()}\n", encoding="utf-8")
+        source.write_text(f"{run_tree}\n{minimal_trace()}\n", encoding="utf-8")
 
         assert cli.main(["json", str(source), "--all"]) == 0
 
@@ -748,10 +748,11 @@ class TestStatsCommand:
         lines = capsys.readouterr().out.splitlines()
         assert lines[0].split() == ["trace", "runs", "calls", "in", "cached", "out", "cost", "wall"]
         rows = {line.split()[0]: line.split() for line in lines[1:] if line and line[0] != " "}
-        assert rows["trajectory.json"][1:3] == ["4", "5"]
+        assert rows["run_tree.json"][1:3] == ["4", "5"]
+        assert rows["run_capture.json"][1:3] == ["6", "8"]
         assert rows["full_trace.json"][-2:] == ["$0.0028", "6.0s"]
         assert "runs/multi.jsonl" in rows  # each JSONL line is its own row
-        assert rows["total"][1] == "12"
+        assert rows["total"][1] == "18"
         assert "  broken.json: not valid JSON" in "\n".join(lines)
 
     def test_passes_over_json_that_is_not_a_trace_in_a_directory(
@@ -805,10 +806,10 @@ class TestStatsCommand:
         assert [run["name"] for run in documents[0]["runs"]] == [f"{source.as_posix()} · trace 1"]
         assert documents[0]["stats"]["llm_calls"] == 1
 
-    def test_lists_each_run_of_a_trajectory_with_its_own_stats(
+    def test_lists_each_run_of_a_run_tree_with_its_own_stats(
         self, fixtures_copy: Path, capsys: pytest.CaptureFixture
     ):
-        source = fixtures_copy / "trajectory.json"
+        source = fixtures_copy / "run_tree.json"
 
         assert cli.main(["stats", str(source)]) == 0
         table = capsys.readouterr().out.splitlines()
@@ -919,10 +920,10 @@ class TestStatsCommand:
     def test_json_escapes_a_lone_surrogate_in_a_run_name(
         self, fixtures_copy: Path, tmp_path: Path, capfdbinary: pytest.CaptureFixture
     ):
-        trajectory = json.loads((fixtures_copy / "trajectory.json").read_text())
-        trajectory["runs"][0]["name"] = "\ud800"
+        run_tree = json.loads((fixtures_copy / "run_tree.json").read_text())
+        run_tree["runs"][0]["name"] = "\ud800"
         source = tmp_path / "surrogate.json"
-        source.write_text(json.dumps(trajectory))  # ASCII, so the file itself is valid UTF-8
+        source.write_text(json.dumps(run_tree))  # ASCII, so the file itself is valid UTF-8
 
         assert cli.main(["stats", str(source), "--json"]) == 0
 

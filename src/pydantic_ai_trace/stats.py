@@ -15,9 +15,9 @@ from ._format import display_width, format_count, format_duration, format_usd, l
 from ._json import dumps_readable
 from .analysis import Totals, analyze, combine_totals
 from .compact import compact_totals
-from .load import NotATraceError, TraceLoadError, load_trajectory
+from .load import NotATraceError, TraceLoadError, load_run_tree
+from .run_tree import RunId, RunTree
 from .scan import jsonl_lines
-from .trajectory import RunId, Trajectory
 
 
 @dataclass(frozen=True)
@@ -66,19 +66,19 @@ def source_rows(
     count = 0
     for count, (text, trace_name) in enumerate(traces, start=1):
         try:
-            trajectory = load_trajectory(text, name=trace_name)
+            run_tree = load_run_tree(text, name=trace_name)
         except TraceLoadError as exc:
             if skip_non_trace and count == 1 and isinstance(exc, NotATraceError):
                 return
             yield InvalidTrace(name=trace_name, error=str(exc))
         else:
-            yield _trace_stats(trajectory, name=trace_name)
+            yield _trace_stats(run_tree, name=trace_name)
     if count == 0:
         yield InvalidTrace(name=name, error="contains no traces")
 
 
-def _trace_stats(trajectory: Trajectory, *, name: str) -> TraceStats:
-    analysis = analyze(trajectory)
+def _trace_stats(run_tree: RunTree, *, name: str) -> TraceStats:
+    analysis = analyze(run_tree)
     own = {run.run_id: run.totals for run in analysis.runs}
     runs = tuple(
         RunStats(
@@ -88,7 +88,7 @@ def _trace_stats(trajectory: Trajectory, *, name: str) -> TraceStats:
             depth=depth,
             totals=own[run.id],
         )
-        for run, depth in trajectory.walk()
+        for run, depth in run_tree.walk()
     )
     return TraceStats(name=name, runs=runs, totals=analysis.totals)
 

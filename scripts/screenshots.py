@@ -1,7 +1,7 @@
-"""Render the README screenshots: the viewer on a demo trajectory, in light and dark theme.
+"""Render the README screenshots: the viewer on a demo run tree, in light and dark theme.
 
 Run with `pixi run screenshots`. It writes `docs/screenshot-light.png` and
-`docs/screenshot-dark.png`. The demo trajectory is built from Pydantic AI message classes
+`docs/screenshot-dark.png`. The demo run tree is built from Pydantic AI message classes
 here, so it stays in the canonical wire shape.
 """
 
@@ -30,7 +30,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.usage import RequestUsage
 
-from pydantic_ai_trace import Run, Trajectory
+from pydantic_ai_trace import Run, RunTree
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 START = datetime(2026, 1, 15, 9, 30, tzinfo=UTC)
@@ -80,7 +80,7 @@ def response(
     )
 
 
-def demo_trajectory() -> Trajectory:
+def demo_run_tree() -> RunTree:
     """A research agent that searches, delegates a fact check, and returns a structured report."""
     gpt = ("openai", "gpt-5")
     haiku = ("anthropic", "claude-haiku-4-5")
@@ -173,7 +173,7 @@ def demo_trajectory() -> Trajectory:
     checker = Run.from_messages(
         checker_messages, name="fact_checker", parent=research, tool_call_id=verify.tool_call_id
     )
-    return Trajectory(runs=(checker, research))
+    return RunTree(runs=(checker, research))
 
 
 def free_port() -> int:
@@ -224,7 +224,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         traces = Path(tmp) / "traces"
         traces.mkdir()
-        (traces / "research.json").write_text(demo_trajectory().model_dump_json())
+        (traces / "research.json").write_text(demo_run_tree().model_dump_json())
         cli = [sys.executable, "-m", "pydantic_ai_trace.cli", "--no-open", "--port", str(port)]
         server = subprocess.Popen([*cli, str(traces)])
         try:

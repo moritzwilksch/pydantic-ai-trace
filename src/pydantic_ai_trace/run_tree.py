@@ -1,8 +1,8 @@
-"""The trajectory format: an agent workflow as a tree of runs.
+"""The run tree format: an agent workflow as a tree of runs.
 
 A workflow is its top-level runs. A subagent is a run whose parent is another run
 and, usually, one of that run's tool calls. Runs are recorded when they end, so a
-trajectory written mid-workflow may hold runs whose parent has not been recorded yet.
+run_tree written mid-workflow may hold runs whose parent has not been recorded yet.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, mo
 from pydantic_ai.messages import BaseToolCallPart, ModelMessage, ModelMessagesTypeAdapter
 from uuid_utils import uuid7
 
-RunId = NewType("RunId", str)  # Unique in its trajectory; UUID7 by default.
+RunId = NewType("RunId", str)  # Unique in its run tree; UUID7 by default.
 ToolCallId = NewType("ToolCallId", str)  # Unique only within its parent run.
 
 type MessagesLike = Sequence[ModelMessage] | Sequence[Mapping[str, Any]]
@@ -121,7 +121,7 @@ class Run(_Frozen):
         return self.model_copy(update={"parent": _parent(parent, tool_call_id)})
 
 
-class Trajectory(_Frozen):
+class RunTree(_Frozen):
     # End order. `roots`, `children`, and `walk` give tree order.
     runs: Annotated[tuple[Run, ...], Field(min_length=1)]
 
@@ -165,7 +165,7 @@ class Trajectory(_Frozen):
 
     @classmethod
     def from_messages(cls, messages: MessagesLike, *, name: str = "run") -> Self:
-        """A trajectory of one run."""
+        """A run tree of one run."""
         return cls(runs=(Run.from_messages(messages, name=name),))
 
     @classmethod

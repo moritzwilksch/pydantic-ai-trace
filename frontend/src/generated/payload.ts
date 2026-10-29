@@ -14,11 +14,11 @@ export type ToolReturnContent =
 
 export interface TracePayload {
   name: string;
-  trajectory: Trajectory;
+  trajectory: RunTree;
   analysis: Analysis;
   transcript: string;
 }
-export interface Trajectory {
+export interface RunTree {
   /**
    * @minItems 1
    */

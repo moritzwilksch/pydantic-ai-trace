@@ -35,8 +35,8 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.usage import RequestUsage, UsageLimits
 
-from pydantic_ai_trace import Failed, Run, Trajectory
-from pydantic_ai_trace.trajectory import Outcome, RunId
+from pydantic_ai_trace import Failed, Run, RunTree
+from pydantic_ai_trace.run_tree import Outcome, RunId
 
 OUT = Path(__file__).parent / "traces"
 T0 = datetime(2026, 10, 14, 9, 30, tzinfo=UTC)
@@ -419,7 +419,7 @@ def coder() -> list[ModelMessage]:
     return agent.run_sync(prompt).all_messages()
 
 
-# Research trajectory: an orchestrator, nested subagents, and a failed run.
+# Research run tree: an orchestrator, nested subagents, and a failed run.
 
 BRIEF = """\
 # EU heat-pump market brief
@@ -559,7 +559,7 @@ def called_at(run: Run, tool_call_id: str) -> datetime:
     )
 
 
-def research_trajectory() -> Trajectory:
+def research_run_tree() -> RunTree:
     pdf_finder = RunSpec(
         "pdf_finder",
         researcher("Find the EHPA 2025 report PDF.", ["EHPA 2025 report pdf"], "Found it."),
@@ -609,7 +609,7 @@ def research_trajectory() -> Trajectory:
         },
     )
     runs = timed_runs(root, T0)
-    return Trajectory(runs=tuple(sorted(runs, key=lambda run: run.ended_at)))
+    return RunTree(runs=tuple(sorted(runs, key=lambda run: run.ended_at)))
 
 
 # Multimodal input: inline image, image URL, and document URL.
@@ -739,8 +739,8 @@ def main() -> None:
     write("batch/validate-customers.json", batch(), "gpt-5-mini", "openai")
     write("i18n/überblick-配達.json", i18n(), "local-llama", "ollama")
     (OUT / "research").mkdir(parents=True, exist_ok=True)
-    trajectory = research_trajectory().model_dump_json(indent=2)
-    (OUT / "research" / "heat-pump-brief.json").write_text(trajectory + "\n", encoding="utf-8")
+    run_tree = research_run_tree().model_dump_json(indent=2)
+    (OUT / "research" / "heat-pump-brief.json").write_text(run_tree + "\n", encoding="utf-8")
     (OUT / "evals").mkdir(parents=True, exist_ok=True)
     (OUT / "evals" / "qa-eval.jsonl").write_text(eval_jsonl(), encoding="utf-8")
 

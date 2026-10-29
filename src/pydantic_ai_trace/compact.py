@@ -9,6 +9,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter
 from ._json import dumps_readable
 from .analysis import PartRef, RunAnalysis, ToolCallInfo, Totals, parse_tool_args
 from .payload import TracePayload
+from .run_tree import Run
 from .text import (
     COMPACTION_PLACEHOLDER,
     base64_byte_length,
@@ -16,7 +17,6 @@ from .text import (
     discovered_tools,
     is_media,
 )
-from .trajectory import Run
 
 
 def compact_payload(payload: TracePayload) -> dict[str, object]:

@@ -13,14 +13,14 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from pydantic_ai_trace.load import load_trajectory
+from pydantic_ai_trace.load import load_run_tree
 from pydantic_ai_trace.payload import build_payload
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def transcript(trace_json: str, name: str) -> str:
-    return build_payload(load_trajectory(trace_json, name=name), name=name).transcript
+    return build_payload(load_run_tree(trace_json, name=name), name=name).transcript
 
 
 def messages_json(messages: list[dict]) -> str:
@@ -188,8 +188,8 @@ def test_the_accepted_output_call_renders_as_the_run_output():
     assert "Final result processed." not in text
 
 
-def test_a_trajectory_renders_each_run_in_tree_order():
-    text = transcript((FIXTURES / "trajectory.json").read_text(encoding="utf-8"), "workflow")
+def test_a_run_tree_renders_each_run_in_tree_order():
+    text = transcript((FIXTURES / "run_tree.json").read_text(encoding="utf-8"), "workflow")
 
     headings = [line for line in text.splitlines() if line.startswith("========== RUN:")]
     assert headings == [

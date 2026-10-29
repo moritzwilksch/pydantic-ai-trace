@@ -124,8 +124,8 @@ class TestTrace:
         assert payload["analysis"]["totals"]["llm_calls"] == 3
         assert payload["transcript"] == (fixtures_copy / "full_trace.txt").read_text()
 
-    def test_serves_a_trajectory(self, fixtures_copy: Path):
-        response = client_for(fixtures_copy).get("/api/trace", params={"path": "trajectory.json"})
+    def test_serves_a_run_tree(self, fixtures_copy: Path):
+        response = client_for(fixtures_copy).get("/api/trace", params={"path": "run_tree.json"})
         payload = response.json()
         assert [run["name"] for run in payload["trajectory"]["runs"]] == [
             "planner",
@@ -134,11 +134,11 @@ class TestTrace:
             "summarizer",
         ]
 
-    def test_serves_a_trajectory_from_a_jsonl_line(self, fixtures_copy: Path, tmp_path: Path):
-        trajectory = json.dumps(json.loads((fixtures_copy / "trajectory.json").read_text()))
+    def test_serves_a_run_tree_from_a_jsonl_line(self, fixtures_copy: Path, tmp_path: Path):
+        run_tree = json.dumps(json.loads((fixtures_copy / "run_tree.json").read_text()))
         root = tmp_path / "traces"  # `fixtures_copy` also lives in `tmp_path`
         root.mkdir()
-        (root / "runs.jsonl").write_text(f"{minimal_trace()}\n{trajectory}\n")
+        (root / "runs.jsonl").write_text(f"{minimal_trace()}\n{run_tree}\n")
         client = client_for(root)
 
         tree = client.get("/api/tree").json()
