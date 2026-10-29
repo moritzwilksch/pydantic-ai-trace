@@ -7,7 +7,7 @@ const MATCH_HIGHLIGHT = "trace-search-match";
 const CURRENT_HIGHLIGHT = "trace-search-current";
 
 export interface TraceSearchProps {
-  rootRef: RefObject<HTMLElement>;
+  rootRef: RefObject<HTMLElement | null>;
 }
 
 interface TraceMatch {

@@ -8,7 +8,7 @@ export const SIDEBAR_ID = "trace-sidebar";
 export interface Sidebar {
   open: boolean;
   setOpen: (open: boolean) => void;
-  toggleRef: RefObject<HTMLButtonElement>;
+  toggleRef: RefObject<HTMLButtonElement | null>;
 }
 
 /**
