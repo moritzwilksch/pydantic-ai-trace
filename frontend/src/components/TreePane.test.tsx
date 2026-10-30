@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, within } from "@testing-library/preact";
+import { fireEvent, render, within } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { unmountAll } from "../testing/unmount";
 import { TRACE_LINE_PAGE, TreePane } from "./TreePane";
 import type { TraceSummary, TreeNode } from "../types";
 
@@ -57,8 +58,8 @@ const TREE: TreeNode = {
 };
 
 describe("TreePane", () => {
-  afterEach(() => {
-    cleanup();
+  afterEach(async () => {
+    await unmountAll();
     delete (Element.prototype as Partial<Element>).scrollIntoView;
     vi.restoreAllMocks();
   });

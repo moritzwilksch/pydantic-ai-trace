@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
+import { fireEvent, render, waitFor } from "@testing-library/preact";
 import { createRef } from "preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { unmountAll } from "../testing/unmount";
 import { Block } from "./Block";
 import { TraceSearch, TraceSearchScope } from "./TraceSearch";
 
@@ -28,8 +29,8 @@ beforeEach(() => {
   vi.stubGlobal("Highlight", TestHighlight);
 });
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await unmountAll();
   delete (Element.prototype as Partial<Element>).scrollIntoView;
   vi.unstubAllGlobals();
 });

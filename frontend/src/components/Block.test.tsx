@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from "@testing-library/preact";
+import { render } from "@testing-library/preact";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { unmountAll } from "../testing/unmount";
 import styles from "../styles/index.css?raw";
 import { Block } from "./Block";
 
@@ -13,7 +14,7 @@ beforeAll(() => {
   document.head.append(style);
 });
 
-afterEach(cleanup);
+afterEach(unmountAll);
 
 function isShown(element: Element): boolean {
   return getComputedStyle(element).display !== "none";

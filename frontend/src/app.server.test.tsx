@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/preact";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", async (importOriginal) => ({
@@ -21,6 +21,7 @@ vi.mock("./api", async (importOriginal) => ({
 
 import { App } from "./app";
 import { FetchError, fetchMeta, fetchTrace, fetchTree, subscribeChanges } from "./api";
+import { unmountAll } from "./testing/unmount";
 import { payloadFromMessages, payloadFromRuns } from "./testing/payload";
 import type { TracePayload, TreeNode } from "./types";
 
@@ -79,9 +80,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  // Preact runs passive effect cleanups of unmounted components on a later timer.
-  // Unmount inside `act` so they run now, not after the environment is torn down.
-  await act(async () => cleanup());
+  await unmountAll();
   location.hash = "";
 });
 

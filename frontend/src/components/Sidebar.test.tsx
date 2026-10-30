@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render } from "@testing-library/preact";
+import { fireEvent, render } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../app";
 import { SIDEBAR_STEP, SIDEBAR_WIDTH } from "../sidebarWidth";
+import { unmountAll } from "../testing/unmount";
 import { embed, payloadFromRuns } from "../testing/payload";
 
 const WIDTH_KEY = "paitrace-sidebar-width";
@@ -17,8 +18,8 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await unmountAll();
   delete window.__TRACE_PAYLOAD__;
   vi.unstubAllGlobals();
 });
