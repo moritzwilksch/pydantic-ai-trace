@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from "@testing-library/preact";
+import { render } from "@testing-library/preact";
 import { afterEach, describe, expect, it } from "vitest";
+import { unmountAll } from "../../testing/unmount";
 import { MediaContent } from "./common";
 
-afterEach(cleanup);
+afterEach(unmountAll);
 
 // Bytes fa fb fc fd fe ff as Pydantic dumps them: URL-safe base64.
 const URL_SAFE = "-vv8_f7_";

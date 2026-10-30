@@ -2,10 +2,11 @@
 // Render smoke test: the full app must render a realistic trace (the same
 // shape `paitrace export` embeds) without crashing, covering every part renderer.
 
-import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/preact";
+import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { JSON_PAGE_SIZE } from "./components/JsonTree";
+import { unmountAll } from "./testing/unmount";
 import { embed, embedMessages, payloadFromRuns } from "./testing/payload";
 
 const FULL_TRACE = [
@@ -107,8 +108,8 @@ const FULL_TRACE = [
   },
 ];
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await unmountAll();
   delete window.__TRACE_PAYLOAD__;
   setHash("");
 });

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render } from "@testing-library/preact";
+import { fireEvent, render } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app";
+import { unmountAll } from "../../testing/unmount";
 import { embedMessages } from "../../testing/payload";
 
 const fetchRows = (id: string, offset: number) => ({
@@ -24,8 +25,8 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await unmountAll();
   delete window.__TRACE_PAYLOAD__;
 });
 

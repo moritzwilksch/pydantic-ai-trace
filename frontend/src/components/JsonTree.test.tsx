@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/preact";
+import { fireEvent, render, waitFor } from "@testing-library/preact";
 import { createRef } from "preact";
 import { afterEach, describe, expect, it } from "vitest";
+import { unmountAll } from "../testing/unmount";
 import { JSON_PAGE_SIZE, JsonTree } from "./JsonTree";
 import { TraceSearch, TraceSearchScope } from "./TraceSearch";
 
-afterEach(cleanup);
+afterEach(unmountAll);
 
 /** A page of filler rows followed by one held-back row. */
 function withHiddenRow(row: unknown): unknown[] {
