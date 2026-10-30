@@ -78,8 +78,10 @@ beforeEach(() => {
   mockedFetchTrace.mockReset();
 });
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  // Preact runs passive effect cleanups of unmounted components on a later timer.
+  // Unmount inside `act` so they run now, not after the environment is torn down.
+  await act(async () => cleanup());
   location.hash = "";
 });
 
