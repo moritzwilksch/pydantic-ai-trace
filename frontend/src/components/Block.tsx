@@ -83,7 +83,7 @@ export function BlockSummary({
       <span
         class={cn(
           "block-label inline-flex items-center gap-1.25 font-semibold whitespace-nowrap",
-          tone ? TONE_TEXT[tone] : "text-muted-foreground",
+          tone ? TONE_TEXT[tone] : "text-foreground/80",
         )}
       >
         {label}
@@ -105,7 +105,7 @@ function BlockPreview({ text }: { text: string | undefined }) {
     <>
       <span
         // After a tool's `name(args) →`, long arguments must not squeeze the result to nothing.
-        class="block-preview min-w-0 flex-1 truncate font-mono text-[11.5px] text-muted-foreground [.pair-arrow+&]:min-w-[min(14ch,25%)]"
+        class="block-preview min-w-0 flex-1 truncate font-mono text-[11.5px] text-foreground [.pair-arrow+&]:min-w-[min(14ch,25%)]"
         title={isCutOff(text) ? EXPAND_HINT : text}
       >
         {text}

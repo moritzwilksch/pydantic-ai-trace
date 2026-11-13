@@ -25,12 +25,12 @@ export const PAIR_ARROW_CLASS = "pair-arrow shrink-0 text-muted-foreground";
     search queries, discovered tools, revealed tool names. */
 export const CHIPS_CLASS = "flex flex-wrap gap-1.5";
 /** The call's number (a link to the other end of the pair) at the header's right edge. */
-const PAIR_END_CLASS = "ml-auto inline-flex shrink-0 gap-2 text-[11px] text-muted-foreground";
+const PAIR_END_CLASS = "ml-auto inline-flex shrink-0 gap-2 text-[11px] text-foreground/80";
 /** Header links: inline text sized like the header around them. */
 const PAIR_LINK_CLASS =
   "pair-link h-auto p-0 text-[11px] font-normal text-inherit sm:h-auto sm:text-[11px]";
 const SECTION_CLASS = "border-t px-2.5 py-2";
-const SECTION_LABEL_CLASS = "mb-1.5 text-[11px] font-semibold text-muted-foreground";
+const SECTION_LABEL_CLASS = "mb-1.5 text-[11px] font-semibold text-foreground/80";
 
 export function ToolChip({ children }: { children: ComponentChildren }) {
   return (
@@ -167,7 +167,7 @@ export function OutputCall({
 export function OutputAccepted({ part, call }: { part: AnyToolReturnPart; call: CallLink }) {
   return (
     <div
-      class="output-accepted flex items-center gap-1.5 px-2.5 py-0.5 text-xs text-muted-foreground"
+      class="output-accepted flex items-center gap-1.5 px-2.5 py-0.5 text-xs text-foreground/80"
       title={compactJson(part.content)}
     >
       <Check size={13} /> Output accepted{" "}
@@ -250,7 +250,7 @@ export function ToolSignature({ name, args }: { name: string; args: string | nul
   return (
     <span class="tool-signature inline-flex min-w-0 font-mono text-xs">
       <span class={`${TOOL_NAME_CLASS} shrink-0`}>{name}</span>
-      {args !== null ? <span class="min-w-0 truncate text-muted-foreground">({args})</span> : null}
+      {args !== null ? <span class="min-w-0 truncate text-foreground">({args})</span> : null}
     </span>
   );
 }

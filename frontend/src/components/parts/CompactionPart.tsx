@@ -21,7 +21,7 @@ export function CompactionPart({ part }: { part: CompactionPartType }) {
       {part.content ? (
         <ValueView value={part.content} markdown />
       ) : (
-        <div class="italic text-muted-foreground">
+        <div class="italic text-foreground/80">
           History was compacted by the provider; no readable summary.
         </div>
       )}

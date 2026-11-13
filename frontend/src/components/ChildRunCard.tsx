@@ -24,7 +24,7 @@ export function ChildRunCard({
       <Bot />
       <span class="tool-name font-mono font-semibold text-tool">{entry.run.name}</span>
       <OutcomeBadge status={entry.run.outcome.status} />
-      <span class="ml-auto text-muted-foreground">
+      <span class="ml-auto text-foreground/80">
         {formatCount(totals.llm_calls)} calls
         {cost !== null ? ` · ${cost}` : ""}
       </span>
