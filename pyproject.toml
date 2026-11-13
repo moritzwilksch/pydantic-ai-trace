@@ -20,8 +20,8 @@ classifiers = [
     "Topic :: Software Development :: Debuggers",
 ]
 dependencies = [
-    "pydantic>=2.12",
-    "pydantic-ai-slim>=2.26",
+    "pydantic>=2.12.2",  # 2.12.0 warns when serializing pydantic-ai 2.68 usage
+    "pydantic-ai-slim>=2.68",
     "starlette>=0.40",
     "uuid-utils>=0.9",
     "uvicorn>=0.30",

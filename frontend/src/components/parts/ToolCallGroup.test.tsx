@@ -80,22 +80,12 @@ describe("tool call and result pairing", () => {
         kind: "request",
         parts: [
           rowsReturned("stray", "rows from nowhere"),
-          {
-            part_kind: "retry-prompt",
-            tool_name: "fetch_rows",
-            content: "offset out of range",
-            tool_call_id: "retried",
-          },
-          {
-            part_kind: "retry-prompt",
-            tool_name: "fetch_rows",
-            content: "unknown call",
-            tool_call_id: "never-called",
-          },
+          { ...rowsReturned("retried", "offset out of range"), outcome: "retried" },
+          { ...rowsReturned("never-called", "unknown call"), outcome: "retried" },
         ],
       },
     ]);
-    const { getAllByText } = render(<App />);
+    const { container, getAllByText } = render(<App />);
     const header = (text: string) => headerOf(getAllByText(text)[0]);
 
     const unanswered = header("fetch_rows");
@@ -108,5 +98,11 @@ describe("tool call and result pairing", () => {
       "Jump to call #2",
     );
     expect(header("unknown call").textContent).toContain("no matching call");
+    // The call a retry answers is badged, so a retried call stands out while collapsed.
+    const retriedCall = [...container.querySelectorAll(".tool-group > summary")].find(
+      (summary) =>
+        summary.querySelector(".tool-signature")?.textContent === "fetch_rows(offset: 10)",
+    )!;
+    expect(retriedCall.textContent).toContain("retried");
   });
 });

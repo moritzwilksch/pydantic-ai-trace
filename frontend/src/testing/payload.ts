@@ -102,7 +102,7 @@ function withDefaults(raw: unknown): Message {
 }
 
 /** Parts that answer a tool call, as `analysis.py` pairs them. */
-const RESULT_KINDS = new Set(["tool-return", "builtin-tool-return", "retry-prompt"]);
+const RESULT_KINDS = new Set(["tool-return", "builtin-tool-return"]);
 
 function analyzeRun(run: Run, runs: Run[]): RunAnalysis {
   const pending = new Map<string, number[]>();
@@ -171,6 +171,8 @@ function runTotals(run: Run): Totals {
     },
     cost_usd: null,
     unpriced_calls: 0,
+    unmeasured_calls: responses.filter((response) => (response.usage.unmeasured_requests ?? 0) > 0)
+      .length,
     duration_seconds: 0,
   };
 }
@@ -186,6 +188,7 @@ function sumTotals(items: Totals[]): Totals {
     },
     cost_usd: null,
     unpriced_calls: 0,
+    unmeasured_calls: items.reduce((n, t) => n + t.unmeasured_calls, 0),
     duration_seconds: 0,
   };
 }

@@ -40,7 +40,7 @@ city: "Hamburg"
 city: "Berlin"
 population: 3877100
 
---- RETRY PROMPT: lookup_population ---
+--- TOOL RETURN: lookup_population [RETRIED] ---
 
 unknown city spelling
 

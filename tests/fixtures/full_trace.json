@@ -72,7 +72,8 @@
         "content": "unknown city spelling",
         "tool_call_id": "call_hamburg",
         "timestamp": "2026-07-01T09:00:02.600000Z",
-        "part_kind": "retry-prompt"
+        "outcome": "retried",
+        "part_kind": "tool-return"
       }
     ],
     "instructions": null,

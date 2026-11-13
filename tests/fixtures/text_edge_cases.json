@@ -13,6 +13,14 @@
           },
           {
             "kind": "cache-point"
+          },
+          {
+            "kind": "structured-content",
+            "value": {
+              "page": "checkout"
+            },
+            "content": "<ui_state>{\"page\":\"checkout\"}</ui_state>",
+            "tag": "ui_state"
           }
         ]
       }
@@ -63,6 +71,13 @@
           "unicode": "café"
         },
         "tool_call_id": "omit"
+      },
+      {
+        "part_kind": "retry-feedback",
+        "content": "Respond with a city name.",
+        "retry": {
+          "cause": "model_retry"
+        }
       }
     ]
   }

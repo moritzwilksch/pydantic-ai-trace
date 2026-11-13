@@ -32,7 +32,6 @@ def eval_set() -> str:
         ModelMessagesTypeAdapter,
         ModelRequest,
         ModelResponse,
-        RetryPromptPart,
         TextPart,
         ToolCallPart,
         ToolReturnPart,
@@ -84,8 +83,8 @@ def eval_set() -> str:
             request(UserPromptPart(content="refund rules", timestamp=at + timedelta(seconds=3))),
             response(ToolCallPart("search", {"q": ""}, tool_call_id="s1"), second=3),
             request(
-                RetryPromptPart(
-                    "q must not be empty", tool_name="search", tool_call_id="s1", timestamp=at
+                ToolReturnPart(
+                    "search", "q must not be empty", "s1", timestamp=at, outcome="retried"
                 )
             ),
             response(TextPart("I could not search."), second=4),

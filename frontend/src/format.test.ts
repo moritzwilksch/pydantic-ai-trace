@@ -73,6 +73,7 @@ describe("formatTotalsCost", () => {
     tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
     cost_usd,
     unpriced_calls,
+    unmeasured_calls: 0,
     duration_seconds: 0,
   });
 

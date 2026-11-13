@@ -91,6 +91,11 @@ export function TraceStatsBar({
       <span>
         <MessagesSquare size={13} aria-hidden="true" />
         <b>{formatCount(totals.llm_calls)}</b> LLM calls
+        {totals.unmeasured_calls > 0 ? (
+          <span title="Token counts exclude responses that did not report usage">
+            {` (${formatCount(totals.unmeasured_calls)} without usage)`}
+          </span>
+        ) : null}
       </span>
       {cost !== null ? (
         <span>

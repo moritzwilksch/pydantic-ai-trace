@@ -20,19 +20,27 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from pydantic_ai import Agent, ModelRetry
+from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.capabilities import Toolset
 from pydantic_ai.messages import (
     BinaryContent,
+    Citation,
+    ContentCitationAnchor,
+    DocumentCitationSource,
     DocumentUrl,
     ImageUrl,
+    MarkerCitationAnchor,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelResponse,
+    StructuredContent,
     TextPart,
     ThinkingPart,
     ToolCallPart,
+    WebCitationSource,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage, UsageLimits
 
 from pydantic_ai_trace import Failed, Run, RunTree
@@ -76,7 +84,10 @@ def finish(
                 timestamp=t,
                 model_name=model,
                 provider_name=provider,
-                usage=RequestUsage(
+                # A response that omitted its usage keeps it omitted.
+                usage=message.usage
+                if message.usage.unmeasured_requests
+                else RequestUsage(
                     input_tokens=input_tokens,
                     output_tokens=rng.randint(40, 900),
                     cache_read_tokens=input_tokens // 2 if provider == "anthropic" else 0,
@@ -252,6 +263,98 @@ def support_agent() -> Agent[None, Resolution]:
         return {"refund_id": "rf_9Q2x", "order_id": order_id, "amount_eur": amount_eur}
 
     return agent
+
+
+# Warranty claim: run state that Pydantic AI records in history. An append-mode instruction
+# block changes every step (an instruction baseline, then deltas), the effort level rises, a
+# tool loads an on-demand capability, an answer without sources is retried, one response
+# omits its usage, and the final answer cites its sources.
+
+WARRANTY_ANSWER = (
+    "Your **AirFlow Pro** headphones are covered: the 24-month warranty runs until"
+    " 2027-03-02 [1]. I've opened claim **WC-5521**; a prepaid shipping label is on its way."
+)
+
+
+def warranty_model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+    match steps(messages):
+        case 0:
+            return ModelResponse(parts=[ToolCallPart("lookup_order", {"order_id": "A-2210"})])
+        case 1:
+            return ModelResponse(parts=[ToolCallPart("check_warranty", {"sku": "AF-PRO-2"})])
+        case 2:
+            # A provider that streams no usage chunk leaves the response unmeasured.
+            text = TextPart("Your headphones are under warranty, so I'll open a claim.")
+            return ModelResponse(parts=[text], usage=RequestUsage(unmeasured_requests=1))
+        case _:
+            covered = WARRANTY_ANSWER.index("the 24-month")
+            marker = WARRANTY_ANSWER.index("[1]")
+            citations = [
+                Citation(
+                    sources=[
+                        WebCitationSource(
+                            "https://shop.example/help/warranty",
+                            title="Warranty terms",
+                            excerpts=["Audio products carry a 24-month manufacturer warranty."],
+                        )
+                    ],
+                    anchor=ContentCitationAnchor(start=covered, end=marker - 1),
+                ),
+                Citation(
+                    sources=[
+                        DocumentCitationSource(document_id="file_7Kq2", title="invoice-A-2210.pdf")
+                    ],
+                    anchor=MarkerCitationAnchor(start=marker, end=marker + 3),
+                ),
+            ]
+            return ModelResponse(parts=[TextPart(WARRANTY_ANSWER, citations=citations)])
+
+
+def warranty() -> list[ModelMessage]:
+    warranty_tools = FunctionToolset()
+
+    @warranty_tools.tool_plain
+    def check_warranty(sku: str) -> dict[str, Any]:
+        """Check the warranty of a product."""
+        return {"sku": sku, "months": 24, "expires": "2027-03-02", "claimable": True}
+
+    agent = Agent(
+        FunctionModel(warranty_model),
+        instructions="You handle warranty claims. Cite the terms you rely on.",
+        capabilities=[
+            Toolset(
+                warranty_tools,
+                id="warranty",
+                description="Check warranties and open claims",
+                defer_loading=True,
+            )
+        ],
+        # More effort once the claim itself is being decided.
+        model_settings=lambda ctx: {"thinking": "low" if ctx.run_step < 2 else "high"},
+    )
+
+    @agent.instructions(name="queue", on_change="append")
+    def queue(ctx: RunContext[object]) -> str:
+        return f"Claims waiting in the queue: {12 - 3 * ctx.run_step}."
+
+    @agent.tool
+    def lookup_order(ctx: RunContext[object], order_id: str) -> dict[str, Any]:
+        """Look up an order by ID."""
+        ctx.load_capability("warranty")
+        return {"order_id": order_id, "sku": "AF-PRO-2", "delivered_at": "2025-03-02"}
+
+    @agent.output_validator
+    def cites_sources(answer: str) -> str:
+        if "[1]" not in answer:
+            raise ModelRetry("Cite the warranty terms you relied on.")
+        return answer
+
+    page = {"page": "orders/A-2210", "item": "AirFlow Pro", "tab": "support"}
+    prompt = [
+        StructuredContent(page, tag="ui_state"),
+        "My headphones stopped charging. Are they still under warranty?",
+    ]
+    return agent.run_sync(prompt).all_messages()
 
 
 # Multi-turn chat: three runs sharing one message history.
@@ -734,6 +837,7 @@ def main() -> None:
     )
     write("support/refund-A-1043.json", support.all_messages(), "gpt-5", "openai")
     write("support/chat with history.json", chat(), "claude-haiku-4-5", "anthropic")
+    write("support/warranty-claim.json", warranty(), "claude-sonnet-4-5", "anthropic")
     write("coding/fix-429-retry.json", coder(), "claude-sonnet-4-5", "anthropic")
     write("multimodal/receipt.json", multimodal(), "gpt-5", "openai")
     write("batch/validate-customers.json", batch(), "gpt-5-mini", "openai")

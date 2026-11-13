@@ -18,7 +18,7 @@ export interface RunIndex {
   entry: RunEntry;
   part(ref: PartRef): Part | null;
   toolCall(message: number, part: number): NumberedToolCall | undefined;
-  /** The call a tool return or retry prompt answers, or undefined when unpaired. */
+  /** The call a tool return answers, or undefined when unpaired. */
   resultOf(message: number, part: number): NumberedToolCall | undefined;
   /** The recorded runs a tool call started. */
   childRuns(info: ToolCallInfo): RunEntry[];

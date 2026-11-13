@@ -50,7 +50,7 @@ export function MediaContent({ item }: { item: Record<string, unknown> }) {
 }
 
 /** `url` when it is safe to link (http or https); trace URLs are untrusted, e.g. `javascript:`. */
-function linkableUrl(url: string): string | undefined {
+export function linkableUrl(url: string): string | undefined {
   try {
     const { protocol } = new URL(url);
     return protocol === "http:" || protocol === "https:" ? url : undefined;

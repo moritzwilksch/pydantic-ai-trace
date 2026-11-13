@@ -1,5 +1,5 @@
 import { Bookmark, Paperclip, User } from "lucide-preact";
-import { markdownPreview } from "../../format";
+import { compactJson, markdownPreview } from "../../format";
 import type { UserContentItem, UserPromptPart } from "../../types";
 import { Block } from "../Block";
 import { JsonTree } from "../JsonTree";
@@ -43,6 +43,7 @@ function userContentPreview(items: UserContentItem[]): string {
 function itemPreview(item: UserContentItem): string {
   if (typeof item === "string") return markdownPreview(item);
   if (item.kind === "text-content") return markdownPreview(item.content);
+  if (item.kind === "structured-content") return compactJson(item.value);
   if (item.kind === "cache-point") return "[cache point]";
   // Like the media chip, a binary is named by its identifier.
   if (item.kind === "binary") return `[${item.identifier} · ${item.media_type}]`;
@@ -72,6 +73,13 @@ function ContentItem({ item }: { item: UserContentItem }) {
       return (
         <div class={MEDIA_ITEM_CLASS}>
           <ValueView value={userContentText(item) ?? ""} markdown preserveNewlines />
+        </div>
+      );
+    case "structured-content":
+      // The value itself; most models were sent `content`, the value rendered as text.
+      return (
+        <div class={MEDIA_ITEM_CLASS}>
+          <ValueView value={item.value} />
         </div>
       );
     case "uploaded-file":

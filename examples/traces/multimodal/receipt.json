@@ -47,14 +47,17 @@
         "id": null,
         "provider_name": null,
         "provider_details": null,
+        "citations": null,
         "part_kind": "text"
       }
     ],
     "usage": {
       "input_tokens": 1342,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 0,
       "output_tokens": 509,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -63,10 +66,12 @@
       "cost": null
     },
     "model_name": "gpt-5",
+    "model_id": "function:function:model:",
     "timestamp": "2026-10-14T09:30:08.217000Z",
     "kind": "response",
     "provider_name": "openai",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_39f0016f1426",
     "finish_reason": "stop",
@@ -74,6 +79,7 @@
     "conversation_id": "13e737ff-75b9-5bb1-b730-f8ca728aaaa3",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   }

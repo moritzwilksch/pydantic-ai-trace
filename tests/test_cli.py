@@ -755,6 +755,17 @@ class TestStatsCommand:
         assert rows["total"][1] == "18"
         assert "  broken.json: not valid JSON" in "\n".join(lines)
 
+    def test_marks_token_counts_that_exclude_responses_without_usage(
+        self, capsys: pytest.CaptureFixture
+    ):
+        example = Path(__file__).parent.parent / "examples/traces/support/warranty-claim.json"
+
+        assert cli.main(["stats", str(example)]) == 0
+
+        lines = capsys.readouterr().out.splitlines()
+        assert lines[1].split()[3:6] == ["11,098+", "5,548+", "1,628+"]
+        assert lines[-1] == "+ excludes responses that did not report usage"
+
     def test_passes_over_json_that_is_not_a_trace_in_a_directory(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
     ):

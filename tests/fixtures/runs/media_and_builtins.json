@@ -95,7 +95,11 @@
         ],
         "tool_call_id": "call_retry",
         "timestamp": "2026-07-02T08:00:06Z",
-        "part_kind": "retry-prompt"
+        "outcome": "retried",
+        "retry": {
+          "cause": "validation_error"
+        },
+        "part_kind": "tool-return"
       }
     ],
     "kind": "request",

@@ -16,8 +16,8 @@ httpx = "*"
 ruff = "*"
 pyright = "*"
 uv = "*"
-pydantic = ">=2.12"
-pydantic-ai-slim = ">=2.26"
+pydantic = ">=2.12.2"
+pydantic-ai-slim = ">=2.68"
 uuid-utils = ">=0.9"
 
 [pypi-dependencies]
