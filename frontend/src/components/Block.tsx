@@ -83,7 +83,7 @@ export function BlockSummary({
       <span
         class={cn(
           "block-label inline-flex items-center gap-1.25 font-semibold whitespace-nowrap",
-          tone ? TONE_TEXT[tone] : "text-foreground/80",
+          tone ? TONE_TEXT[tone] : "text-subtle-foreground",
         )}
       >
         {label}

@@ -73,7 +73,7 @@ export function MediaChip({
     <Badge
       variant="outline"
       size="lg"
-      className="media-chip max-w-full font-normal text-foreground/80"
+      className="media-chip max-w-full font-normal text-subtle-foreground"
       render={href ? <a href={href} target="_blank" rel="noreferrer noopener" /> : undefined}
     >
       {icon} <span class="truncate">{label}</span>
@@ -108,7 +108,7 @@ function MediaImage({
         loading="lazy"
         onError={() => setFailed(true)}
       />
-      {caption && <div class="text-xs text-foreground/80">{caption}</div>}
+      {caption && <div class="text-xs text-subtle-foreground">{caption}</div>}
     </div>
   );
 }
