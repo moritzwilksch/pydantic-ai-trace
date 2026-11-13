@@ -41,8 +41,10 @@
     "usage": {
       "input_tokens": 3308,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 1654,
       "output_tokens": 694,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -51,10 +53,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:08.241000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_a00a8c5d2ce7",
     "finish_reason": "tool_call",
@@ -62,6 +66,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -75,6 +80,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:08.544000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -104,8 +110,10 @@
     "usage": {
       "input_tokens": 5557,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 2778,
       "output_tokens": 41,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -114,10 +122,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:16.922000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_fb9803653bdd",
     "finish_reason": "tool_call",
@@ -125,6 +135,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -138,6 +149,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:17.655000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -175,8 +187,10 @@
     "usage": {
       "input_tokens": 6675,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 3337,
       "output_tokens": 199,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -185,10 +199,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:22.097000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_4d3f88651461",
     "finish_reason": "tool_call",
@@ -196,6 +212,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -209,6 +226,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:23.228000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -227,6 +245,7 @@
         "id": null,
         "provider_name": null,
         "provider_details": null,
+        "citations": null,
         "part_kind": "text"
       },
       {
@@ -247,8 +266,10 @@
     "usage": {
       "input_tokens": 7990,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 3995,
       "output_tokens": 595,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -257,10 +278,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:26.720000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_d516730e60c8",
     "finish_reason": "tool_call",
@@ -268,6 +291,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -281,6 +305,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:27.058000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -320,8 +345,10 @@
     "usage": {
       "input_tokens": 10483,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 5241,
       "output_tokens": 330,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -330,10 +357,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:34.827000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_985b1f018f1a",
     "finish_reason": "tool_call",
@@ -341,6 +370,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -354,6 +384,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:35.098000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -383,8 +414,10 @@
     "usage": {
       "input_tokens": 13153,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 6576,
       "output_tokens": 180,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -393,10 +426,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:37.563000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_cd86dea3f0e7",
     "finish_reason": "tool_call",
@@ -404,6 +439,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -417,6 +453,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:37.814000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -446,8 +483,10 @@
     "usage": {
       "input_tokens": 14256,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 7128,
       "output_tokens": 179,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -456,10 +495,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:43.022000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_58d800a2fb5e",
     "finish_reason": "tool_call",
@@ -467,6 +508,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -480,6 +522,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:44.265000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -498,14 +541,17 @@
         "id": null,
         "provider_name": null,
         "provider_details": null,
+        "citations": null,
         "part_kind": "text"
       }
     ],
     "usage": {
       "input_tokens": 16279,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 8139,
       "output_tokens": 93,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -514,10 +560,12 @@
       "cost": null
     },
     "model_name": "claude-sonnet-4-5",
+    "model_id": "function:function:coder_model:",
     "timestamp": "2026-10-14T09:30:50.581000Z",
     "kind": "response",
     "provider_name": "anthropic",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_fd30d1b32aa7",
     "finish_reason": "stop",
@@ -525,6 +573,7 @@
     "conversation_id": "ebfeb08e-a45d-5cce-a777-88ba657014a7",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   }

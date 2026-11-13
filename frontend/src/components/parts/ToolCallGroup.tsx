@@ -18,6 +18,7 @@ import { focusPart } from "../KeyboardNav";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { ToolReturnValue, ValueView } from "./common";
+import { type ErrorDetail, ErrorDetailsTable } from "./RetryFeedback";
 
 const TOOL_NAME_CLASS = "tool-name font-mono text-xs font-semibold text-tool";
 export const PAIR_ARROW_CLASS = "pair-arrow shrink-0 text-muted-foreground";
@@ -40,7 +41,7 @@ export function ToolChip({ children }: { children: ComponentChildren }) {
   );
 }
 
-/** The call a tool return or retry prompt answers, as its header shows it. */
+/** The call a tool return answers, as its header shows it. */
 export interface CallLink {
   number: number;
   ref: PartRef;
@@ -62,7 +63,7 @@ export function pairedCall(run: RunIndex, message: number, part: number): CallLi
 }
 
 /**
- * A tool call annotated with its number, a link to its paired return/retry and
+ * A tool call annotated with its number, a link to its paired return and
  * that result's status, and the runs it started. The result itself remains in
  * its original message so the trace mirrors the source JSON.
  */
@@ -331,6 +332,8 @@ function ToolReturnContent({ part }: { part: AnyToolReturnPart }) {
   }
   const instructions = capabilityInstructions(part);
   if (instructions !== null) return <ValueView value={instructions} markdown />;
+  const errors = validationErrors(part);
+  if (errors !== null) return <ErrorDetailsTable details={errors} />;
   return <ToolReturnValue content={part.content} />;
 }
 
@@ -387,15 +390,29 @@ function capabilityInstructions(part: AnyToolReturnPart): string | null {
   return typeof instructions === "string" ? instructions : null;
 }
 
+/** The validation errors a retried return sends back, or null when it holds something else. */
+function validationErrors(part: AnyToolReturnPart): ErrorDetail[] | null {
+  if (part.outcome !== "retried" || !Array.isArray(part.content)) return null;
+  return part.content.every(isErrorDetail) ? part.content : null;
+}
+
+function isErrorDetail(value: unknown): value is ErrorDetail {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.loc) &&
+    typeof value.type === "string" &&
+    typeof value.msg === "string"
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Only problems are badged — success is the unremarkable default. */
 function ResultBadge({ result }: { result: Part }) {
-  if (result.part_kind === "retry-prompt") return <Badge variant="error">retry</Badge>;
   const outcome = "outcome" in result ? result.outcome : undefined;
-  if (outcome === "failed" || outcome === "denied") {
+  if (outcome === "failed" || outcome === "denied" || outcome === "retried") {
     return <Badge variant="error">{outcome}</Badge>;
   }
   return null;

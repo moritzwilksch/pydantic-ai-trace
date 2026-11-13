@@ -53,8 +53,10 @@
     "usage": {
       "input_tokens": 1191,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 0,
       "output_tokens": 93,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -63,10 +65,12 @@
       "cost": null
     },
     "model_name": "gpt-5",
+    "model_id": "function:function:support_model:",
     "timestamp": "2026-10-14T09:30:06.039000Z",
     "kind": "response",
     "provider_name": "openai",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_b2f882558d0b",
     "finish_reason": "tool_call",
@@ -74,6 +78,7 @@
     "conversation_id": "c0df0383-f7d8-5301-9a4b-c253dca05d31",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -108,7 +113,9 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:06.997000Z",
         "outcome": "success",
-        "part_kind": "tool-return"
+        "retry": null,
+        "part_kind": "tool-return",
+        "content_file_digests": []
       },
       {
         "tool_name": "get_customer",
@@ -124,7 +131,9 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:06.997000Z",
         "outcome": "success",
-        "part_kind": "tool-return"
+        "retry": null,
+        "part_kind": "tool-return",
+        "content_file_digests": []
       }
     ],
     "timestamp": "2026-10-14T09:30:06.997000Z",
@@ -154,8 +163,10 @@
     "usage": {
       "input_tokens": 2938,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 0,
       "output_tokens": 549,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -164,10 +175,12 @@
       "cost": null
     },
     "model_name": "gpt-5",
+    "model_id": "function:function:support_model:",
     "timestamp": "2026-10-14T09:30:08.063000Z",
     "kind": "response",
     "provider_name": "openai",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_4d40b3c8a69f",
     "finish_reason": "tool_call",
@@ -175,17 +188,26 @@
     "conversation_id": "c0df0383-f7d8-5301-9a4b-c253dca05d31",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
   {
     "parts": [
       {
-        "content": "Unknown category 'electronics'. Valid categories: Electronics, Home, Garden. Category names are case-sensitive.",
         "tool_name": "refund_policy",
+        "content": "Unknown category 'electronics'. Valid categories: Electronics, Home, Garden. Category names are case-sensitive.",
         "tool_call_id": "call_3",
+        "tool_kind": null,
+        "metadata": null,
         "timestamp": "2026-10-14T09:30:09.107000Z",
-        "part_kind": "retry-prompt"
+        "outcome": "retried",
+        "retry": {
+          "cause": "model_retry",
+          "attempt": 1,
+          "max_retries": 1
+        },
+        "part_kind": "tool-return"
       }
     ],
     "timestamp": "2026-10-14T09:30:09.107000Z",
@@ -215,8 +237,10 @@
     "usage": {
       "input_tokens": 5682,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 0,
       "output_tokens": 239,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -225,10 +249,12 @@
       "cost": null
     },
     "model_name": "gpt-5",
+    "model_id": "function:function:support_model:",
     "timestamp": "2026-10-14T09:30:11.416000Z",
     "kind": "response",
     "provider_name": "openai",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_d99d05bbb8e8",
     "finish_reason": "tool_call",
@@ -236,6 +262,7 @@
     "conversation_id": "c0df0383-f7d8-5301-9a4b-c253dca05d31",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -249,6 +276,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:11.553000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],
@@ -280,8 +308,10 @@
     "usage": {
       "input_tokens": 7924,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 0,
       "output_tokens": 558,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -290,10 +320,12 @@
       "cost": null
     },
     "model_name": "gpt-5",
+    "model_id": "function:function:support_model:",
     "timestamp": "2026-10-14T09:30:15.746000Z",
     "kind": "response",
     "provider_name": "openai",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_1209d1fd4f81",
     "finish_reason": "tool_call",
@@ -301,6 +333,7 @@
     "conversation_id": "c0df0383-f7d8-5301-9a4b-c253dca05d31",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -318,7 +351,9 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:16.813000Z",
         "outcome": "success",
-        "part_kind": "tool-return"
+        "retry": null,
+        "part_kind": "tool-return",
+        "content_file_digests": []
       }
     ],
     "timestamp": "2026-10-14T09:30:16.813000Z",
@@ -336,6 +371,7 @@
         "id": null,
         "provider_name": null,
         "provider_details": null,
+        "citations": null,
         "part_kind": "text"
       },
       {
@@ -357,8 +393,10 @@
     "usage": {
       "input_tokens": 10249,
       "cache_write_tokens": 0,
+      "cache_write_1h_tokens": 0,
       "cache_read_tokens": 0,
       "output_tokens": 195,
+      "output_reasoning_tokens": 0,
       "input_audio_tokens": 0,
       "cache_audio_read_tokens": 0,
       "output_audio_tokens": 0,
@@ -367,10 +405,12 @@
       "cost": null
     },
     "model_name": "gpt-5",
+    "model_id": "function:function:support_model:",
     "timestamp": "2026-10-14T09:30:20.812000Z",
     "kind": "response",
     "provider_name": "openai",
     "provider_url": null,
+    "canonical_system": null,
     "provider_details": null,
     "provider_response_id": "resp_128e735caf82",
     "finish_reason": "tool_call",
@@ -378,6 +418,7 @@
     "conversation_id": "c0df0383-f7d8-5301-9a4b-c253dca05d31",
     "metadata": null,
     "workspace_ref": null,
+    "history_digest": null,
     "failed_attempts": null,
     "state": "complete"
   },
@@ -391,6 +432,7 @@
         "metadata": null,
         "timestamp": "2026-10-14T09:30:20.853000Z",
         "outcome": "success",
+        "retry": null,
         "part_kind": "tool-return"
       }
     ],

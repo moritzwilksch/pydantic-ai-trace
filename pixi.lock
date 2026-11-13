@@ -2,19 +2,19 @@ version: 7
 platforms:
 - name: linux-64
   virtual-packages:
-  - __unix=0=0
+  - __unix=0
   - __linux=4.18
   - __glibc=2.28
   - __archspec=0=x86_64
 - name: linux-aarch64
   virtual-packages:
-  - __unix=0=0
+  - __unix=0
   - __linux=4.18
   - __glibc=2.28
   - __archspec=0=aarch64
 - name: osx-arm64
   virtual-packages:
-  - __unix=0=0
+  - __unix=0
   - __osx=13.0
   - __archspec=0=m1
 - name: win-64
@@ -100,8 +100,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pathspec-1.1.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pluggy-1.6.0-pyhf9edf01_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-2.14.1-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.57.0-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.57.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.68.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.68.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-settings-2.16.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.20.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.1.1-pyhc364b38_2.conda
@@ -197,8 +197,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pathspec-1.1.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pluggy-1.6.0-pyhf9edf01_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-2.14.1-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.57.0-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.57.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.68.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.68.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-settings-2.16.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.20.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.1.1-pyhc364b38_2.conda
@@ -257,8 +257,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pathspec-1.1.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pluggy-1.6.0-pyhf9edf01_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-2.14.1-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.57.0-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.57.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.68.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.68.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-settings-2.16.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.20.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.1.1-pyhc364b38_2.conda
@@ -346,8 +346,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pathspec-1.1.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pluggy-1.6.0-pyhf9edf01_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-2.14.1-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.57.0-pyh5ded981_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.57.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.68.0-pyh5ded981_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.68.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-settings-2.16.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.20.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.1.1-pyhc364b38_2.conda
@@ -1715,7 +1715,7 @@ packages:
   - python
   license: ISC
   purls:
-  - pkg:pypi/griffelib?source=compressed-mapping
+  - pkg:pypi/griffelib?source=hash-mapping
   run_exports: {}
   size: 121706
   timestamp: 1791287242312
@@ -2043,16 +2043,16 @@ packages:
   run_exports: {}
   size: 358514
   timestamp: 1791761552444
-- conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.57.0-pyh5ded981_0.conda
-  sha256: 99a5def0c4444227c56a63feba350bcf2fdfd8509df57ee1c1275518463c31ac
-  md5: 36b634a1af112c2eb5e8322235961db4
+- conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-ai-slim-2.68.0-pyh5ded981_0.conda
+  sha256: e17c0c610d32c9f747dae0d16c64e8fdd1166c6a6c50b373a113b2be9368d6e1
+  md5: ea3d96c4134ff123e2359394786fa4d3
   depends:
   - python >=3.11
   - anyio >=4.7.0
   - griffelib >=2.0
   - httpx2 >=2.7
   - pydantic >=2.12
-  - pydantic-graph 2.57.0.*
+  - pydantic-graph 2.68.0.*
   - exceptiongroup >=1.2.2
   - opentelemetry-api >=1.28.0
   - typing-inspection >=0.4.0
@@ -2063,11 +2063,11 @@ packages:
   purls:
   - pkg:pypi/pydantic-ai-slim?source=hash-mapping
   run_exports: {}
-  size: 1490227
-  timestamp: 1792127809177
-- conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.57.0-pyh5ded981_0.conda
-  sha256: 460ba5d7997acbdb9ddbea0372f97f554708abb4b7db715e0aa10c84701fdd36
-  md5: 189f600557feb9d53321f390b284c50f
+  size: 1990361
+  timestamp: 1794470827395
+- conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-graph-2.68.0-pyh5ded981_0.conda
+  sha256: 6a85ed884a1d7a4cea609c4502c1ba826cbdb398bf182ea889477539f723a87c
+  md5: 3fbd0383c9425a8a5f2ebe460461643d
   depends:
   - python >=3.11
   - anyio >=4.7.0
@@ -2080,8 +2080,8 @@ packages:
   purls:
   - pkg:pypi/pydantic-graph?source=hash-mapping
   run_exports: {}
-  size: 52229
-  timestamp: 1792127809177
+  size: 52970
+  timestamp: 1794470827395
 - conda: https://conda.anaconda.org/conda-forge/noarch/pydantic-settings-2.16.0-pyh5ded981_0.conda
   sha256: 0ddbc1a8d3fa4a50d5213b0e631a46c47b96497890669708d917255837e79e64
   md5: 3ffdbcefaa4e2a087696c44e390b9695
@@ -2095,7 +2095,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-settings?source=compressed-mapping
+  - pkg:pypi/pydantic-settings?source=hash-mapping
   run_exports: {}
   size: 69536
   timestamp: 1792000612449
@@ -3156,8 +3156,8 @@ packages:
 - pypi: ./
   name: pydantic-ai-trace
   requires_dist:
-  - pydantic-ai-slim>=2.26
-  - pydantic>=2.12
+  - pydantic-ai-slim>=2.68
+  - pydantic>=2.12.2
   - starlette>=0.40
   - uuid-utils>=0.9
   - uvicorn>=0.30

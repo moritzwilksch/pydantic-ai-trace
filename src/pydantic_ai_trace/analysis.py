@@ -16,7 +16,6 @@ from pydantic_ai.messages import (
     BaseToolCallPart,
     BaseToolReturnPart,
     ModelResponse,
-    RetryPromptPart,
     ToolReturnPart,
 )
 
@@ -42,7 +41,7 @@ class PartRef(_Frozen):
 class ToolCallInfo(_Frozen):
     call: PartRef
     args: JsonValue  # Parsed from a JSON string when possible.
-    result: PartRef | None  # The next chronological return or retry with the same id.
+    result: PartRef | None  # The next chronological return with the same id.
     child_run_ids: tuple[RunId, ...]
     is_output: bool  # Its args are the run's output; see `FINAL_RESULT_STATUS`.
 
@@ -59,6 +58,8 @@ class Totals(_Frozen):
     tokens: Tokens
     cost_usd: Decimal | None  # Exact; None when no response could be priced.
     unpriced_calls: int
+    # Responses that omitted usage: token counts are lower bounds when non-zero.
+    unmeasured_calls: int
     duration_seconds: float
 
 
@@ -165,7 +166,7 @@ def _pair_tool_calls(
             if isinstance(part, BaseToolCallPart):
                 pending[part.tool_call_id].append(len(calls))
                 calls.append((ref, part))
-            elif isinstance(part, BaseToolReturnPart | RetryPromptPart):
+            elif isinstance(part, BaseToolReturnPart):
                 waiting = pending.get(part.tool_call_id)
                 if waiting:
                     index = waiting.popleft()
@@ -186,7 +187,7 @@ def _pair_tool_calls(
     return infos, tuple(sorted(results.values(), key=lambda ref: (ref.message, ref.part)))
 
 
-def _is_final_result_status(part: BaseToolReturnPart | RetryPromptPart) -> bool:
+def _is_final_result_status(part: BaseToolReturnPart) -> bool:
     return isinstance(part, ToolReturnPart) and part.content == FINAL_RESULT_STATUS
 
 
@@ -225,6 +226,7 @@ def _run_totals(run: Run) -> Totals:
         ),
         cost_usd=sum(priced, Decimal(0)) if priced else None,
         unpriced_calls=len(costs) - len(priced),
+        unmeasured_calls=sum(1 for response in responses if response.usage.unmeasured_requests),
         duration_seconds=_seconds(run.started_at, run.ended_at),
     )
 
@@ -243,6 +245,7 @@ def combine_totals(totals: Iterable[Totals], duration_seconds: float) -> Totals:
         ),
         cost_usd=sum(costs, Decimal(0)) if costs else None,
         unpriced_calls=sum(item.unpriced_calls for item in items),
+        unmeasured_calls=sum(item.unmeasured_calls for item in items),
         duration_seconds=duration_seconds,
     )
 

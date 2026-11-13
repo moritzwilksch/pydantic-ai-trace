@@ -13,10 +13,13 @@ import type { RunIndex } from "../runIndex";
 import type { Message, ModelResponse, Part, RequestUsage } from "../types";
 import { Block } from "./Block";
 import { ValueView } from "./parts/common";
+import { CapabilityLoadDelta } from "./parts/CapabilityLoadDelta";
 import { CompactionPart } from "./parts/CompactionPart";
 import { FallbackPart } from "./parts/FallbackPart";
 import { FilePart } from "./parts/FilePart";
-import { RetryPrompt } from "./parts/RetryPrompt";
+import { InstructionDelta } from "./parts/InstructionDelta";
+import { ModelSettingsDelta } from "./parts/ModelSettingsDelta";
+import { RetryFeedback } from "./parts/RetryFeedback";
 import { SystemPrompt } from "./parts/SystemPrompt";
 import { TextPart } from "./parts/TextPart";
 import { ThinkingPart } from "./parts/ThinkingPart";
@@ -149,9 +152,12 @@ function InterruptedMessage({ kind }: { kind: "request" | "response" }) {
 
 /**
  * Parts that render nothing must not become (invisible) keyboard-navigation
- * targets: signature-only thinking is the one part kind we deliberately hide.
+ * targets. Two parts are deliberately hidden: signature-only thinking, which has no
+ * readable content, and the instruction baseline, which Pydantic AI never sends to the
+ * model; it records what the request's instructions, shown above, were made of.
  */
 function isInvisible(part: Part): boolean {
+  if (part.part_kind === "instruction-baseline") return true;
   return part.part_kind === "thinking" && !part.content;
 }
 
@@ -211,8 +217,8 @@ function PartView({
         />
       );
     }
-    case "retry-prompt":
-      return <RetryPrompt part={part} call={pairedCall(run, messageIndex, partIndex)} />;
+    case "retry-feedback":
+      return <RetryFeedback part={part} />;
     case "tool-return":
     case "builtin-tool-return": {
       const call = pairedCall(run, messageIndex, partIndex);
@@ -225,6 +231,12 @@ function PartView({
       return <FilePart part={part} />;
     case "tool-availability-delta":
       return <ToolAvailabilityDelta part={part} />;
+    case "capability-load-delta":
+      return <CapabilityLoadDelta part={part} />;
+    case "model-settings-delta":
+      return <ModelSettingsDelta part={part} />;
+    case "instruction-delta":
+      return <InstructionDelta part={part} />;
     default:
       return <FallbackPart part={part as unknown as Record<string, unknown>} />;
   }
@@ -249,6 +261,8 @@ function ResponseFooter({
 }
 
 function UsageSummary({ usage }: { usage: RequestUsage }) {
+  // The response omitted its usage, so its token counts carry no information.
+  if (usage.unmeasured_requests > 0) return <span>usage not reported</span>;
   const hitRate = cacheHitRate(usage.input_tokens, usage.cache_read_tokens);
   const cached =
     hitRate !== null

@@ -72,7 +72,8 @@
         "tool_name": "echo",
         "content": "retry because the first line was wrong\nsecond line of the complaint",
         "tool_call_id": "call_echo_retry",
-        "part_kind": "retry-prompt"
+        "outcome": "retried",
+        "part_kind": "tool-return"
       }
     ],
     "instructions": null,

@@ -34,7 +34,8 @@ Traces get large. Find the trace, then the run, then the parts, and read only th
    `jq 'walk(if type == "string" and length > 300 then .[:300] + "..." else . end)'`.
 4. For a quick look, grep the transcript: `paitrace text INPUT | grep -n -C3 PATTERN`.
    Headings name each item: `RUN:`, `OUTCOME:`, `TOOL CALL: name`, `TOOL RETURN: name [FAILED]`,
-   `RETRY PROMPT:`, `OUTPUT: name`.
+   `TOOL RETURN: name [RETRIED]`, `RETRY FEEDBACK`, `OUTPUT: name`, `INSTRUCTION DELTA: id`,
+   `MODEL SETTINGS`, `CAPABILITIES LOADED`.
 
 ## `paitrace json` shape
 
@@ -46,17 +47,24 @@ parent   {run_id, tool_call_id?}  absent on a top-level run
 outcome  {status: "completed", output} | {status: "failed", error_type, detail}
          | {status: "cancelled"}
 stats    {llm_calls, tokens: {input, cache_read?, cache_write?, output}, cost_usd?,
-          unpriced_calls?, wall_time_seconds}
+          unpriced_calls?, unmeasured_calls?, wall_time_seconds}
+         unmeasured_calls: responses that did not report usage; tokens are then lower bounds
 message  {type: "request" | "response", parts: [part]}; a response adds model?, provider?,
           finish_reason?, usage: {input, cache_read?, cache_write?, output}
+          | {unmeasured_requests} when the response did not report usage
 part     by type:
-  system | user | text | thinking   {content}
+  system | user | text | thinking   {content}; text adds citations?: [{cited_text? | marker?,
+                sources: [{url?, document_id?, title?, excerpts?}]}]
   tool_call     {name, args, id?, builtin?, result?, outcome?, retry?, output?, child_runs?}
                 outcome: "failed" | "denied" | "interrupted", absent on success; retry: why
                 the model had to call again; output: true when args are the run's output;
                 child_runs: ids of runs it started; no result, retry, or output: no answer
   retry         {content, name?, id?}   a retry not tied to a call, such as invalid output
   tool_result   {name, result, id?}     a result whose call is not in the run
+  instruction_delta     {id, content}   an instruction block's new text from here on; null
+                withdraws it. The message's instructions keep the text the block started with.
+  model_settings        {settings, top_level?}   settings in effect from here, e.g. thinking
+  capabilities_loaded   {loaded, id?}   on-demand capabilities loaded here
   tools_available | compaction | file | other   rarer kinds; other keeps {original_type, data}
 ```
 

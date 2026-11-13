@@ -10,6 +10,9 @@ from pydantic_ai.messages import (
     ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
+    RetryFeedbackPart,
+    RetryInfo,
+    RetryPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -109,6 +112,24 @@ class TestRunFromMessages:
 
         assert first.id != second.id
         assert first.id[14] == "7"  # UUID version nibble
+
+    @pytest.mark.filterwarnings("ignore:`RetryPromptPart` is deprecated")
+    def test_a_constructed_retry_prompt_becomes_the_part_it_meant(self):
+        retries = ModelRequest(
+            parts=[
+                RetryPromptPart("bad args", tool_name="ask", tool_call_id="c1", timestamp=at(1)),
+                RetryPromptPart("no output", timestamp=at(1)),
+            ]
+        )
+
+        built = run("step", messages=(*exchange(0, 1, call_id="c1"), retries))
+
+        assert built.messages[-1].parts == [
+            ToolReturnPart("ask", "bad args", "c1", timestamp=at(1), outcome="retried"),
+            RetryFeedbackPart(
+                content="no output", retry=RetryInfo(cause="model_retry"), timestamp=at(1)
+            ),
+        ]
 
 
 class TestRunTree:

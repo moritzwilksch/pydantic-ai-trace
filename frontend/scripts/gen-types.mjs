@@ -22,6 +22,13 @@ function stripTitles(schema, isDefinition) {
       );
       continue;
     }
+    // Keys of `properties` are field names: a field named `title` is not the keyword.
+    if (key === "properties") {
+      result[key] = Object.fromEntries(
+        Object.entries(value).map(([name, field]) => [name, stripTitles(field, false)]),
+      );
+      continue;
+    }
     result[key] = stripTitles(value, false);
   }
   // Serialization always writes every field, so every property is present on the wire.

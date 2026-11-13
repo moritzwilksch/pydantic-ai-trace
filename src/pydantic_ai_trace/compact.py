@@ -116,6 +116,8 @@ def compact_totals(totals: Totals) -> dict[str, object]:
         stats["cost_usd"] = float(totals.cost_usd)  # a JSON number, for jq
     if totals.unpriced_calls:
         stats["unpriced_calls"] = totals.unpriced_calls
+    if totals.unmeasured_calls:
+        stats["unmeasured_calls"] = totals.unmeasured_calls
     stats["wall_time_seconds"] = round(totals.duration_seconds, 3)
     return stats
 
@@ -151,7 +153,12 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
             return None
         if kind == "user-prompt":
             content = _compact_user_content(content)
-        return {"type": simple_types[kind], "content": content}
+        compact = {"type": simple_types[kind], "content": content}
+        if part.get("citations"):
+            compact["citations"] = [
+                _compact_citation(c, part["content"]) for c in part["citations"]
+            ]
+        return compact
 
     if kind in {"tool-call", "builtin-tool-call"}:
         compact = {
@@ -163,6 +170,14 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
         _copy_nonempty(part, compact, "tool_kind", "tool_kind")
         if kind == "builtin-tool-call":
             compact["builtin"] = True
+        return compact
+
+    # A retried return and retry feedback share the `retry` shape: a retry is why the model
+    # had to try again, whether or not it answers a call.
+    if kind == "retry-feedback" or part.get("outcome") == "retried":
+        compact = {"type": "retry", "content": _compact_value(part.get("content"))}
+        _copy_nonempty(part, compact, "tool_name", "name")
+        _copy_nonempty(part, compact, "tool_call_id", "id")
         return compact
 
     if kind in {"tool-return", "builtin-tool-return"}:
@@ -179,16 +194,27 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
             compact["builtin"] = True
         return compact
 
-    if kind == "retry-prompt":
-        compact = {"type": "retry", "content": _compact_value(part.get("content"))}
-        _copy_nonempty(part, compact, "tool_name", "name")
-        _copy_nonempty(part, compact, "tool_call_id", "id")
-        return compact
-
     if kind == "tool-availability-delta":
         compact = {"type": "tools_available", "tools_added": part["tools_added"]}
         _copy_nonempty(part, compact, "tool_call_id", "id")
         return compact
+
+    if kind == "capability-load-delta":
+        compact = {"type": "capabilities_loaded", "loaded": part["loaded"]}
+        _copy_nonempty(part, compact, "tool_call_id", "id")
+        return compact
+
+    if kind == "model-settings-delta":
+        compact = {"type": "model_settings", "settings": part["settings"]}
+        if part["top_level"]:
+            compact["top_level"] = True
+        return compact
+
+    if kind == "instruction-baseline":
+        return None  # never sent to the model; the message's instructions show its text
+
+    if kind == "instruction-delta":
+        return {"type": "instruction_delta", "id": part["id"], "content": part["content"]}
 
     if kind == "compaction":
         return {"type": "compaction", "content": part.get("content") or COMPACTION_PLACEHOLDER}
@@ -203,6 +229,26 @@ def _compact_part(part: dict[str, Any]) -> dict[str, object] | None:
     return {"type": "other", "original_type": kind, "data": _compact_value(data)}
 
 
+def _compact_citation(citation: dict[str, Any], content: str) -> dict[str, object]:
+    """The cited text or the marker the model wrote, and the sources without empty fields."""
+    compact: dict[str, object] = {}
+    anchor = citation.get("anchor")
+    if anchor:
+        key = "cited_text" if anchor["kind"] == "content" else "marker"
+        compact[key] = content[anchor["start"] : anchor["end"]]
+    sources = []
+    for source in citation["sources"]:
+        sources.append(
+            {
+                key: source[key]
+                for key in ("url", "document_id", "title", "excerpts")
+                if source.get(key)
+            }
+        )
+    compact["sources"] = sources
+    return compact
+
+
 def _compact_tool_return_content(part: dict[str, Any]) -> object:
     """A tool-search return is a list of names wrapped in per-match objects; unwrap it."""
     discovered = discovered_tools(part)
@@ -214,6 +260,8 @@ def _compact_tool_return_content(part: dict[str, Any]) -> object:
 
 
 def _compact_usage(usage: dict[str, object]) -> dict[str, object]:
+    if usage.get("unmeasured_requests"):
+        return {"unmeasured_requests": usage["unmeasured_requests"]}  # its token counts are zeros
     compact = _compact_tokens(
         _integer(usage.get("input_tokens")),
         _integer(usage.get("output_tokens")),

@@ -48,8 +48,10 @@
           "usage": {
             "input_tokens": 1423,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 90,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -58,10 +60,12 @@
             "cost": null
           },
           "model_name": "gpt-5-mini",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:05.787000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_140a4dbd3bf4",
           "finish_reason": "tool_call",
@@ -69,6 +73,7 @@
           "conversation_id": "20f96de3-1ddd-5cdf-b347-7ae771bb114d",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         },
@@ -123,7 +128,9 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:06.954000Z",
               "outcome": "success",
-              "part_kind": "tool-return"
+              "retry": null,
+              "part_kind": "tool-return",
+              "content_file_digests": []
             }
           ],
           "timestamp": "2026-10-14T09:30:06.954000Z",
@@ -141,14 +148,17 @@
               "id": null,
               "provider_name": null,
               "provider_details": null,
+              "citations": null,
               "part_kind": "text"
             }
           ],
           "usage": {
             "input_tokens": 2326,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 359,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -157,10 +167,12 @@
             "cost": null
           },
           "model_name": "gpt-5-mini",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:10.814000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_5ac6746713f5",
           "finish_reason": "stop",
@@ -168,6 +180,7 @@
           "conversation_id": "20f96de3-1ddd-5cdf-b347-7ae771bb114d",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         }
@@ -221,8 +234,10 @@
           "usage": {
             "input_tokens": 3085,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 721,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -231,10 +246,12 @@
             "cost": null
           },
           "model_name": "gpt-5-nano",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:14.177000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_bb921c657ce0",
           "finish_reason": "tool_call",
@@ -242,6 +259,7 @@
           "conversation_id": "0ac0ae80-cd05-5327-a2e3-7e5ac632ebc0",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         },
@@ -296,7 +314,9 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:14.833000Z",
               "outcome": "success",
-              "part_kind": "tool-return"
+              "retry": null,
+              "part_kind": "tool-return",
+              "content_file_digests": []
             }
           ],
           "timestamp": "2026-10-14T09:30:14.833000Z",
@@ -314,14 +334,17 @@
               "id": null,
               "provider_name": null,
               "provider_details": null,
+              "citations": null,
               "part_kind": "text"
             }
           ],
           "usage": {
             "input_tokens": 5630,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 724,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -330,10 +353,12 @@
             "cost": null
           },
           "model_name": "gpt-5-nano",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:18.524000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_743d906bfe63",
           "finish_reason": "stop",
@@ -341,6 +366,7 @@
           "conversation_id": "0ac0ae80-cd05-5327-a2e3-7e5ac632ebc0",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         }
@@ -394,8 +420,10 @@
           "usage": {
             "input_tokens": 2478,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 386,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -404,10 +432,12 @@
             "cost": null
           },
           "model_name": "gpt-5-mini",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:08.845000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_477ef2a2a44b",
           "finish_reason": "tool_call",
@@ -415,6 +445,7 @@
           "conversation_id": "78a55fe5-6cc5-5ae0-8c2d-26bd70fdb6c0",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         },
@@ -469,7 +500,9 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:19.834000Z",
               "outcome": "success",
-              "part_kind": "tool-return"
+              "retry": null,
+              "part_kind": "tool-return",
+              "content_file_digests": []
             }
           ],
           "timestamp": "2026-10-14T09:30:19.834000Z",
@@ -498,8 +531,10 @@
           "usage": {
             "input_tokens": 5192,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 243,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -508,10 +543,12 @@
             "cost": null
           },
           "model_name": "gpt-5-mini",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:27.375000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_90df938ec998",
           "finish_reason": "tool_call",
@@ -519,6 +556,7 @@
           "conversation_id": "78a55fe5-6cc5-5ae0-8c2d-26bd70fdb6c0",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         },
@@ -573,7 +611,9 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:27.493000Z",
               "outcome": "success",
-              "part_kind": "tool-return"
+              "retry": null,
+              "part_kind": "tool-return",
+              "content_file_digests": []
             }
           ],
           "timestamp": "2026-10-14T09:30:27.493000Z",
@@ -591,14 +631,17 @@
               "id": null,
               "provider_name": null,
               "provider_details": null,
+              "citations": null,
               "part_kind": "text"
             }
           ],
           "usage": {
             "input_tokens": 7694,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 560,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -607,10 +650,12 @@
             "cost": null
           },
           "model_name": "gpt-5-mini",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:35.626000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_9c74d412e44c",
           "finish_reason": "stop",
@@ -618,6 +663,7 @@
           "conversation_id": "78a55fe5-6cc5-5ae0-8c2d-26bd70fdb6c0",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         }
@@ -672,8 +718,10 @@
           "usage": {
             "input_tokens": 3345,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 0,
             "output_tokens": 783,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -682,10 +730,12 @@
             "cost": null
           },
           "model_name": "gpt-5-mini",
+          "model_id": "function:function:model:",
           "timestamp": "2026-10-14T09:30:48.045000Z",
           "kind": "response",
           "provider_name": "openai",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_ef8fa6e5d6ed",
           "finish_reason": "tool_call",
@@ -693,6 +743,7 @@
           "conversation_id": "1150490b-6447-5414-ac2d-97165ecc19fc",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         },
@@ -747,7 +798,9 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:48.517000Z",
               "outcome": "success",
-              "part_kind": "tool-return"
+              "retry": null,
+              "part_kind": "tool-return",
+              "content_file_digests": []
             }
           ],
           "timestamp": "2026-10-14T09:30:48.517000Z",
@@ -794,6 +847,7 @@
               "id": null,
               "provider_name": null,
               "provider_details": null,
+              "citations": null,
               "part_kind": "text"
             },
             {
@@ -826,8 +880,10 @@
           "usage": {
             "input_tokens": 1199,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 599,
             "output_tokens": 573,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -836,10 +892,12 @@
             "cost": null
           },
           "model_name": "claude-sonnet-4-5",
+          "model_id": "function:function:orchestrator_model:",
           "timestamp": "2026-10-14T09:30:03.360000Z",
           "kind": "response",
           "provider_name": "anthropic",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_ed5bea94404f",
           "finish_reason": "tool_call",
@@ -847,6 +905,7 @@
           "conversation_id": "5eb76536-e0f3-5f49-bc0b-6ff0e74ca0ac",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         },
@@ -860,6 +919,7 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:36.438000Z",
               "outcome": "success",
+              "retry": null,
               "part_kind": "tool-return"
             },
             {
@@ -870,6 +930,7 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:36.438000Z",
               "outcome": "success",
+              "retry": null,
               "part_kind": "tool-return"
             }
           ],
@@ -900,8 +961,10 @@
           "usage": {
             "input_tokens": 3832,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 1916,
             "output_tokens": 433,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -910,10 +973,12 @@
             "cost": null
           },
           "model_name": "claude-sonnet-4-5",
+          "model_id": "function:function:orchestrator_model:",
           "timestamp": "2026-10-14T09:30:43.627000Z",
           "kind": "response",
           "provider_name": "anthropic",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_00170b85169b",
           "finish_reason": "tool_call",
@@ -921,6 +986,7 @@
           "conversation_id": "5eb76536-e0f3-5f49-bc0b-6ff0e74ca0ac",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         },
@@ -934,6 +1000,7 @@
               "metadata": null,
               "timestamp": "2026-10-14T09:30:48.825000Z",
               "outcome": "success",
+              "retry": null,
               "part_kind": "tool-return"
             }
           ],
@@ -952,14 +1019,17 @@
               "id": null,
               "provider_name": null,
               "provider_details": null,
+              "citations": null,
               "part_kind": "text"
             }
           ],
           "usage": {
             "input_tokens": 6692,
             "cache_write_tokens": 0,
+            "cache_write_1h_tokens": 0,
             "cache_read_tokens": 3346,
             "output_tokens": 523,
+            "output_reasoning_tokens": 0,
             "input_audio_tokens": 0,
             "cache_audio_read_tokens": 0,
             "output_audio_tokens": 0,
@@ -968,10 +1038,12 @@
             "cost": null
           },
           "model_name": "claude-sonnet-4-5",
+          "model_id": "function:function:orchestrator_model:",
           "timestamp": "2026-10-14T09:30:56.143000Z",
           "kind": "response",
           "provider_name": "anthropic",
           "provider_url": null,
+          "canonical_system": null,
           "provider_details": null,
           "provider_response_id": "resp_47f780756529",
           "finish_reason": "stop",
@@ -979,6 +1051,7 @@
           "conversation_id": "5eb76536-e0f3-5f49-bc0b-6ff0e74ca0ac",
           "metadata": null,
           "workspace_ref": null,
+          "history_digest": null,
           "failed_attempts": null,
           "state": "complete"
         }

@@ -3,6 +3,7 @@
 
 export type UtcDatetime = string;
 export type JsonValue = unknown;
+export type SpeechTimestampGranularity = "word" | "segment";
 export type ToolReturnContent =
   | string
   | (ImageUrl | AudioUrl | DocumentUrl | VideoUrl | BinaryContent | UploadedFile)
@@ -64,7 +65,13 @@ export interface ModelRequest {
     | LoadCapabilityReturnPart
     | ToolReturnPart
     | RetryPromptPart
+    | RetryFeedbackPart
     | ToolAvailabilityDeltaPart
+    | CapabilityLoadDeltaPart
+    | ModelSettingsDeltaPart
+    | InstructionDeltaPart
+    | InstructionBaselinePart
+    | CompactionPart
   )[];
   timestamp: string | null;
   instructions: string | null;
@@ -85,6 +92,11 @@ export interface SystemPromptPart {
   content: string;
   timestamp: string;
   dynamic_ref: string | null;
+  context_id: string | null;
+  scope: "conversation" | "request";
+  metadata: {
+    [k: string]: unknown;
+  } | null;
   part_kind: "system-prompt";
 }
 /**
@@ -98,12 +110,42 @@ export interface UserPromptPart {
     | string
     | (
         | string
+        | StructuredContent
         | TextContent
         | (ImageUrl | AudioUrl | DocumentUrl | VideoUrl | BinaryContent | UploadedFile)
         | CachePoint
       )[];
   timestamp: string;
   part_kind: "user-prompt";
+}
+/**
+ * A structured value in a user prompt, such as the state of the app the user is looking at.
+ *
+ * The value stays structured in the message history, so a history processor or evaluator can read it back,
+ * and a model that takes structured input natively, like a [decision model](../models/decision.md), is sent
+ * the value itself. Every other model is sent `content`: the value rendered as text once, when the item is
+ * created, and stored with it, so the text a model saw is reproduced exactly when the history is sent again,
+ * including after it was stored and loaded.
+ *
+ * This is a [`TextContent`][pydantic_ai.messages.TextContent], so code that reads `content` from text items
+ * handles it unchanged. Code that rewrites `content`, such as a redaction step, should replace the item with a
+ * plain `TextContent` holding the new text: a model that takes structured input would otherwise still be sent
+ * the original `value`.
+ *
+ * To render a kind of value the same way everywhere, subclass and override
+ * [`render`][pydantic_ai.messages.StructuredContent.render]. A subclass is not kept in a message history
+ * loaded from JSON: the item comes back as a `StructuredContent` with the text its `render` produced.
+ */
+export interface StructuredContent {
+  value: unknown;
+  content: string;
+  metadata: {
+    [k: string]: unknown;
+  };
+  kind: "structured-content";
+  format: ("json" | "xml") | null;
+  tag: string | null;
+  description: string | null;
 }
 /**
  * String content that is tagged with additional metadata.
@@ -360,12 +402,26 @@ export interface SpeechPart {
   transcript: string | null;
   audio: BinaryContent | null;
   interrupted_at_ms: number | null;
+  timestamps: SpeechTimestamp[] | null;
   id: string | null;
   provider_name: string | null;
   provider_details: {
     [k: string]: unknown;
   } | null;
   part_kind: "speech";
+}
+/**
+ * When a piece of the model's speech is heard in its audio, as the provider reports it.
+ *
+ * Lets an application line a reply's text up with its playback, for example to reveal words as they are
+ * spoken. Turned on with the realtime
+ * [`output_speech_timestamps`][pydantic_ai.realtime.RealtimeModelSettings.output_speech_timestamps] setting.
+ */
+export interface SpeechTimestamp {
+  text: string;
+  start_ms: number;
+  duration_ms: number;
+  granularity: SpeechTimestampGranularity;
 }
 /**
  * Typed view of a [`ToolReturnPart`][pydantic_ai.messages.ToolReturnPart] for the local `search_tools` function return.
@@ -376,9 +432,10 @@ export interface SpeechPart {
  * [`NativeToolSearchReturnPart`][pydantic_ai.messages.NativeToolSearchReturnPart]
  * instead.
  *
- * To detect a tool-search part regardless of execution path (native server-side
- * vs. local fallback), check `part.tool_kind == 'tool-search'` — this works
- * across both call/return and both server/local variants.
+ * `part.tool_kind == 'tool-search'` answers which tool a part belongs to, whatever its
+ * outcome and whether search ran server-side or locally. To read a search result, check
+ * `isinstance(part, ToolSearchReturnPart | NativeToolSearchReturnPart)` instead: a failed
+ * or denied return keeps its `tool_kind`, but its content is an error, not the typed result.
  *
  * Shadows `content` with a narrower
  * [`ToolSearchReturnContent`][pydantic_ai.messages.ToolSearchReturnContent]
@@ -393,7 +450,8 @@ export interface ToolSearchReturnPart {
     [k: string]: unknown;
   };
   timestamp: string;
-  outcome: "success" | "failed" | "denied" | "interrupted";
+  outcome: "success" | "failed" | "denied" | "interrupted" | "retried";
+  retry: RetryInfo | null;
   part_kind: "tool-return";
 }
 /**
@@ -408,12 +466,30 @@ export interface ToolSearchReturnPart {
 export interface ToolSearchReturnContent {
   discovered_tools: ToolSearchMatch[];
   message: string;
+  [k: string]: unknown;
 }
 /**
  * A single match in a tool-search result.
  */
 export interface ToolSearchMatch {
   name: string;
+  [k: string]: unknown;
+}
+/**
+ * Why a retry happened and how far into its budget it is.
+ *
+ * Carried by a retried [`ToolReturnPart`][pydantic_ai.messages.ToolReturnPart] as
+ * [`retry`][pydantic_ai.messages.ToolReturnPart.retry], and by every
+ * [`RetryFeedbackPart`][pydantic_ai.messages.RetryFeedbackPart] as
+ * [`retry`][pydantic_ai.messages.RetryFeedbackPart.retry].
+ *
+ * Metadata for your code only: it is never sent to the model, so it doesn't change the request or
+ * the provider's prompt cache.
+ */
+export interface RetryInfo {
+  cause: "validation_error" | "model_retry" | "unknown_tool" | "unavailable_tool";
+  attempt: number | null;
+  max_retries: number | null;
 }
 /**
  * Typed `ToolReturnPart` for the `load_capability` tool.
@@ -427,14 +503,17 @@ export interface LoadCapabilityReturnPart {
     [k: string]: unknown;
   };
   timestamp: string;
-  outcome: "success" | "failed" | "denied" | "interrupted";
+  outcome: "success" | "failed" | "denied" | "interrupted" | "retried";
+  retry: RetryInfo | null;
   part_kind: "tool-return";
 }
 /**
  * Typed return value for the `load_capability` tool.
  */
 export interface LoadCapabilityReturn {
+  message: string;
   instructions: string;
+  [k: string]: unknown;
 }
 /**
  * A tool return message, this encodes the result of running a tool.
@@ -443,27 +522,31 @@ export interface ToolReturnPart {
   tool_name: string;
   content: ToolReturnContent;
   tool_call_id: string;
-  tool_kind: ("tool-search" | "capability-load") | null;
+  tool_kind: string | null;
   metadata: {
     [k: string]: unknown;
   };
   timestamp: string;
-  outcome: "success" | "failed" | "denied" | "interrupted";
+  outcome: "success" | "failed" | "denied" | "interrupted" | "retried";
+  retry: RetryInfo | null;
   part_kind: "tool-return";
 }
 /**
+ * @deprecated
  * A message back to a model asking it to try again.
  *
- * This can be sent for a number of reasons:
+ * Deprecated in favour of the two parts it conflated. A retry that answers a tool call is that
+ * call's own [`ToolReturnPart`][pydantic_ai.messages.ToolReturnPart] with `outcome='retried'`; one
+ * that answers no call is a [`RetryFeedbackPart`][pydantic_ai.messages.RetryFeedbackPart]. Holding
+ * both in one class left a tool-less retry reaching every provider as bare user text the model
+ * couldn't tell from something a person wrote
+ * (https://github.com/pydantic/pydantic-ai/issues/6404).
  *
- * * Pydantic validation of tool arguments failed, here content is derived from a Pydantic
- *   [`ValidationError`][pydantic_core.ValidationError]
- * * a tool raised a [`ModelRetry`][pydantic_ai.exceptions.ModelRetry] exception
- * * no tool was found for the tool name
- * * the model returned plain text when a structured response was expected
- * * Pydantic validation of a structured response failed, here content is derived from a Pydantic
- *   [`ValidationError`][pydantic_core.ValidationError]
- * * an output validator raised a [`ModelRetry`][pydantic_ai.exceptions.ModelRetry] exception
+ * Nothing you already stored has to change: a `'retry-prompt'` part in a serialized history loads
+ * as whichever of the two it always meant, so old histories keep working and cost no warning. An
+ * instance still in memory — one your own code built, or one handed back through
+ * [`DeferredToolResults`][pydantic_ai.tools.DeferredToolResults] — is translated the same way
+ * before it reaches a model.
  */
 export interface RetryPromptPart {
   content: ErrorDetails[] | string;
@@ -483,6 +566,50 @@ export interface ErrorDetails {
   url: string;
 }
 /**
+ * Pydantic AI's own feedback about a model response it couldn't use.
+ *
+ * This part is never bound to a tool call, and deliberately carries no tool fields: it covers the
+ * retries where the response as a whole was unusable — structured output failed validation, an
+ * output validator or function raised [`ModelRetry`][pydantic_ai.exceptions.ModelRetry], or the
+ * response contained nothing that could serve as output. A tool call that needs retrying answers
+ * its own call as a [`ToolReturnPart`][pydantic_ai.messages.ToolReturnPart] with
+ * `outcome='retried'` instead. The deprecated
+ * [`RetryPromptPart`][pydantic_ai.messages.RetryPromptPart] was both at once.
+ *
+ * The stored part stays model-neutral; each model translates it at
+ * [`prepare_messages`][pydantic_ai.models.Model.prepare_messages] time into the part its `retry.cause`
+ * calls for — a fenced [`UserPromptPart`][pydantic_ai.messages.UserPromptPart] for validation
+ * errors or a [`ModelRetry`][pydantic_ai.exceptions.ModelRetry] message, either of which can quote
+ * the model's output, and a mid-conversation
+ * [`SystemPromptPart`][pydantic_ai.messages.SystemPromptPart] for the framework's fixed
+ * `'no_output'` text. Either way the model can tell the feedback apart from something a person wrote,
+ * which is what a retry rendered as bare user text never allowed
+ * (https://github.com/pydantic/pydantic-ai/issues/6404), and keeping the presentation out of the
+ * history keeps a cached prefix valid across providers.
+ */
+export interface RetryFeedbackPart {
+  content: ErrorDetails[] | string;
+  retry: RetryInfo1;
+  timestamp: string;
+  part_kind: "retry-feedback";
+}
+/**
+ * Why a retry happened and how far into its budget it is.
+ *
+ * Carried by a retried [`ToolReturnPart`][pydantic_ai.messages.ToolReturnPart] as
+ * [`retry`][pydantic_ai.messages.ToolReturnPart.retry], and by every
+ * [`RetryFeedbackPart`][pydantic_ai.messages.RetryFeedbackPart] as
+ * [`retry`][pydantic_ai.messages.RetryFeedbackPart.retry].
+ *
+ * Metadata for your code only: it is never sent to the model, so it doesn't change the request or
+ * the provider's prompt cache.
+ */
+export interface RetryInfo1 {
+  cause: "validation_error" | "no_output" | "model_retry";
+  attempt: number | null;
+  max_retries: number | null;
+}
+/**
  * Records that the set of tools available to the model changed at this point.
  *
  * Additions only. Withdrawing a tool is not supported yet, because no provider can be told about one
@@ -496,6 +623,147 @@ export interface ToolAvailabilityDeltaPart {
   tools_added: string[];
   tool_call_id: string | null;
   part_kind: "tool-availability-delta";
+}
+/**
+ * Records a change to the set of loaded [on-demand capabilities](../capabilities/on-demand.md) at this point, without a `load_capability` call.
+ *
+ * Additions only, in `loaded`: unloading a capability isn't supported yet.
+ *
+ * [`RunContext.load_capability`][pydantic_ai.tools.RunContext.load_capability] records one on the request after the
+ * tool call that loaded the capability, followed by a
+ * [`ToolAvailabilityDeltaPart`][pydantic_ai.messages.ToolAvailabilityDeltaPart] revealing its tools, if it has any. A
+ * load's record is the model's exchange, or else this delta: a capability the model loads through the
+ * `load_capability` tool is recorded by that call and its return, as with tool search, and writes no delta. Either
+ * way, the capability is loaded from the next model request on: its tools are callable, its instructions are stated,
+ * and its model settings and hooks apply.
+ *
+ * Never sent to the model: `prepare_messages` drops it, and the model sees the capability's instructions and
+ * tools instead.
+ */
+export interface CapabilityLoadDeltaPart {
+  loaded: string[];
+  tool_call_id: string | null;
+  part_kind: "capability-load-delta";
+}
+/**
+ * Records model settings that change from this point in the conversation onward.
+ *
+ * The framework records one whenever a request resolves a [`RecordedModelSettings`][pydantic_ai.settings.RecordedModelSettings]
+ * key to a different value than the one in effect; today that's the effort level of the unified
+ * [`thinking`][pydantic_ai.settings.ModelSettings.thinking] setting. Request-level settings are part of the
+ * provider's prompt cache key, so a model adapter that can deliver a change mid-conversation (for effort, an
+ * OpenAI Responses `configuration_update` item or a per-message Anthropic `output_config`) renders it in place
+ * and keeps sending the window's opening value as the request-level setting. For every other key and model, the
+ * part is dropped and the current value goes out as the request-level setting, as it would without it. See
+ * [changing effort mid-conversation](../capabilities/thinking.md#changing-effort-mid-conversation).
+ */
+export interface ModelSettingsDeltaPart {
+  settings: RecordedModelSettings;
+  top_level: boolean;
+  part_kind: "model-settings-delta";
+}
+/**
+ * The model settings a [`ModelSettingsDeltaPart`][pydantic_ai.messages.ModelSettingsDeltaPart] records, by their unified [`ModelSettings`][pydantic_ai.settings.ModelSettings] keys.
+ *
+ * Only settings that shape what the model produces belong here, never transport or client settings such as
+ * `extra_headers`, `timeout` or `extra_body`. Each value is JSON-native, so a recorded change round-trips
+ * through storage and UI protocols unchanged. The framework records `thinking` today; a model adapter decides
+ * which recorded keys it can send mid-conversation and sends the rest as request-level settings.
+ */
+export interface RecordedModelSettings {
+  thinking: ("minimal" | "low" | "medium" | "high" | "xhigh" | "max") | null;
+}
+/**
+ * Replace or withdraw one operator-authored instruction from this point in history onward.
+ *
+ * Earlier statements remain in history; the latest statement for an id is effective. This is
+ * trusted operator content, so `sanitize_messages(strip_system_prompts=True)` strips it.
+ */
+export interface InstructionDeltaPart {
+  id: string | null;
+  content: string | null;
+  base_hash: string | null;
+  part_kind: "instruction-delta";
+}
+/**
+ * The instructions a request was sent with, recorded where a run of `on_change='append'` requests starts.
+ *
+ * A request records this when it opens a window: the first request with an
+ * [`on_change='append'`][pydantic_ai.messages.InstructionPart.on_change] block, and each request whose
+ * prefix has to change anyway (a rewritten block changed, a block's policy changed, compaction). Every
+ * request in the window is sent the same prefix, with each append-mode block at its value here, followed in
+ * history by the [`InstructionDeltaPart`][pydantic_ai.messages.InstructionDeltaPart]s since. An empty
+ * `instructions` list ends the window, so earlier changes stop applying.
+ *
+ * It's never sent to a model: it records what the request's
+ * [`instructions`][pydantic_ai.messages.ModelRequest.instructions] were made of, so a later request can
+ * tell whether it can keep the prefix and what its append-mode blocks said. Like a system prompt, it's
+ * trusted operator content, so `sanitize_messages(strip_system_prompts=True)` strips it.
+ */
+export interface InstructionBaselinePart {
+  instructions: (InstructionPart | InstructionDigest)[];
+  part_kind: "instruction-baseline";
+}
+/**
+ * A single instruction part with metadata about its origin.
+ *
+ * Instructions are composed of one or more parts, each of which can be static (from a literal string)
+ * or dynamic (from a function, template, or toolset). This distinction allows model implementations
+ * to make intelligent caching decisions — e.g. Anthropic's prompt caching can cache the static prefix
+ * while leaving dynamic instructions uncached.
+ */
+export interface InstructionPart {
+  content: string;
+  dynamic: boolean;
+  on_change: "rewrite" | "append";
+  name: string | null;
+  id: string | null;
+  part_kind: "instruction";
+}
+/**
+ * A rewrite-mode instruction block as an [`InstructionBaselinePart`][pydantic_ai.messages.InstructionBaselinePart] records it.
+ *
+ * Only what decides whether the block is unchanged: a later request can keep its window's prefix only if
+ * every rewrite-mode block is still the same, in the same place.
+ */
+export interface InstructionDigest {
+  id: string | null;
+  dynamic: boolean;
+  content_hash: string;
+  part_kind: "instruction-digest";
+}
+/**
+ * A compaction part that summarizes previous conversation history.
+ *
+ * Compaction parts contain an opaque or readable summary of prior messages,
+ * produced by provider-specific compaction mechanisms. They must be round-tripped
+ * back to the same provider in subsequent requests.
+ *
+ * For Anthropic, `content` contains a readable text summary.
+ * For OpenAI, `content` is `None` and the encrypted data is stored in `provider_details`.
+ *
+ * A provider's compaction part lives in a [`ModelResponse`][pydantic_ai.messages.ModelResponse], in
+ * that provider's own role.
+ *
+ * A summary the application or a capability wrote, such as Pydantic AI Harness's
+ * `SummarizingCompaction`, lives in a [`ModelRequest`][pydantic_ai.messages.ModelRequest] instead,
+ * with no `provider_name`, `id` or `provider_details`. The assistant continuing the conversation
+ * didn't write it, so every provider model sends its `content` as user-voice text inside
+ * `<pyai:conversation_summary>`, after a line saying a separate summarization model wrote it. A
+ * `FunctionModel` receives the part itself, a `DecisionModel` passes it on as a summary entry, and
+ * realtime sessions send it as user text.
+ */
+export interface CompactionPart {
+  content: string | null;
+  id: string | null;
+  provider_name: string | null;
+  provider_details: {
+    [k: string]: unknown;
+  } | null;
+  metadata: {
+    [k: string]: unknown;
+  } | null;
+  part_kind: "compaction";
 }
 /**
  * A response from a model, e.g. a message from the model to the Pydantic AI app.
@@ -517,10 +785,12 @@ export interface ModelResponse {
   )[];
   usage: RequestUsage;
   model_name: string | null;
+  model_id: string | null;
   timestamp: string;
   kind: "response";
   provider_name: string | null;
   provider_url: string | null;
+  canonical_system: string | null;
   provider_details: {
     [k: string]: unknown;
   } | null;
@@ -532,6 +802,7 @@ export interface ModelResponse {
     [k: string]: unknown;
   } | null;
   workspace_ref: WorkspaceRef | null;
+  history_digest: string | null;
   failed_attempts: ModelRequestAttempt[] | null;
   state: "complete" | "incomplete" | "suspended" | "interrupted";
 }
@@ -545,7 +816,49 @@ export interface TextPart {
   provider_details: {
     [k: string]: unknown;
   } | null;
+  citations: Citation[] | null;
   part_kind: "text";
+}
+/**
+ * Links part of a model's answer to the sources that back it.
+ */
+export interface Citation {
+  sources: (WebCitationSource | DocumentCitationSource)[];
+  anchor: (ContentCitationAnchor | MarkerCitationAnchor) | null;
+}
+/**
+ * A web page a citation points to.
+ */
+export interface WebCitationSource {
+  url: string;
+  title: string | null;
+  excerpts: string[];
+  kind: "web";
+}
+/**
+ * Any other source a citation points to, such as a document you sent or a file in the provider's file store.
+ */
+export interface DocumentCitationSource {
+  document_id: string | null;
+  title: string | null;
+  excerpts: string[];
+  kind: "document";
+}
+/**
+ * The text the citation's sources support, as positions in the part's `content`.
+ */
+export interface ContentCitationAnchor {
+  start: number;
+  end: number;
+  kind: "content";
+}
+/**
+ * A marker the model wrote, such as `[1]` or a link, as positions in the part's `content`.
+ */
+export interface MarkerCitationAnchor {
+  start: number;
+  end: number;
+  kind: "marker";
 }
 /**
  * Typed view of a [`ToolCallPart`][pydantic_ai.messages.ToolCallPart] for the local `search_tools` function call.
@@ -556,9 +869,10 @@ export interface TextPart {
  * [`NativeToolSearchCallPart`][pydantic_ai.messages.NativeToolSearchCallPart]
  * instead.
  *
- * To detect a tool-search part regardless of execution path (native server-side
- * vs. local fallback), check `part.tool_kind == 'tool-search'` — this works
- * across both call/return and both server/local variants.
+ * `part.tool_kind == 'tool-search'` answers which tool a part belongs to, whatever its
+ * outcome and whether search ran server-side or locally. To read a search result, check
+ * `isinstance(part, ToolSearchReturnPart | NativeToolSearchReturnPart)` instead: a failed
+ * or denied return keeps its `tool_kind`, but its content is an error, not the typed result.
  *
  * Shadows `args` with the canonical typed shape. The `str` variant covers the
  * streaming / partial-args case before parsing completes; once parsed,
@@ -590,6 +904,7 @@ export interface ToolSearchCallPart {
  */
 export interface ToolSearchArgs {
   queries: string[];
+  [k: string]: unknown;
 }
 /**
  * Typed `ToolCallPart` for the `load_capability` tool.
@@ -614,6 +929,7 @@ export interface LoadCapabilityArgs {
    * The id of the capability to load.
    */
   id: string;
+  [k: string]: unknown;
 }
 /**
  * A tool call from a model.
@@ -627,7 +943,7 @@ export interface ToolCallPart {
       }
     | null;
   tool_call_id: string;
-  tool_kind: ("tool-search" | "capability-load") | null;
+  tool_kind: string | null;
   id: string | null;
   provider_name: string | null;
   provider_details: {
@@ -643,9 +959,10 @@ export interface ToolCallPart {
  * The local-fallback path uses
  * [`ToolSearchCallPart`][pydantic_ai.messages.ToolSearchCallPart] instead.
  *
- * To detect a tool-search part regardless of execution path (native server-side
- * vs. local fallback), check `part.tool_kind == 'tool-search'` — this works
- * across both call/return and both server/local variants.
+ * `part.tool_kind == 'tool-search'` answers which tool a part belongs to, whatever its
+ * outcome and whether search ran server-side or locally. To read a search result, check
+ * `isinstance(part, ToolSearchReturnPart | NativeToolSearchReturnPart)` instead: a failed
+ * or denied return keeps its `tool_kind`, but its content is an error, not the typed result.
  *
  * Shadows `args` with a narrower type. The `str` variant covers the
  * streaming / partial-args case before parsing completes; once parsed,
@@ -676,17 +993,18 @@ export interface NativeToolSearchCallPart {
  * a worked example):
  *
  * 1. Add a sibling `pydantic_ai/_<name>.py` module that defines the cross-provider
- *    `TypedDict`s, the `NativeToolCallPart` / `NativeToolReturnPart` subclasses,
- *    and registers their narrowers into `_NATIVE_CALL_NARROWERS` /
- *    `_NATIVE_RETURN_NARROWERS` keyed by `tool_kind`. Subclass overrides
- *    `tool_kind: Literal['<emitter>']` to match the emitting
- *    [`AbstractNativeTool.kind`][pydantic_ai.native_tools.AbstractNativeTool.kind],
- *    and shadows `args` / `content` with a narrower type.
+ *    `TypedDict`s, the kind (with `ToolKind._core('<emitter>', args=..., content=...)`, matching
+ *    the emitting [`AbstractNativeTool.kind`][pydantic_ai.native_tools.AbstractNativeTool.kind]),
+ *    and the `NativeToolCallPart[Args]` / `NativeToolReturnPart[Content]` subclasses that pass it
+ *    as their `kind` class argument. As core kinds are in the deserialization union, each subclass
+ *    also declares `tool_kind: Literal['<emitter>'] = '<emitter>'` and shadows `args` / `content`
+ *    with the narrower type. (A kind defined outside core is a namespaced
+ *    [`ToolKind`][pydantic_ai.messages.ToolKind], and its parts declare nothing but properties.)
  * 2. Late-import the new module from this file (alongside the existing tool-search
  *    import) so registration runs whenever `pydantic_ai.messages` is imported.
- * 3. Add the subclass to `ModelResponsePart`'s discriminated union and to
- *    `_model_response_part_discriminator` so Pydantic deserialization auto-promotes
- *    on `model_validate` / `model_validate_json`.
+ * 3. Optionally, add the subclass to `ModelResponsePart`'s discriminated union and its
+ *    `_TYPED_PART_TAGS` entries so it appears in the message JSON schema. Without that,
+ *    `ModelResponse` / `ModelRequest` still promote it once built.
  *
  * Dispatch is by `tool_kind`, not `tool_name`. This protects users whose tools happen to
  * share a name with one of ours from accidentally getting their parts promoted (and
@@ -710,7 +1028,7 @@ export interface NativeToolCallPart {
       }
     | null;
   tool_call_id: string;
-  tool_kind: ("tool-search" | "capability-load") | null;
+  tool_kind: string | null;
   id: string | null;
   provider_name: string | null;
   provider_details: {
@@ -726,9 +1044,10 @@ export interface NativeToolCallPart {
  * The local-fallback path uses
  * [`ToolSearchReturnPart`][pydantic_ai.messages.ToolSearchReturnPart] instead.
  *
- * To detect a tool-search part regardless of execution path (native server-side
- * vs. local fallback), check `part.tool_kind == 'tool-search'` — this works
- * across both call/return and both server/local variants.
+ * `part.tool_kind == 'tool-search'` answers which tool a part belongs to, whatever its
+ * outcome and whether search ran server-side or locally. To read a search result, check
+ * `isinstance(part, ToolSearchReturnPart | NativeToolSearchReturnPart)` instead: a failed
+ * or denied return keeps its `tool_kind`, but its content is an error, not the typed result.
  *
  * Shadows `content` with a narrower
  * [`ToolSearchReturnContent`][pydantic_ai.messages.ToolSearchReturnContent]
@@ -743,7 +1062,7 @@ export interface NativeToolSearchReturnPart {
     [k: string]: unknown;
   };
   timestamp: string;
-  outcome: "success" | "failed" | "denied" | "interrupted";
+  outcome: "success" | "failed" | "denied" | "interrupted" | "retried";
   provider_name: string | null;
   provider_details: {
     [k: string]: unknown;
@@ -762,12 +1081,12 @@ export interface NativeToolReturnPart {
   tool_name: string;
   content: ToolReturnContent;
   tool_call_id: string;
-  tool_kind: ("tool-search" | "capability-load") | null;
+  tool_kind: string | null;
   metadata: {
     [k: string]: unknown;
   };
   timestamp: string;
-  outcome: "success" | "failed" | "denied" | "interrupted";
+  outcome: "success" | "failed" | "denied" | "interrupted" | "retried";
   provider_name: string | null;
   provider_details: {
     [k: string]: unknown;
@@ -786,25 +1105,6 @@ export interface ThinkingPart {
     [k: string]: unknown;
   } | null;
   part_kind: "thinking";
-}
-/**
- * A compaction part that summarizes previous conversation history.
- *
- * Compaction parts contain an opaque or readable summary of prior messages,
- * produced by provider-specific compaction mechanisms. They must be round-tripped
- * back to the same provider in subsequent requests.
- *
- * For Anthropic, `content` contains a readable text summary.
- * For OpenAI, `content` is `None` and the encrypted data is stored in `provider_details`.
- */
-export interface CompactionPart {
-  content: string | null;
-  id: string | null;
-  provider_name: string | null;
-  provider_details: {
-    [k: string]: unknown;
-  } | null;
-  part_kind: "compaction";
 }
 /**
  * A file response from a model.
@@ -827,8 +1127,11 @@ export interface FilePart {
 export interface RequestUsage {
   input_tokens: number;
   cache_write_tokens: number;
+  cache_write_1h_tokens: number;
   cache_read_tokens: number;
   output_tokens: number;
+  unmeasured_requests: number;
+  output_reasoning_tokens: number;
   input_audio_tokens: number;
   cache_audio_read_tokens: number;
   output_audio_tokens: number;
@@ -850,8 +1153,9 @@ export interface WorkspaceRef {
 /**
  * An attempt at a model request that did not produce the response it is recorded on.
  *
- * A [`FallbackModel`][pydantic_ai.models.fallback.FallbackModel] records one for each model it moved
- * on from, on the response of the model that answered
+ * A [`FallbackModel`][pydantic_ai.models.fallback.FallbackModel] or the
+ * [`ModelFallback`][pydantic_ai.capabilities.ModelFallback] capability records one for each model it moved on
+ * from, on the response of the model that answered
  * ([`ModelResponse.failed_attempts`][pydantic_ai.messages.ModelResponse.failed_attempts]), or on the
  * [`FallbackExceptionGroup`][pydantic_ai.exceptions.FallbackExceptionGroup] when every model failed.
  */
@@ -874,6 +1178,7 @@ export interface Totals {
   tokens: Tokens;
   cost_usd: string | null;
   unpriced_calls: number;
+  unmeasured_calls: number;
   duration_seconds: number;
 }
 export interface Tokens {

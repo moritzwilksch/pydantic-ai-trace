@@ -14,7 +14,12 @@ from functools import cached_property
 from typing import Annotated, Any, Literal, NewType, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, model_validator
-from pydantic_ai.messages import BaseToolCallPart, ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.messages import (
+    BaseToolCallPart,
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    RetryPromptPart,
+)
 from uuid_utils import uuid7
 
 RunId = NewType("RunId", str)  # Unique in its run tree; UUID7 by default.
@@ -30,6 +35,22 @@ def _as_utc(value: datetime) -> datetime:
 
 
 type UtcDatetime = Annotated[datetime, AfterValidator(_as_utc)]
+
+
+def _without_retry_prompts(messages: tuple[ModelMessage, ...]) -> tuple[ModelMessage, ...]:
+    """Messages whose deprecated `RetryPromptPart`s are replaced by the parts they meant.
+
+    Pydantic AI translates a stored `retry-prompt` when it validates a dump, but keeps a
+    constructed `RetryPromptPart` as is. Round-tripping the messages that hold one means
+    renderers see only retried tool returns and `RetryFeedbackPart`s. Remove with
+    `RetryPromptPart` in Pydantic AI v3.
+    """
+    return tuple(
+        ModelMessagesTypeAdapter.validate_python(ModelMessagesTypeAdapter.dump_python([message]))[0]
+        if any(isinstance(part, RetryPromptPart) for part in message.parts)
+        else message
+        for message in messages
+    )
 
 
 def new_run_id() -> RunId:
@@ -82,7 +103,9 @@ class Run(_Frozen):
     ended_at: UtcDatetime
     outcome: Outcome
     # Only the messages this run produced, without inherited history.
-    messages: Annotated[tuple[ModelMessage, ...], Field(min_length=1)]
+    messages: Annotated[
+        tuple[ModelMessage, ...], Field(min_length=1), AfterValidator(_without_retry_prompts)
+    ]
 
     @classmethod
     def from_messages(

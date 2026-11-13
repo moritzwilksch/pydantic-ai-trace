@@ -11,7 +11,6 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -62,15 +61,6 @@ class TestToolPairing:
             (PartRef(message=0, part=1), PartRef(message=1, part=0)),
         ]
         assert run.matched_results == (PartRef(message=1, part=0), PartRef(message=1, part=1))
-
-    def test_a_retry_answers_a_call(self):
-        retry = ModelRequest(
-            parts=[RetryPromptPart(content="bad", tool_name="t", tool_call_id="a")]
-        )
-
-        [run] = analyze(RunTree(runs=(single_run(call("a"), retry),))).runs
-
-        assert run.tool_calls[0].result == PartRef(message=1, part=0)
 
     def test_reused_ids_pair_chronologically(self):
         [run] = analyze(
@@ -214,6 +204,19 @@ class TestTotals:
         assert run.responses[0].cost_usd is None
         assert run.totals.cost_usd is None
         assert run.totals.unpriced_calls == 1
+
+    def test_a_response_without_usage_is_unmeasured_and_unpriced(self):
+        unmeasured = ModelResponse(
+            parts=[TextPart(content="x")],
+            model_name="gpt-4o",
+            usage=RequestUsage(unmeasured_requests=1),
+            timestamp=START,
+        )
+
+        [run] = analyze(RunTree(runs=(single_run(unmeasured),))).runs
+
+        assert (run.totals.unmeasured_calls, run.totals.unpriced_calls) == (1, 1)
+        assert run.totals.cost_usd is None
 
 
 def test_a_chain_deeper_than_the_recursion_limit_is_analyzed():

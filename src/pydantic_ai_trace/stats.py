@@ -120,6 +120,8 @@ def format_table(rows: Sequence[StatsRow]) -> str:
         lines.extend(_align([_HEADER, *body]))
         if any(row.totals.unpriced_calls for row in valid):
             lines.append("* includes responses without a known price")
+        if any(row.totals.unmeasured_calls for row in valid):
+            lines.append("+ excludes responses that did not report usage")
     if invalid:
         if lines:
             lines.append("")
@@ -159,13 +161,15 @@ _HEADER = ("trace", "runs", "calls", "in", "cached", "out", "cost", "wall")
 
 def _cells(name: str, runs: str, totals: Totals) -> tuple[str, ...]:
     tokens = totals.tokens
+    # Token counts are lower bounds when a response omitted its usage.
+    mark = "+" if totals.unmeasured_calls else ""
     return (
         name,
         runs,
         format_count(totals.llm_calls),
-        format_count(tokens.input),
-        format_count(tokens.cache_read),
-        format_count(tokens.output),
+        format_count(tokens.input) + mark,
+        format_count(tokens.cache_read) + mark,
+        format_count(tokens.output) + mark,
         _cost(totals),
         format_duration(totals.duration_seconds),
     )

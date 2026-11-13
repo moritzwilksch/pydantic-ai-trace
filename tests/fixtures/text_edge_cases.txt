@@ -17,6 +17,8 @@ café
 
 [cache point]
 
+<ui_state>{"page":"checkout"}</ui_state>
+
 ========== RESPONSE 1 [INTERRUPTED] · edge-model · 12 in (8 cached) → 3 out ==========
 
 --- TOOL CALL: malformed_args ---
@@ -39,3 +41,7 @@ whole: 1
 small: 0.000001
 tiny: 1e-7
 unicode: "café"
+
+--- RETRY FEEDBACK ---
+
+Respond with a city name.

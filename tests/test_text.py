@@ -17,6 +17,7 @@ from pydantic_ai_trace.load import load_run_tree
 from pydantic_ai_trace.payload import build_payload
 
 FIXTURES = Path(__file__).parent / "fixtures"
+EXAMPLES = Path(__file__).parent.parent / "examples" / "traces"
 
 
 def transcript(trace_json: str, name: str) -> str:
@@ -43,6 +44,8 @@ def request(*parts: dict, **fields: object) -> dict:
         ),
         (FIXTURES / "runs" / "tool_search.json", FIXTURES / "runs" / "tool_search.txt"),
         (FIXTURES / "text_edge_cases.json", FIXTURES / "text_edge_cases.txt"),
+        # Run state Pydantic AI records in history, from a real agent run.
+        (EXAMPLES / "support" / "warranty-claim.json", FIXTURES / "warranty_claim.txt"),
     ],
 )
 def test_formatter_matches_shared_golden(trace_path: Path, expected_path: Path):

@@ -102,7 +102,8 @@ def _totals(totals: Totals) -> str:
     tokens = totals.tokens
     summary = [
         f"LLM CALLS: {format_count(totals.llm_calls)}",
-        f"TOKENS: {_token_usage(tokens.input, tokens.output, tokens.cache_read)}",
+        f"TOKENS: {_token_usage(tokens.input, tokens.output, tokens.cache_read)}"
+        + (f" (+{totals.unmeasured_calls} without usage)" if totals.unmeasured_calls else ""),
     ]
     if totals.cost_usd is not None:
         unpriced = f" (+{totals.unpriced_calls} unpriced)" if totals.unpriced_calls else ""
@@ -183,7 +184,9 @@ def _response_envelope(response: dict[str, Any], number: int, cost_usd: Decimal 
         details.append(_inline(response["model_name"]))
     usage = response["usage"]
     details.append(
-        _token_usage(usage["input_tokens"], usage["output_tokens"], usage["cache_read_tokens"])
+        "usage not reported"
+        if usage.get("unmeasured_requests")
+        else _token_usage(usage["input_tokens"], usage["output_tokens"], usage["cache_read_tokens"])
     )
     if cost_usd is not None:
         details.append(format_usd(cost_usd))
@@ -206,15 +209,15 @@ def _format_part(part: dict[str, Any]) -> str:
     if kind == "user-prompt":
         return _part_section("USER PROMPT", _format_user_content(part.get("content")))
     if kind == "text":
-        return _part_section("TEXT", _js_string(part.get("content")))
+        return _part_section("TEXT", _format_text(part))
     if kind == "thinking":
         return _part_section("THINKING", _js_string(part["content"])) if part.get("content") else ""
     if kind in {"tool-call", "builtin-tool-call"}:
         return _format_tool_call(part)
     if kind in {"tool-return", "builtin-tool-return"}:
         return _format_tool_return(part)
-    if kind == "retry-prompt":
-        return _format_retry_prompt(part)
+    if kind == "retry-feedback":
+        return _part_section("RETRY FEEDBACK", _format_value(part.get("content")))
     if kind == "compaction":
         content = part.get("content")
         return _part_section(
@@ -224,6 +227,23 @@ def _format_part(part: dict[str, Any]) -> str:
         return _part_section("FILE", _format_file(part.get("content")))
     if kind == "tool-availability-delta":
         return _format_tool_availability_delta(part)
+    if kind == "capability-load-delta":
+        return _part_section(
+            "CAPABILITIES LOADED",
+            "\n".join(f"+{_inline(capability_id)}" for capability_id in part["loaded"]),
+        )
+    if kind == "model-settings-delta":
+        return _format_model_settings_delta(part)
+    if kind == "instruction-baseline":
+        # Never sent to the model: it records what the request's instructions, rendered above,
+        # were made of.
+        return ""
+    if kind == "instruction-delta":
+        content = part["content"]
+        return _part_section(
+            f"INSTRUCTION DELTA: {_instruction_id(part['id'])}",
+            "[WITHDRAWN]" if content is None else _js_string(content),
+        )
     return _part_section(f"UNKNOWN PART: {_inline(kind)}", _json(part))
 
 
@@ -268,7 +288,7 @@ def _format_tool_return(part: dict[str, Any]) -> str:
     kind = "BUILTIN TOOL RETURN" if part["part_kind"] == "builtin-tool-return" else "TOOL RETURN"
     tool_kind = f" [{_inline(part['tool_kind']).upper()}]" if part.get("tool_kind") else ""
     outcome = part.get("outcome")
-    outcome_label = f" [{outcome.upper()}]" if outcome in {"failed", "denied"} else ""
+    outcome_label = f" [{outcome.upper()}]" if outcome in {"failed", "denied", "retried"} else ""
     return _part_section(
         f"{kind}: {_inline(part.get('tool_name'))}{tool_kind}{outcome_label}",
         _format_tool_return_content(part),
@@ -294,9 +314,40 @@ def _format_tool_availability_delta(part: dict[str, Any]) -> str:
     return _part_section("TOOL AVAILABILITY", body)
 
 
-def _format_retry_prompt(part: dict[str, Any]) -> str:
-    tool = f": {_inline(part['tool_name'])}" if part.get("tool_name") else ""
-    return _part_section(f"RETRY PROMPT{tool}", _format_value(part.get("content")))
+def _format_text(part: dict[str, Any]) -> str:
+    """The text, then the sources its citations name, each under the text it backs."""
+    content = _js_string(part.get("content"))
+    citations = part.get("citations")
+    if not citations:
+        return content
+    lines = ["CITATIONS:"]
+    for number, citation in enumerate(citations, start=1):
+        anchor = citation.get("anchor")
+        cited = f" {_json(content[anchor['start'] : anchor['end']])}" if anchor else ""
+        lines.append(f"{number}.{cited}")
+        for source in citation["sources"]:
+            lines.append(f"   - {_citation_source(source)}")
+            lines.extend(f"     > {_inline(excerpt)}" for excerpt in source["excerpts"])
+    return f"{content}\n\n" + "\n".join(lines)
+
+
+def _citation_source(source: dict[str, Any]) -> str:
+    if source["kind"] == "web":
+        title = f"{_inline(source['title'])} " if source.get("title") else ""
+        return f"{title}<{_inline(source['url'])}>"
+    names = [_inline(source[key]) for key in ("title", "document_id") if source.get(key)]
+    return f"document {' · '.join(names)}" if names else "document"
+
+
+def _format_model_settings_delta(part: dict[str, Any]) -> str:
+    """Settings in effect from here on; request-level when it opened a new window."""
+    body = "\n".join(_outline(part["settings"]))
+    return _part_section("MODEL SETTINGS" + (" [REQUEST-LEVEL]" if part["top_level"] else ""), body)
+
+
+def _instruction_id(value: object) -> str:
+    """A block's id; Pydantic AI leaves it unset for a block nothing addresses."""
+    return _inline(value) or "unnamed"
 
 
 def _tool_search_queries(part: dict[str, Any]) -> list[str] | None:
@@ -351,7 +402,8 @@ def _format_user_item(item: object) -> str:
         return item
     if not isinstance(item, dict):
         return _json(item)
-    if item.get("kind") == "text-content":
+    # Structured content keeps `content`, its value rendered as the text most models were sent.
+    if item.get("kind") in {"text-content", "structured-content"}:
         return _js_string(item.get("content"))
     if item.get("kind") == "uploaded-file":
         return "[uploaded file]"

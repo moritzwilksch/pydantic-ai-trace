@@ -32,6 +32,68 @@ def compact_messages(trace: object, name: str) -> list:
     return compact(trace, name)["runs"][0]["messages"]
 
 
+def test_run_state_parts_citations_and_omitted_usage_stay_readable():
+    path = Path(__file__).parent.parent / "examples" / "traces" / "support" / "warranty-claim.json"
+
+    document = compact(json.loads(path.read_text(encoding="utf-8")), "warranty-claim.json")
+
+    assert document["stats"]["unmeasured_calls"] == 1
+    messages = document["runs"][0]["messages"]
+    first, second = messages[0]["parts"], messages[2]["parts"]
+    # The instruction baseline is never sent to the model, so it is left out.
+    assert first[1:] == [
+        {"type": "model_settings", "settings": {"thinking": "low"}, "top_level": True},
+    ]
+    assert second == [
+        {"type": "capabilities_loaded", "loaded": ["warranty"], "id": "call_1"},
+        {"type": "tools_available", "tools_added": ["check_warranty"], "id": "call_1"},
+        {
+            "type": "instruction_delta",
+            "id": "agent:queue",
+            "content": "Claims waiting in the queue: 6.",
+        },
+        {"type": "model_settings", "settings": {"thinking": "high"}},
+    ]
+    assert messages[5]["usage"] == {"unmeasured_requests": 1}
+    assert messages[-1]["parts"][0]["citations"] == [
+        {
+            "cited_text": "the 24-month warranty runs until 2027-03-02",
+            "sources": [
+                {
+                    "url": "https://shop.example/help/warranty",
+                    "title": "Warranty terms",
+                    "excerpts": ["Audio products carry a 24-month manufacturer warranty."],
+                }
+            ],
+        },
+        {
+            "marker": "[1]",
+            "sources": [{"document_id": "file_7Kq2", "title": "invoice-A-2210.pdf"}],
+        },
+    ]
+
+
+def test_retry_feedback_is_a_retry_tied_to_no_call():
+    messages = compact_messages(
+        [
+            {"kind": "response", "parts": [{"part_kind": "text", "content": "Hmm."}]},
+            {
+                "kind": "request",
+                "parts": [
+                    {
+                        "part_kind": "retry-feedback",
+                        "content": "Respond with a city name.",
+                        "retry": {"cause": "model_retry"},
+                    }
+                ],
+            },
+        ],
+        "feedback.json",
+    )
+
+    assert messages[1]["parts"] == [{"type": "retry", "content": "Respond with a city name."}]
+
+
 def test_compact_run_tree_preserves_order_and_useful_fields():
     raw = json.loads((FIXTURES / "full_trace.json").read_text(encoding="utf-8"))
 

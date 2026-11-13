@@ -21,8 +21,23 @@ const FULL_TRACE = [
           { kind: "image-url", url: "https://example.com/x.png" },
           { kind: "binary", data: "aGk=", media_type: "application/pdf" },
           { kind: "cache-point" },
+          { kind: "structured-content", value: { page: "checkout" }, content: "page: checkout" },
         ],
         timestamp: "2026-07-01T09:00:00Z",
+      },
+      {
+        part_kind: "instruction-baseline",
+        instructions: [
+          { part_kind: "instruction-digest", id: "agent", dynamic: false, content_hash: "ab12" },
+          {
+            part_kind: "instruction",
+            id: "agent:queue",
+            content: "Queue: 9.",
+            dynamic: true,
+            on_change: "append",
+            name: "queue",
+          },
+        ],
       },
     ],
   },
@@ -64,10 +79,17 @@ const FULL_TRACE = [
         content: ["Here is the page:", { kind: "binary", data: "aGk=", media_type: "image/png" }],
       },
       {
-        part_kind: "retry-prompt",
+        part_kind: "tool-return",
         tool_name: "other",
         tool_call_id: "unrelated",
         content: [{ type: "missing", loc: ["q"], msg: "Field required", input: {} }],
+        outcome: "retried",
+        retry: { cause: "validation_error" },
+      },
+      {
+        part_kind: "retry-feedback",
+        content: "Respond with a city name.",
+        retry: { cause: "model_retry" },
       },
       {
         part_kind: "tool-return",
@@ -88,6 +110,9 @@ const FULL_TRACE = [
         tools_added: ["refund_invoice", "get_invoice"],
         tool_call_id: "ts1",
       },
+      { part_kind: "capability-load-delta", loaded: ["warranty"], tool_call_id: "c1" },
+      { part_kind: "model-settings-delta", settings: { thinking: "high" }, top_level: false },
+      { part_kind: "instruction-delta", id: "agent:queue", content: "Queue: 6.", base_hash: null },
     ],
   },
   {
@@ -597,16 +622,28 @@ describe("App in exported-trace mode", () => {
 
   it("renders every part kind of an embedded trace without crashing", () => {
     embedMessages(FULL_TRACE, { name: "smoke.json" });
-    const { container, getByText, getAllByText } = render(<App />);
+    const { container, getByText, getAllByText, queryByText } = render(<App />);
 
     getByText("smoke.json"); // header title
     getAllByText("Be helpful."); // system prompt (collapsed preview + body)
     getAllByText("search"); // tool call and its return in the original request
     getByText("no return recorded"); // orphan badge
-    getByText("Field required"); // retry error table
+    getByText("Field required"); // validation errors of a retried return, as a table
+    getAllByText("Respond with a city name."); // retry feedback (collapsed preview + body)
+    getAllByText(/checkout/); // structured user content renders its value
     getByText("speech"); // parts without a dedicated renderer fall back to raw JSON
     getByText("Compaction"); // compaction part label
     getByText("Tools available"); // tool-availability-delta label
+    // Run state Pydantic AI records in history, each with its own renderer.
+    // Never sent to the model, so not shown; the request's instructions hold its text.
+    expect(queryByText("Instruction baseline")).toBeNull();
+    expect(queryByText("Queue: 9.")).toBeNull();
+    getByText("Instruction delta");
+    getByText("Model settings");
+    getAllByText("thinking: high");
+    getByText("Capabilities loaded");
+    getAllByText("+warranty");
+    expect(getAllByText("unknown kind")).toHaveLength(1); // only the speech part
     getAllByText("Instructions"); // request-level instructions block
     // tool return with media content renders the image, not a base64 dump
     const mediaReturn = getByText("screenshot").closest("details")!;
@@ -848,10 +885,11 @@ describe("App in exported-trace mode", () => {
         kind: "request",
         parts: [
           {
-            part_kind: "retry-prompt",
+            part_kind: "tool-return",
             tool_name: "answer",
             content: "city: Input should be a valid string",
             tool_call_id: "o1",
+            outcome: "retried",
           },
         ],
       },
@@ -893,7 +931,8 @@ describe("App in exported-trace mode", () => {
     const accepted = container.querySelector(".output-accepted")!;
     expect(accepted.textContent?.trim()).toBe("Output accepted answer#2");
     expect(accepted.querySelector(".pair-link")?.ariaLabel).toBe("Jump to call #2");
-    expect(container.textContent).not.toContain("Tool return");
+    // The acceptance is muted; its fixed status text is not shown as a tool return.
+    expect(container.textContent).not.toContain("Final result processed.");
   });
 
   it("renders JSON keys in their source order", () => {
@@ -991,7 +1030,7 @@ describe("App in exported-trace mode", () => {
           { part_kind: "user-prompt", content },
           { part_kind: "user-prompt", content: [content] },
           { part_kind: "user-prompt", content: [{ kind: "text-content", content }] },
-          { part_kind: "retry-prompt", content },
+          { part_kind: "retry-feedback", content, retry: { cause: "model_retry" } },
         ],
       },
     ]);
