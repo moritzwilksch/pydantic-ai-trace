@@ -74,7 +74,7 @@ export function MessageCard({
     >
       <CardHeader
         className={cn(
-          `card-kind kind-${message.kind} flex items-center gap-2 border-b px-3.5 py-2 text-xs font-semibold text-muted-foreground in-[[data-slot=card]:has(>[data-slot=card-panel])]:pb-2`,
+          `card-kind kind-${message.kind} flex items-center gap-2 border-b px-3.5 py-2 text-xs font-semibold text-foreground in-[[data-slot=card]:has(>[data-slot=card-panel])]:pb-2`,
           isResponse && "border-assistant/20 text-assistant",
         )}
       >
@@ -238,7 +238,7 @@ function ResponseFooter({
   costUsd: string | null;
 }) {
   return (
-    <CardFooter className="card-footer flex-wrap gap-2.5 border-t border-assistant/20 px-3.5 py-1.5 text-[11.5px] text-muted-foreground in-[[data-slot=card]:has(>[data-slot=card-panel])]:pt-1.5">
+    <CardFooter className="card-footer flex-wrap gap-2.5 border-t border-assistant/20 px-3.5 py-1.5 text-[11.5px] text-subtle-foreground in-[[data-slot=card]:has(>[data-slot=card-panel])]:pt-1.5">
       {response.model_name ? <span>{response.model_name}</span> : null}
       {response.provider_name ? <span>{response.provider_name}</span> : null}
       {response.finish_reason ? <span>finish: {response.finish_reason}</span> : null}
@@ -265,7 +265,7 @@ function Timestamp({ value, runStartMs }: { value: string | null; runStartMs: nu
   if (value === null) return null;
   const parsed = Date.parse(value);
   return (
-    <span class="ml-auto font-normal text-muted-foreground" title={value}>
+    <span class="ml-auto font-normal text-subtle-foreground" title={value}>
       {new Date(parsed).toLocaleTimeString()} (+{formatDuration((parsed - runStartMs) / 1000)})
     </span>
   );

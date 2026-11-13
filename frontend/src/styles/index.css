@@ -5,7 +5,9 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* coss neutral colors (@coss/colors-neutral), plus the viewer's own tokens:
-   who produced a block, search matches, and code syntax. */
+   secondary text, who produced a block, search matches, and code syntax.
+   Text contrast steps: foreground for content, subtle-foreground for metadata
+   (timestamps, usage, labels), muted-foreground for chrome (chevrons, hints). */
 :root {
   --accent: --alpha(var(--color-black) / 4%);
   --accent-foreground: var(--color-neutral-800);
@@ -21,6 +23,7 @@
   --input: --alpha(var(--color-black) / 10%);
   --muted: --alpha(var(--color-black) / 4%);
   --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
+  --subtle-foreground: --alpha(var(--foreground) / 80%);
   --popover: var(--color-white);
   --popover-foreground: var(--color-neutral-800);
   --primary: var(--color-neutral-800);
@@ -37,7 +40,7 @@
   --user: var(--color-blue-600);
   --system: var(--color-purple-600);
   --assistant: var(--color-cyan-700);
-  --tool: var(--color-slate-600);
+  --tool: var(--color-slate-700);
   --search-match: #f7d96b;
   --search-current: #f59e0b;
   --code-key: var(--color-blue-700);
@@ -61,6 +64,7 @@
   --input: --alpha(var(--color-white) / 8%);
   --muted: --alpha(var(--color-white) / 4%);
   --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-white));
+  --subtle-foreground: --alpha(var(--foreground) / 80%);
   --popover: color-mix(in srgb, var(--background) 98%, var(--color-white));
   --popover-foreground: var(--color-neutral-100);
   --primary: var(--color-neutral-100);
@@ -77,7 +81,7 @@
   --user: var(--color-blue-400);
   --system: var(--color-purple-400);
   --assistant: var(--color-cyan-400);
-  --tool: var(--color-slate-400);
+  --tool: var(--color-slate-300);
   --search-match: #7c5d16;
   --search-current: #d97706;
   --code-key: var(--color-blue-300);
@@ -101,6 +105,7 @@
   --color-input: var(--input);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);

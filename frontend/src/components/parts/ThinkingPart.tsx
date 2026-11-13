@@ -16,7 +16,7 @@ export function ThinkingPart({ part }: { part: ThinkingPartType }) {
       badges={part.provider_name ? <Badge variant="outline">{part.provider_name}</Badge> : null}
       preview={typeof part.content === "string" ? part.content : undefined}
     >
-      <div class="italic text-muted-foreground">
+      <div class="italic text-subtle-foreground">
         <ValueView value={part.content} />
       </div>
     </Block>
